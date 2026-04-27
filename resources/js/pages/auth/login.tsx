@@ -45,6 +45,7 @@ export default function Login({
                                     tabIndex={1}
                                     autoComplete="email"
                                     placeholder="email@example.com"
+                                    className="h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15"
                                 />
                                 <InputError message={errors.email} />
                             </div>
@@ -55,7 +56,7 @@ export default function Login({
                                     {canResetPassword && (
                                         <TextLink
                                             href={request()}
-                                            className="ml-auto text-sm"
+                                            className="ml-auto text-sm font-medium text-[#0038A8] decoration-[#d9e5f5] hover:text-[#002f8f]"
                                             tabIndex={5}
                                         >
                                             Forgot password?
@@ -69,6 +70,7 @@ export default function Login({
                                     tabIndex={2}
                                     autoComplete="current-password"
                                     placeholder="Password"
+                                    className="h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15"
                                 />
                                 <InputError message={errors.password} />
                             </div>
@@ -78,13 +80,14 @@ export default function Login({
                                     id="remember"
                                     name="remember"
                                     tabIndex={3}
+                                    className="border-[#d9e5f5] data-[state=checked]:border-[#0038A8] data-[state=checked]:bg-[#0038A8] focus-visible:ring-[#0038A8]/15"
                                 />
                                 <Label htmlFor="remember">Remember me</Label>
                             </div>
 
                             <Button
                                 type="submit"
-                                className="mt-4 w-full"
+                                className="mt-4 h-11 w-full rounded-xl bg-[#0038A8] font-semibold text-white shadow-sm shadow-[#0038A8]/15 hover:bg-[#002f8f] focus-visible:ring-[#0038A8]/20"
                                 tabIndex={4}
                                 disabled={processing}
                                 data-test="login-button"
@@ -95,9 +98,13 @@ export default function Login({
                         </div>
 
                         {canRegister && (
-                            <div className="text-center text-sm text-muted-foreground">
+                            <div className="text-center text-sm text-slate-600">
                                 Don't have an account?{' '}
-                                <TextLink href={register()} tabIndex={5}>
+                                <TextLink
+                                    href={register()}
+                                    tabIndex={5}
+                                    className="font-medium text-[#0038A8] decoration-[#d9e5f5] hover:text-[#002f8f]"
+                                >
                                     Sign up
                                 </TextLink>
                             </div>
@@ -116,6 +123,7 @@ export default function Login({
 }
 
 Login.layout = {
-    title: 'Log in to your account',
-    description: 'Enter your email and password below to log in',
+    title: 'Access CERS',
+    description:
+        'Sign in to manage CHED event registration, attendance, and records.',
 };
