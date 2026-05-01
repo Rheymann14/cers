@@ -5,7 +5,9 @@ namespace App\Actions\Fortify;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
 class CreateNewUser implements CreatesNewUsers
@@ -24,6 +26,7 @@ class CreateNewUser implements CreatesNewUsers
             'middle_name' => ['nullable', 'string', 'max:255'],
             'surname' => ['required', 'string', 'max:255'],
             'email' => $this->emailRules(),
+            'avatar' => ['nullable', 'string'],
             'phone' => ['required', 'string', 'max:50'],
             'organization' => ['required', 'string', 'max:255'],
             'position' => ['nullable', 'string', 'max:255'],
@@ -33,6 +36,8 @@ class CreateNewUser implements CreatesNewUsers
             'consent' => ['accepted'],
             'password' => $this->passwordRules(),
         ])->validate();
+
+        $avatar = $this->storeAvatar($input['avatar'] ?? null);
 
         $name = trim(collect([
             $input['given_name'],
@@ -46,6 +51,7 @@ class CreateNewUser implements CreatesNewUsers
             'middle_name' => $input['middle_name'] ?? null,
             'surname' => $input['surname'],
             'email' => $input['email'],
+            'avatar' => $avatar,
             'phone' => $input['phone'],
             'organization' => $input['organization'],
             'position' => $input['position'] ?? null,
@@ -55,5 +61,25 @@ class CreateNewUser implements CreatesNewUsers
             'registration_consent_accepted_at' => now(),
             'password' => $input['password'],
         ]);
+    }
+
+    private function storeAvatar(?string $avatar): ?string
+    {
+        if (! $avatar || ! preg_match('/^data:image\/(png|jpeg);base64,/', $avatar, $matches)) {
+            return null;
+        }
+
+        $contents = base64_decode(substr($avatar, strpos($avatar, ',') + 1), true);
+
+        if ($contents === false) {
+            return null;
+        }
+
+        $extension = $matches[1] === 'png' ? 'png' : 'jpg';
+        $path = 'profile-photos/'.Str::uuid().'.'.$extension;
+
+        Storage::disk('public')->put($path, $contents);
+
+        return Storage::url($path);
     }
 }

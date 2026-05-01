@@ -17,6 +17,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'middle_name',
     'surname',
     'email',
+    'avatar',
     'phone',
     'organization',
     'position',

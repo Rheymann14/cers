@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Http\Controllers\RegisteredUserController;
 
 Route::inertia('/', 'welcome')->name('home');
+Route::inertia('/home', 'welcome');
+Route::inertia('/features', 'welcome');
 
 Route::post('event-registration', [RegisteredUserController::class, 'store'])
     ->middleware(['guest'])

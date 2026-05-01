@@ -7,16 +7,23 @@ import {
     ChevronsUpDown,
     ClipboardCheck,
     ClipboardList,
+    ArrowDown,
     FileText,
     ImagePlus,
     Moon,
     QrCode,
+    Trash2,
     ShieldCheck,
     Sun,
     Users,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
-import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
+import { useEffect, useRef, useState } from 'react';
+import ReactCrop, {
+    centerCrop,
+    makeAspectCrop,
+    type Crop,
+    type PixelCrop,
+} from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
 import InputError from '@/components/input-error';
@@ -52,8 +59,8 @@ import { cn } from '@/lib/utils';
 import { dashboard, login } from '@/routes';
 
 const navigationLinks = [
-    { label: 'Home', href: '#home' },
-    { label: 'Features', href: '#features' },
+    { label: 'Home', href: '/home', sectionId: 'home' },
+    { label: 'Features', href: '/features', sectionId: 'features' },
 ];
 
 const features = [
@@ -115,6 +122,22 @@ const participantTypeOptions = [
 const fieldClass =
     'h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
 
+function getCenteredCircleCrop(width: number, height: number): Crop {
+    return centerCrop(
+        makeAspectCrop(
+            {
+                unit: '%',
+                width: 80,
+            },
+            1,
+            width,
+            height,
+        ),
+        width,
+        height,
+    );
+}
+
 function getCroppedImageDataUrl(
     image: HTMLImageElement,
     crop: PixelCrop,
@@ -123,9 +146,10 @@ function getCroppedImageDataUrl(
     const canvas = document.createElement('canvas');
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
+    const outputSize = 512;
 
-    canvas.width = Math.max(1, Math.floor(crop.width * scaleX));
-    canvas.height = Math.max(1, Math.floor(crop.height * scaleY));
+    canvas.width = outputSize;
+    canvas.height = outputSize;
 
     const context = canvas.getContext('2d');
 
@@ -142,8 +166,8 @@ function getCroppedImageDataUrl(
         crop.height * scaleY,
         0,
         0,
-        canvas.width,
-        canvas.height,
+        outputSize,
+        outputSize,
     );
 
     return canvas.toDataURL(mimeType, 0.92);
@@ -156,6 +180,8 @@ export default function Welcome() {
     const nextAppearance = resolvedAppearance === 'dark' ? 'light' : 'dark';
     const AppearanceIcon = resolvedAppearance === 'dark' ? Sun : Moon;
     const currentYear = new Date().getFullYear();
+    const [isNavbarScrolled, setIsNavbarScrolled] = useState(false);
+    const [activeSection, setActiveSection] = useState('home');
     const [eventPopoverOpen, setEventPopoverOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState('');
     const [participantTypePopoverOpen, setParticipantTypePopoverOpen] =
@@ -178,6 +204,8 @@ export default function Welcome() {
     });
     const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
     const cropImageRef = useRef<HTMLImageElement | null>(null);
+    const activeScrollTargetRef = useRef<string | null>(null);
+    const activeScrollTimeoutRef = useRef<number | null>(null);
     const selectedEventLabel =
         eventOptions.find((event) => event.value === selectedEvent)?.label ??
         '';
@@ -185,6 +213,79 @@ export default function Welcome() {
         participantTypeOptions.find(
             (type) => type.value === selectedParticipantType,
         )?.label ?? '';
+
+    function scrollToSection(
+        event: React.MouseEvent<HTMLAnchorElement>,
+        sectionId: string,
+        path?: string,
+    ) {
+        event.preventDefault();
+        setActiveSection(sectionId);
+
+        if (path && window.location.pathname !== path) {
+            window.history.pushState({}, '', path);
+        }
+
+        activeScrollTargetRef.current = sectionId;
+
+        if (activeScrollTimeoutRef.current) {
+            window.clearTimeout(activeScrollTimeoutRef.current);
+        }
+
+        activeScrollTimeoutRef.current = window.setTimeout(() => {
+            activeScrollTargetRef.current = null;
+        }, 1000);
+
+        document
+            .getElementById(sectionId)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setIsNavbarScrolled(window.scrollY > 12);
+
+            if (activeScrollTargetRef.current) {
+                setActiveSection(activeScrollTargetRef.current);
+                return;
+            }
+
+            const featureSection = document.getElementById('features');
+            const nextSection =
+                featureSection &&
+                featureSection.getBoundingClientRect().top <= 160
+                    ? 'features'
+                    : 'home';
+
+            setActiveSection(nextSection);
+
+            const nextPath = nextSection === 'features' ? '/features' : '/home';
+
+            if (window.location.pathname !== nextPath) {
+                window.history.replaceState({}, '', nextPath);
+            }
+        };
+
+        if (window.location.pathname === '/features') {
+            setActiveSection('features');
+            requestAnimationFrame(() => {
+                document
+                    .getElementById('features')
+                    ?.scrollIntoView({ block: 'start' });
+            });
+        }
+
+        handleScroll();
+        window.addEventListener('scroll', handleScroll, { passive: true });
+
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+
+            if (activeScrollTimeoutRef.current) {
+                window.clearTimeout(activeScrollTimeoutRef.current);
+            }
+        };
+    }, []);
 
     function handleProfilePhotoSelect(
         event: React.ChangeEvent<HTMLInputElement>,
@@ -220,19 +321,34 @@ export default function Welcome() {
         reader.readAsDataURL(file);
     }
 
-    function useCroppedProfilePhoto() {
+    function removeProfilePhoto() {
+        setProfilePhotoDataUrl('');
+        setProfilePhotoPreview('');
+        setProfilePhotoError('');
+        setCropImageSrc('');
+        setCompletedCrop(undefined);
+    }
+
+    function scrollToRegistration(event: React.MouseEvent<HTMLAnchorElement>) {
+        scrollToSection(event, 'registration');
+    }
+
+    function handleUseCroppedProfilePhoto() {
         const image = cropImageRef.current;
 
         if (!image) {
             return;
         }
 
+        const fallbackSize = Math.round(
+            Math.min(image.width, image.height) * 0.8,
+        );
         const fallbackCrop: PixelCrop = {
             unit: 'px',
-            x: Math.round(image.width * 0.1),
-            y: Math.round(image.height * 0.1),
-            width: Math.round(image.width * 0.8),
-            height: Math.round(image.height * 0.8),
+            x: Math.round((image.width - fallbackSize) / 2),
+            y: Math.round((image.height - fallbackSize) / 2),
+            width: fallbackSize,
+            height: fallbackSize,
         };
         const croppedDataUrl = getCroppedImageDataUrl(
             image,
@@ -260,7 +376,7 @@ export default function Welcome() {
                 />
             </Head>
 
-            <div className="relative isolate min-h-screen overflow-hidden bg-[#f5f9ff] text-slate-900 dark:bg-neutral-950 dark:text-neutral-100">
+            <div className="relative isolate min-h-screen overflow-x-clip scroll-smooth bg-[#f5f9ff] text-slate-900 dark:bg-neutral-950 dark:text-neutral-100">
                 <div
                     aria-hidden="true"
                     className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(125deg,rgba(0,56,168,0.12)_0%,rgba(255,255,255,0)_35%,rgba(0,90,180,0.08)_62%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(125deg,rgba(37,99,235,0.18)_0%,rgba(10,10,10,0)_35%,rgba(14,165,233,0.10)_62%,rgba(10,10,10,0)_100%)]"
@@ -269,12 +385,25 @@ export default function Welcome() {
                     aria-hidden="true"
                     className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(22deg,rgba(255,255,255,0.94)_0%,rgba(248,251,255,0.68)_42%,rgba(229,240,255,0.82)_100%),linear-gradient(155deg,rgba(0,56,168,0.09)_8%,rgba(255,255,255,0)_36%,rgba(0,56,168,0.06)_78%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(22deg,rgba(10,10,10,0.96)_0%,rgba(15,23,42,0.88)_42%,rgba(17,24,39,0.94)_100%),linear-gradient(155deg,rgba(37,99,235,0.14)_8%,rgba(10,10,10,0)_36%,rgba(14,165,233,0.10)_78%,rgba(10,10,10,0)_100%)]"
                 />
-                <header className="sticky top-0 z-50 border-b border-[#d9e5f5] bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
+                <header
+                    className={cn(
+                        'sticky top-0 z-50 border-b transition-all duration-300',
+                        isNavbarScrolled
+                            ? 'border-white/40 bg-white/75 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-neutral-950/70 dark:shadow-black/30'
+                            : 'border-[#d9e5f5] bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90',
+                    )}
+                >
                     <nav
                         className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8"
                         aria-label="Main navigation"
                     >
-                        <a href="#home" className="flex items-center gap-3">
+                        <a
+                            href="/home"
+                            onClick={(event) =>
+                                scrollToSection(event, 'home', '/home')
+                            }
+                            className="flex items-center gap-3"
+                        >
                             <img
                                 src="/ched_logo.png"
                                 alt="Commission on Higher Education logo"
@@ -296,7 +425,19 @@ export default function Welcome() {
                                     <a
                                         key={link.href}
                                         href={link.href}
-                                        className="transition hover:text-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] dark:hover:text-blue-300"
+                                        onClick={(event) =>
+                                            scrollToSection(
+                                                event,
+                                                link.sectionId,
+                                                link.href,
+                                            )
+                                        }
+                                        className={cn(
+                                            'relative py-1 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]',
+                                            activeSection === link.sectionId
+                                                ? 'font-semibold text-[#0038A8] after:absolute after:right-0 after:-bottom-1 after:left-0 after:h-0.5 after:rounded-full after:bg-[#0038A8] dark:text-blue-300 dark:after:bg-blue-300'
+                                                : 'hover:text-[#0038A8] dark:hover:text-blue-300',
+                                        )}
                                     >
                                         {link.label}
                                     </a>
@@ -349,9 +490,13 @@ export default function Welcome() {
                                 <div className="mt-8 flex">
                                     <a
                                         href="#registration"
-                                        className="inline-flex w-full items-center justify-center rounded-xl bg-[#0038A8] px-8 py-4 text-base font-bold text-white shadow-md shadow-[#0038A8]/15 transition hover:bg-[#002f8f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] sm:w-auto"
+                                        onClick={scrollToRegistration}
+                                        className="group inline-flex w-full max-w-md items-center justify-center gap-3 rounded-2xl bg-[#0038A8] px-10 py-5 text-base font-bold text-white shadow-xl shadow-[#0038A8]/25 transition hover:-translate-y-0.5 hover:bg-[#002f8f] hover:shadow-2xl hover:shadow-[#0038A8]/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] sm:text-lg"
                                     >
                                         Register Now
+                                        <span className="flex size-8 items-center justify-center rounded-full bg-white/15 transition group-hover:translate-y-1 group-hover:bg-white/20">
+                                            <ArrowDown className="size-4" />
+                                        </span>
                                     </a>
                                 </div>
                             </div>
@@ -410,7 +555,7 @@ export default function Welcome() {
 
                     <section
                         id="registration"
-                        className="border-y border-[#d9e5f5] bg-white/85 py-16 backdrop-blur-[2px] sm:py-20 dark:border-neutral-800 dark:bg-neutral-950/80"
+                        className="scroll-mt-24 border-y border-[#d9e5f5] bg-white/85 py-16 backdrop-blur-[2px] sm:py-20 dark:border-neutral-800 dark:bg-neutral-950/80"
                     >
                         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
                             <Form
@@ -543,7 +688,7 @@ export default function Welcome() {
                                             </div>
 
                                             <div className="grid gap-4 md:grid-cols-3">
-                                                <div className="grid gap-2 md:col-span-2">
+                                                <div className="grid gap-2 md:col-span-3">
                                                     <Label htmlFor="organization">
                                                         School or organization
                                                     </Label>
@@ -562,33 +707,89 @@ export default function Welcome() {
                                                         }
                                                     />
                                                 </div>
+                                            </div>
 
-                                                <div className="grid gap-2">
-                                                    <Label htmlFor="position">
-                                                        Position or role
-                                                    </Label>
-                                                    <Input
-                                                        id="position"
-                                                        type="text"
-                                                        name="position"
-                                                        placeholder="Student, faculty, staff"
-                                                        className={fieldClass}
-                                                    />
-                                                    <InputError
-                                                        message={
-                                                            errors.position
-                                                        }
-                                                    />
+                                            <div className="grid gap-3">
+                                                <p className="text-sm font-medium">
+                                                    Profile image
+                                                </p>
+                                                <input
+                                                    type="hidden"
+                                                    name="avatar"
+                                                    value={profilePhotoDataUrl}
+                                                    readOnly
+                                                />
+                                                <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-[#d9e5f5] bg-[#f8fbff] p-4 sm:flex-row sm:items-center dark:border-neutral-700 dark:bg-neutral-950">
+                                                    <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#d9e5f5] bg-white dark:border-neutral-700 dark:bg-neutral-900">
+                                                        {profilePhotoPreview ? (
+                                                            <img
+                                                                src={
+                                                                    profilePhotoPreview
+                                                                }
+                                                                alt="Profile preview"
+                                                                className="size-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <ImagePlus className="size-8 text-slate-400 dark:text-neutral-500" />
+                                                        )}
+                                                    </div>
+                                                    <div className="grid flex-1 gap-2">
+                                                        <p className="text-sm text-slate-600 dark:text-neutral-400">
+                                                            Upload a square
+                                                            profile image for
+                                                            your account.
+                                                        </p>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <Label
+                                                                htmlFor="profile_photo_upload"
+                                                                className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-[#0038A8] bg-[#0038A8] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-[#0038A8] hover:bg-[#002f8f]"
+                                                            >
+                                                                <ImagePlus className="mr-2 size-4" />
+                                                                Choose image
+                                                            </Label>
+                                                            <input
+                                                                id="profile_photo_upload"
+                                                                type="file"
+                                                                accept="image/png,image/jpeg"
+                                                                className="sr-only"
+                                                                onChange={
+                                                                    handleProfilePhotoSelect
+                                                                }
+                                                            />
+                                                            {profilePhotoPreview && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="icon"
+                                                                    aria-label="Remove profile image"
+                                                                    className="rounded-xl border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-red-900/70 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                                                                    onClick={
+                                                                        removeProfilePhoto
+                                                                    }
+                                                                >
+                                                                    <Trash2 className="size-4" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
+                                                <InputError
+                                                    message={
+                                                        errors.avatar ||
+                                                        profilePhotoError
+                                                    }
+                                                />
                                             </div>
 
                                             <div className="grid gap-4 md:grid-cols-2">
                                                 <div className="grid gap-2">
-                                                    <Label htmlFor="participant_type">
+                                                    <p
+                                                        id="participant_type_label"
+                                                        className="text-sm font-medium"
+                                                    >
                                                         Participant type
-                                                    </Label>
+                                                    </p>
                                                     <input
-                                                        id="participant_type"
                                                         type="hidden"
                                                         name="participant_type"
                                                         value={
@@ -609,6 +810,7 @@ export default function Welcome() {
                                                                 type="button"
                                                                 variant="outline"
                                                                 role="combobox"
+                                                                aria-labelledby="participant_type_label"
                                                                 aria-expanded={
                                                                     participantTypePopoverOpen
                                                                 }
@@ -679,7 +881,9 @@ export default function Welcome() {
                                                 </div>
 
                                                 <div className="grid gap-3">
-                                                    <Label>Sex</Label>
+                                                    <p className="text-sm font-medium">
+                                                        Sex
+                                                    </p>
                                                     <RadioGroup
                                                         name="sex"
                                                         required
@@ -719,11 +923,13 @@ export default function Welcome() {
                                             </div>
 
                                             <div className="grid gap-2">
-                                                <Label htmlFor="event_name">
+                                                <p
+                                                    id="event_name_label"
+                                                    className="text-sm font-medium"
+                                                >
                                                     Event
-                                                </Label>
+                                                </p>
                                                 <input
-                                                    id="event_name"
                                                     type="hidden"
                                                     name="event_name"
                                                     value={selectedEvent}
@@ -740,6 +946,7 @@ export default function Welcome() {
                                                             type="button"
                                                             variant="outline"
                                                             role="combobox"
+                                                            aria-labelledby="event_name_label"
                                                             aria-expanded={
                                                                 eventPopoverOpen
                                                             }
@@ -908,7 +1115,7 @@ export default function Welcome() {
                                     Features
                                 </p>
                                 <h2 className="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl dark:text-white">
-                                    Built for efficient CHED event operations
+                                    CHED Event Registration System
                                 </h2>
                             </div>
 
@@ -937,6 +1144,70 @@ export default function Welcome() {
                         </div>
                     </section>
                 </main>
+
+                <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
+                    <DialogContent className="sm:max-w-xl">
+                        <DialogHeader>
+                            <DialogTitle>Crop profile image</DialogTitle>
+                            <DialogDescription>
+                                Adjust the image to fit your profile preview.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        {cropImageSrc && (
+                            <div className="overflow-hidden rounded-xl border border-[#d9e5f5] bg-[#f8fbff] p-3 dark:border-neutral-800 dark:bg-neutral-950">
+                                <ReactCrop
+                                    crop={crop}
+                                    aspect={1}
+                                    circularCrop
+                                    minWidth={120}
+                                    onChange={(_, percentCrop) =>
+                                        setCrop(percentCrop)
+                                    }
+                                    onComplete={(pixelCrop) =>
+                                        setCompletedCrop(pixelCrop)
+                                    }
+                                    className="max-h-[60vh]"
+                                >
+                                    <img
+                                        ref={cropImageRef}
+                                        src={cropImageSrc}
+                                        alt="Selected profile"
+                                        className="max-h-[56vh] w-full object-contain"
+                                        onLoad={(event) => {
+                                            const { width, height } =
+                                                event.currentTarget;
+
+                                            setCrop(
+                                                getCenteredCircleCrop(
+                                                    width,
+                                                    height,
+                                                ),
+                                            );
+                                            setCompletedCrop(undefined);
+                                        }}
+                                    />
+                                </ReactCrop>
+                            </div>
+                        )}
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setCropDialogOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={handleUseCroppedProfilePhoto}
+                            >
+                                Use image
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 <footer className="border-t border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
                     <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-slate-600 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8 dark:text-neutral-400">
