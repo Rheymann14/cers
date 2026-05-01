@@ -1,22 +1,59 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Form, Head, Link, usePage } from '@inertiajs/react';
 import {
     BarChart3,
     CalendarPlus,
+    Check,
     CheckCircle2,
+    ChevronsUpDown,
+    ClipboardCheck,
     ClipboardList,
     FileText,
+    ImagePlus,
     QrCode,
     ShieldCheck,
     Users,
 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import ReactCrop, {
+    type Crop,
+    type PixelCrop,
+} from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 
+import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
+import { Button } from '@/components/ui/button';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Spinner } from '@/components/ui/spinner';
+import { cn } from '@/lib/utils';
 import { dashboard, login } from '@/routes';
 
 const navigationLinks = [
     { label: 'Home', href: '#home' },
     { label: 'Features', href: '#features' },
-    { label: 'Process', href: '#process' },
-    { label: 'About', href: '#about' },
 ];
 
 const features = [
@@ -46,13 +83,6 @@ const features = [
     },
 ];
 
-const processSteps = [
-    'Create Event',
-    'Open Registration',
-    'Validate Attendance',
-    'Generate Reports',
-];
-
 const visualItems = [
     { label: 'Event Registration', icon: ClipboardList },
     { label: 'QR / Attendance', icon: QrCode },
@@ -60,10 +90,162 @@ const visualItems = [
     { label: 'Reports', icon: BarChart3 },
 ];
 
+const eventOptions = [
+    {
+        value: 'ched-regional-orientation',
+        label: 'CHED Regional Orientation',
+    },
+    {
+        value: 'higher-education-summit',
+        label: 'Higher Education Summit',
+    },
+    {
+        value: 'faculty-development-workshop',
+        label: 'Faculty Development Workshop',
+    },
+];
+
+const participantTypeOptions = [
+    { value: 'student', label: 'Student' },
+    { value: 'faculty', label: 'Faculty' },
+    { value: 'staff', label: 'Staff' },
+    { value: 'guest', label: 'Guest' },
+];
+
+const fieldClass =
+    'h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15';
+
+function getCroppedImageDataUrl(
+    image: HTMLImageElement,
+    crop: PixelCrop,
+    mimeType: 'image/png' | 'image/jpeg',
+) {
+    const canvas = document.createElement('canvas');
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+
+    canvas.width = Math.max(1, Math.floor(crop.width * scaleX));
+    canvas.height = Math.max(1, Math.floor(crop.height * scaleY));
+
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+        return '';
+    }
+
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(
+        image,
+        crop.x * scaleX,
+        crop.y * scaleY,
+        crop.width * scaleX,
+        crop.height * scaleY,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+    );
+
+    return canvas.toDataURL(mimeType, 0.92);
+}
+
 export default function Welcome() {
     const { auth } = usePage().props;
     const accessHref = auth.user ? dashboard() : login();
     const currentYear = new Date().getFullYear();
+    const [eventPopoverOpen, setEventPopoverOpen] = useState(false);
+    const [selectedEvent, setSelectedEvent] = useState('');
+    const [participantTypePopoverOpen, setParticipantTypePopoverOpen] =
+        useState(false);
+    const [selectedParticipantType, setSelectedParticipantType] = useState('');
+    const [profilePhotoDataUrl, setProfilePhotoDataUrl] = useState('');
+    const [profilePhotoPreview, setProfilePhotoPreview] = useState('');
+    const [profilePhotoError, setProfilePhotoError] = useState('');
+    const [cropImageSrc, setCropImageSrc] = useState('');
+    const [cropDialogOpen, setCropDialogOpen] = useState(false);
+    const [cropMimeType, setCropMimeType] = useState<'image/png' | 'image/jpeg'>(
+        'image/jpeg',
+    );
+    const [crop, setCrop] = useState<Crop>({
+        unit: '%',
+        x: 10,
+        y: 10,
+        width: 80,
+        height: 80,
+    });
+    const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+    const cropImageRef = useRef<HTMLImageElement | null>(null);
+    const selectedEventLabel =
+        eventOptions.find((event) => event.value === selectedEvent)?.label ??
+        '';
+    const selectedParticipantTypeLabel =
+        participantTypeOptions.find(
+            (type) => type.value === selectedParticipantType,
+        )?.label ?? '';
+
+    function handleProfilePhotoSelect(
+        event: React.ChangeEvent<HTMLInputElement>,
+    ) {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+
+        if (!file) {
+            return;
+        }
+
+        if (!['image/png', 'image/jpeg'].includes(file.type)) {
+            setProfilePhotoError('Upload a PNG, JPG, or JPEG image.');
+            return;
+        }
+
+        setProfilePhotoError('');
+        setCropMimeType(file.type === 'image/png' ? 'image/png' : 'image/jpeg');
+        setCrop({
+            unit: '%',
+            x: 10,
+            y: 10,
+            width: 80,
+            height: 80,
+        });
+        setCompletedCrop(undefined);
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCropImageSrc(String(reader.result));
+            setCropDialogOpen(true);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function useCroppedProfilePhoto() {
+        const image = cropImageRef.current;
+
+        if (!image) {
+            return;
+        }
+
+        const fallbackCrop: PixelCrop = {
+            unit: 'px',
+            x: Math.round(image.width * 0.1),
+            y: Math.round(image.height * 0.1),
+            width: Math.round(image.width * 0.8),
+            height: Math.round(image.height * 0.8),
+        };
+        const croppedDataUrl = getCroppedImageDataUrl(
+            image,
+            completedCrop ?? fallbackCrop,
+            cropMimeType,
+        );
+
+        if (!croppedDataUrl) {
+            setProfilePhotoError('Could not crop the selected image.');
+            return;
+        }
+
+        setProfilePhotoDataUrl(croppedDataUrl);
+        setProfilePhotoPreview(croppedDataUrl);
+        setCropDialogOpen(false);
+    }
 
     return (
         <>
@@ -75,7 +257,15 @@ export default function Welcome() {
                 />
             </Head>
 
-            <div className="min-h-screen bg-gradient-to-br from-white via-[#f8fbff] to-[#eef5ff] text-slate-900">
+            <div className="relative isolate min-h-screen overflow-hidden bg-[#f5f9ff] text-slate-900">
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(125deg,rgba(0,56,168,0.12)_0%,rgba(255,255,255,0)_35%,rgba(0,90,180,0.08)_62%,rgba(255,255,255,0)_100%)]"
+                />
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(22deg,rgba(255,255,255,0.94)_0%,rgba(248,251,255,0.68)_42%,rgba(229,240,255,0.82)_100%),linear-gradient(155deg,rgba(0,56,168,0.09)_8%,rgba(255,255,255,0)_36%,rgba(0,56,168,0.06)_78%,rgba(255,255,255,0)_100%)]"
+                />
                 <header className="sticky top-0 z-50 border-b border-[#d9e5f5] bg-white/95 backdrop-blur">
                     <nav
                         className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8"
@@ -106,6 +296,7 @@ export default function Welcome() {
                                         className="transition hover:text-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]"
                                     >
                                         {link.label}
+
                                     </a>
                                 ))}
                             </div>
@@ -140,18 +331,12 @@ export default function Welcome() {
                                     event-related records for CHED activities.
                                 </p>
 
-                                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                                    <Link
-                                        href={accessHref}
-                                        className="inline-flex items-center justify-center rounded-xl bg-[#0038A8] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-[#0038A8]/15 transition hover:bg-[#002f8f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]"
-                                    >
-                                        Get Started
-                                    </Link>
+                                <div className="mt-8 flex">
                                     <a
-                                        href="#features"
-                                        className="inline-flex items-center justify-center rounded-xl border border-[#d9e5f5] bg-white px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-[#0038A8]/30 hover:text-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]"
+                                        href="#registration"
+                                        className="inline-flex w-full items-center justify-center rounded-xl bg-[#0038A8] px-8 py-4 text-base font-bold text-white shadow-md shadow-[#0038A8]/15 transition hover:bg-[#002f8f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] sm:w-auto"
                                     >
-                                        Learn More
+                                        Register Now
                                     </a>
                                 </div>
                             </div>
@@ -208,7 +393,495 @@ export default function Welcome() {
                         </div>
                     </section>
 
-                    <section id="features" className="bg-white py-16 sm:py-20">
+                    <section
+                        id="registration"
+                        className="border-y border-[#d9e5f5] bg-white/85 py-16 backdrop-blur-[2px] sm:py-20"
+                    >
+                        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+                            <Form
+                                action="/event-registration"
+                                method="post"
+                                resetOnSuccess={[
+                                    'password',
+                                    'password_confirmation',
+                                ]}
+                                disableWhileProcessing
+                                className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-md shadow-slate-200/70 sm:p-8"
+                            >
+                                {({ processing, errors }) => (
+                                    <div className="grid gap-8">
+                                        <div className="border-b border-[#d9e5f5] pb-6">
+                                            <p className="text-sm font-semibold uppercase tracking-wide text-[#CE1126]">
+                                                Event Registration
+                                            </p>
+                                            <h2 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
+                                                Participant Registration Form
+                                            </h2>
+                                        </div>
+
+                                        <section className="grid gap-5">
+                                            <div>
+                                                <h3 className="text-base font-semibold text-slate-950">
+                                                    Participant details
+                                                </h3>
+                                                <p className="mt-1 text-sm text-slate-600">
+                                                    Tell us who will attend the
+                                                    event.
+                                                </p>
+                                            </div>
+
+                                            <div className="grid gap-4 md:grid-cols-3">
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="given_name">
+                                                        Given Name
+                                                    </Label>
+                                                    <Input
+                                                        id="given_name"
+                                                        type="text"
+                                                        required
+                                                        autoFocus
+                                                        autoComplete="given-name"
+                                                        name="given_name"
+                                                        placeholder="Juan"
+                                                        className={fieldClass}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.given_name
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="middle_name">
+                                                        Middle Name
+                                                    </Label>
+                                                    <Input
+                                                        id="middle_name"
+                                                        type="text"
+                                                        autoComplete="additional-name"
+                                                        name="middle_name"
+                                                        placeholder="Santos"
+                                                        className={fieldClass}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.middle_name
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="surname">
+                                                        Surname
+                                                    </Label>
+                                                    <Input
+                                                        id="surname"
+                                                        type="text"
+                                                        required
+                                                        autoComplete="family-name"
+                                                        name="surname"
+                                                        placeholder="Dela Cruz"
+                                                        className={fieldClass}
+                                                    />
+                                                    <InputError
+                                                        message={errors.surname}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid gap-4 md:grid-cols-3">
+                                                <div className="grid gap-2 md:col-span-2">
+                                                    <Label htmlFor="email">
+                                                        Email address
+                                                    </Label>
+                                                    <Input
+                                                        id="email"
+                                                        type="email"
+                                                        required
+                                                        autoComplete="email"
+                                                        name="email"
+                                                        placeholder="juan@example.com"
+                                                        className={fieldClass}
+                                                    />
+                                                    <InputError
+                                                        message={errors.email}
+                                                    />
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="phone">
+                                                        Contact number
+                                                    </Label>
+                                                    <Input
+                                                        id="phone"
+                                                        type="tel"
+                                                        required
+                                                        autoComplete="tel"
+                                                        name="phone"
+                                                        placeholder="09XX XXX XXXX"
+                                                        className={fieldClass}
+                                                    />
+                                                    <InputError
+                                                        message={errors.phone}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid gap-4 md:grid-cols-3">
+                                                <div className="grid gap-2 md:col-span-2">
+                                                    <Label htmlFor="organization">
+                                                        School or organization
+                                                    </Label>
+                                                    <Input
+                                                        id="organization"
+                                                        type="text"
+                                                        required
+                                                        autoComplete="organization"
+                                                        name="organization"
+                                                        placeholder="Institution name"
+                                                        className={fieldClass}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.organization
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="position">
+                                                        Position or role
+                                                    </Label>
+                                                    <Input
+                                                        id="position"
+                                                        type="text"
+                                                        name="position"
+                                                        placeholder="Student, faculty, staff"
+                                                        className={fieldClass}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.position
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="participant_type">
+                                                        Participant type
+                                                    </Label>
+                                                    <input
+                                                        id="participant_type"
+                                                        type="hidden"
+                                                        name="participant_type"
+                                                        value={
+                                                            selectedParticipantType
+                                                        }
+                                                        readOnly
+                                                    />
+                                                    <Popover
+                                                        open={
+                                                            participantTypePopoverOpen
+                                                        }
+                                                        onOpenChange={
+                                                            setParticipantTypePopoverOpen
+                                                        }
+                                                    >
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                role="combobox"
+                                                                aria-expanded={
+                                                                    participantTypePopoverOpen
+                                                                }
+                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff]"
+                                                            >
+                                                                {selectedParticipantTypeLabel ||
+                                                                    'Search and select type'}
+                                                                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent
+                                                            align="start"
+                                                            className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                                                        >
+                                                            <Command>
+                                                                <CommandInput placeholder="Search participant type..." />
+                                                                <CommandList>
+                                                                    <CommandEmpty>
+                                                                        No type
+                                                                        found.
+                                                                    </CommandEmpty>
+                                                                    <CommandGroup>
+                                                                        {participantTypeOptions.map(
+                                                                            (
+                                                                                type,
+                                                                            ) => (
+                                                                                <CommandItem
+                                                                                    key={
+                                                                                        type.value
+                                                                                    }
+                                                                                    value={
+                                                                                        type.label
+                                                                                    }
+                                                                                    onSelect={() => {
+                                                                                        setSelectedParticipantType(
+                                                                                            type.value,
+                                                                                        );
+                                                                                        setParticipantTypePopoverOpen(
+                                                                                            false,
+                                                                                        );
+                                                                                    }}
+                                                                                >
+                                                                                    <Check
+                                                                                        className={cn(
+                                                                                            'mr-2 size-4',
+                                                                                            selectedParticipantType ===
+                                                                                                type.value
+                                                                                                ? 'opacity-100'
+                                                                                                : 'opacity-0',
+                                                                                        )}
+                                                                                    />
+                                                                                    {
+                                                                                        type.label
+                                                                                    }
+                                                                                </CommandItem>
+                                                                            ),
+                                                                        )}
+                                                                    </CommandGroup>
+                                                                </CommandList>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <InputError
+                                                        message={
+                                                            errors.participant_type
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-3">
+                                                    <Label>Sex</Label>
+                                                    <RadioGroup
+                                                        name="sex"
+                                                        required
+                                                        className="grid grid-cols-2 gap-3"
+                                                    >
+                                                        <label className="flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9e5f5] bg-[#f8fbff] px-4 text-sm font-medium text-slate-700 has-[[data-state=checked]]:border-[#0038A8] has-[[data-state=checked]]:bg-[#eef5ff]">
+                                                            <RadioGroupItem
+                                                                value="male"
+                                                                className="border-[#d9e5f5] text-[#0038A8] focus-visible:ring-[#0038A8]/15"
+                                                            />
+                                                            Male
+                                                        </label>
+                                                        <label className="flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9e5f5] bg-[#f8fbff] px-4 text-sm font-medium text-slate-700 has-[[data-state=checked]]:border-[#0038A8] has-[[data-state=checked]]:bg-[#eef5ff]">
+                                                            <RadioGroupItem
+                                                                value="female"
+                                                                className="border-[#d9e5f5] text-[#0038A8] focus-visible:ring-[#0038A8]/15"
+                                                            />
+                                                            Female
+                                                        </label>
+                                                    </RadioGroup>
+                                                    <InputError
+                                                        message={errors.sex}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section className="grid gap-4 border-t border-[#d9e5f5] pt-6">
+                                            <div>
+                                                <h3 className="text-base font-semibold text-slate-950">
+                                                    Event information
+                                                </h3>
+                                                <p className="mt-1 text-sm text-slate-600">
+                                                    Choose the event you want to
+                                                    attend.
+                                                </p>
+                                            </div>
+
+                                            <div className="grid gap-2">
+                                                <Label htmlFor="event_name">
+                                                    Event
+                                                </Label>
+                                                <input
+                                                    id="event_name"
+                                                    type="hidden"
+                                                    name="event_name"
+                                                    value={selectedEvent}
+                                                    readOnly
+                                                />
+                                                <Popover
+                                                    open={eventPopoverOpen}
+                                                    onOpenChange={
+                                                        setEventPopoverOpen
+                                                    }
+                                                >
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            role="combobox"
+                                                            aria-expanded={
+                                                                eventPopoverOpen
+                                                            }
+                                                            className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff]"
+                                                        >
+                                                            {selectedEventLabel ||
+                                                                'Search and select event'}
+                                                            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent
+                                                        align="start"
+                                                        className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                                                    >
+                                                        <Command>
+                                                            <CommandInput placeholder="Search event..." />
+                                                            <CommandList>
+                                                                <CommandEmpty>
+                                                                    No event
+                                                                    found.
+                                                                </CommandEmpty>
+                                                                <CommandGroup>
+                                                                    {eventOptions.map(
+                                                                        (
+                                                                            event,
+                                                                        ) => (
+                                                                            <CommandItem
+                                                                                key={
+                                                                                    event.value
+                                                                                }
+                                                                                value={
+                                                                                    event.label
+                                                                                }
+                                                                                onSelect={() => {
+                                                                                    setSelectedEvent(
+                                                                                        event.value,
+                                                                                    );
+                                                                                    setEventPopoverOpen(
+                                                                                        false,
+                                                                                    );
+                                                                                }}
+                                                                            >
+                                                                                <Check
+                                                                                    className={cn(
+                                                                                        'mr-2 size-4',
+                                                                                        selectedEvent ===
+                                                                                            event.value
+                                                                                            ? 'opacity-100'
+                                                                                            : 'opacity-0',
+                                                                                    )}
+                                                                                />
+                                                                                {
+                                                                                    event.label
+                                                                                    
+                                                                                }
+                                                                            </CommandItem>
+                                                                        ),
+                                                                    )}
+                                                                </CommandGroup>
+                                                            </CommandList>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+                                                <InputError
+                                                    message={errors.event_name}
+                                                />
+                                            </div>
+                                        </section>
+
+                                        <section className="grid gap-4 border-t border-[#d9e5f5] pt-6">
+                                            <div>
+                                                <h3 className="text-base font-semibold text-slate-950">
+                                                    Account access
+                                                </h3>
+                                                <p className="mt-1 text-sm text-slate-600">
+                                                    Create a password so you
+                                                    can view your registration
+                                                    and attendance records.
+                                                </p>
+                                            </div>
+
+                                            <div className="grid gap-4 sm:grid-cols-2">
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="password">
+                                                        Password
+                                                    </Label>
+                                                    <PasswordInput
+                                                        id="password"
+                                                        required
+                                                        autoComplete="new-password"
+                                                        name="password"
+                                                        placeholder="Password"
+                                                        className={fieldClass}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.password
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-2">
+                                                    <Label htmlFor="password_confirmation">
+                                                        Confirm password
+                                                    </Label>
+                                                    <PasswordInput
+                                                        id="password_confirmation"
+                                                        required
+                                                        autoComplete="new-password"
+                                                        name="password_confirmation"
+                                                        placeholder="Confirm password"
+                                                        className={fieldClass}
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            errors.password_confirmation
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <label className="flex items-start gap-3 text-sm leading-6 text-slate-600">
+                                                <input
+                                                    type="checkbox"
+                                                    name="consent"
+                                                    value="yes"
+                                                    required
+                                                    className="mt-1 size-4 rounded border-[#d9e5f5] text-[#0038A8] focus:ring-[#0038A8]/20"
+                                                />
+                                                To promote networking between institutions with common interests, I give my consent to CHED to share my full name, designation, institution, and email address to other attendees of the event.
+                                            </label>
+                                            <InputError
+                                                message={errors.consent}
+                                            />
+                                        </section>
+
+                                        <Button
+                                            type="submit"
+                                            className="h-11 w-full rounded-xl bg-[#0038A8] font-semibold text-white shadow-sm shadow-[#0038A8]/15 hover:bg-[#002f8f] focus-visible:ring-[#0038A8]/20"
+                                        >
+                                            {processing ? (
+                                                <Spinner />
+                                            ) : (
+                                                <ClipboardCheck className="size-4" />
+                                            )}
+                                            Submit registration
+                                        </Button>
+                                    </div>
+                                )}
+                            </Form>
+                        </div>
+                    </section>
+
+                    <section
+                        id="features"
+                        className="bg-white/85 py-16 backdrop-blur-[2px] sm:py-20"
+                    >
                         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                             <div className="max-w-2xl">
                                 <p className="text-sm font-semibold uppercase tracking-wide text-[#CE1126]">
@@ -244,84 +917,6 @@ export default function Welcome() {
                         </div>
                     </section>
 
-                    <section id="process" className="py-16 sm:py-20">
-                        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                            <div className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-sm sm:p-8">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                                    <div>
-                                        <p className="text-sm font-semibold uppercase tracking-wide text-[#CE1126]">
-                                            Process
-                                        </p>
-                                        <h2 className="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl">
-                                            A simple registration flow
-                                        </h2>
-                                    </div>
-                                </div>
-
-                                <div className="mt-10 grid gap-4 md:grid-cols-4">
-                                    {processSteps.map((step, index) => (
-                                        <div
-                                            key={step}
-                                            className="relative rounded-2xl border border-[#d9e5f5] bg-[#f8fbff] p-5 transition duration-200 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 hover:border-[#0038A8]/30 hover:bg-white"
-                                        >
-                                            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0038A8] text-sm font-bold text-white shadow-sm">
-                                                {index + 1}
-                                            </span>
-                                            <h3 className="mt-5 text-base font-semibold text-slate-950">
-                                                {step}
-                                            </h3>
-                                            <p className="mt-2 text-sm leading-6 text-slate-600">
-                                                {index === 0 &&
-                                                    'Set up event details, schedules, and registration requirements.'}
-                                                {index === 1 &&
-                                                    'Publish registration access for invited participants and offices.'}
-                                                {index === 2 &&
-                                                    'Verify participants faster during event entry and attendance checks.'}
-                                                {index === 3 &&
-                                                    'Prepare organized records for documentation and reporting.'}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section id="about" className="bg-white py-16 sm:py-20">
-                        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                            <div className="overflow-hidden rounded-2xl border border-[#d9e5f5] bg-[#f8fbff] shadow-md shadow-slate-200/70 lg:flex lg:items-stretch">
-                                <div className="w-full border-b border-[#d9e5f5] bg-white p-8 sm:p-10 lg:border-r lg:border-b-0">
-                                    <div className="mb-6 flex h-1.5 w-28 overflow-hidden rounded-full">
-                                        <span className="flex-1 bg-[#0038A8]" />
-                                        <span className="flex-1 bg-[#FCD116]" />
-                                        <span className="flex-1 bg-[#CE1126]" />
-                                    </div>
-                                    <p className="text-sm font-semibold uppercase tracking-wide text-[#CE1126]">
-                                        About CERS
-                                    </p>
-                                    <h2 className="mt-3 max-w-3xl text-3xl font-bold text-slate-950 sm:text-4xl">
-                                        Organized event registration for
-                                        CHED-related activities
-                                    </h2>
-                                    <p className="mt-5 max-w-3xl text-base leading-8 text-slate-600">
-                                        CERS is designed to support efficient,
-                                        organized, and reliable event
-                                        registration for CHED-related
-                                        activities.
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center bg-[#f8fbff] p-8 sm:p-10 lg:w-80 lg:justify-center">
-                                    <Link
-                                        href={accessHref}
-                                        className="inline-flex w-full items-center justify-center rounded-xl bg-[#0038A8] px-6 py-3 text-sm font-bold text-white shadow-sm shadow-[#0038A8]/15 transition hover:bg-[#002f8f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] sm:w-auto lg:w-full"
-                                    >
-                                        Access System
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
                 </main>
 
                 <footer className="border-t border-slate-200 bg-white">
