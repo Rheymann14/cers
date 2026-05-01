@@ -45,7 +45,7 @@ export default function Login({
                                     tabIndex={1}
                                     autoComplete="email"
                                     placeholder="email@example.com"
-                                    className="h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15"
+                                    className="h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500"
                                 />
                                 <InputError message={errors.email} />
                             </div>
@@ -56,7 +56,7 @@ export default function Login({
                                     {canResetPassword && (
                                         <TextLink
                                             href={request()}
-                                            className="ml-auto text-sm font-medium text-[#0038A8] decoration-[#d9e5f5] hover:text-[#002f8f]"
+                                            className="ml-auto text-sm font-medium text-[#0038A8] decoration-[#d9e5f5] hover:text-[#002f8f] dark:text-blue-300 dark:decoration-neutral-700 dark:hover:text-blue-200"
                                             tabIndex={5}
                                         >
                                             Forgot password?
@@ -70,7 +70,7 @@ export default function Login({
                                     tabIndex={2}
                                     autoComplete="current-password"
                                     placeholder="Password"
-                                    className="h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15"
+                                    className="h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500"
                                 />
                                 <InputError message={errors.password} />
                             </div>
@@ -80,7 +80,7 @@ export default function Login({
                                     id="remember"
                                     name="remember"
                                     tabIndex={3}
-                                    className="border-[#d9e5f5] data-[state=checked]:border-[#0038A8] data-[state=checked]:bg-[#0038A8] focus-visible:ring-[#0038A8]/15"
+                                    className="border-[#d9e5f5] focus-visible:ring-[#0038A8]/15 data-[state=checked]:border-[#0038A8] data-[state=checked]:bg-[#0038A8] dark:border-neutral-700"
                                 />
                                 <Label htmlFor="remember">Remember me</Label>
                             </div>
@@ -98,12 +98,12 @@ export default function Login({
                         </div>
 
                         {canRegister && (
-                            <div className="text-center text-sm text-slate-600">
+                            <div className="text-center text-sm text-slate-600 dark:text-neutral-400">
                                 Don't have an account?{' '}
                                 <TextLink
                                     href={`${home()}#registration`}
                                     tabIndex={5}
-                                    className="font-medium text-[#0038A8] decoration-[#d9e5f5] hover:text-[#002f8f]"
+                                    className="font-medium text-[#0038A8] decoration-[#d9e5f5] hover:text-[#002f8f] dark:text-blue-300 dark:decoration-neutral-700 dark:hover:text-blue-200"
                                 >
                                     Sign up
                                 </TextLink>
@@ -114,7 +114,7 @@ export default function Login({
             </Form>
 
             {status && (
-                <div className="mb-4 text-center text-sm font-medium text-green-600">
+                <div className="mb-4 text-center text-sm font-medium text-green-600 dark:text-green-400">
                     {status}
                 </div>
             )}

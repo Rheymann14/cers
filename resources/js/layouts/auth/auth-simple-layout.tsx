@@ -11,15 +11,15 @@ export default function AuthSimpleLayout({
     size = 'default',
 }: AuthLayoutProps) {
     return (
-        <div className="min-h-svh bg-gradient-to-br from-white via-[#f8fbff] to-[#eef5ff] text-slate-900">
+        <div className="min-h-svh bg-gradient-to-br from-white via-[#f8fbff] to-[#eef5ff] text-slate-900 dark:from-neutral-950 dark:via-neutral-950 dark:to-slate-900 dark:text-neutral-100">
             <div className="mx-auto flex min-h-svh max-w-7xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
                 <div
                     className={cn(
                         'mx-auto w-full',
                         size === 'wide' ? 'max-w-3xl' : 'max-w-md',
-                    )}  
+                    )}
                 >
-                    <div className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-md shadow-slate-200/70 sm:p-8">
+                    <div className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-md shadow-slate-200/70 sm:p-8 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30">
                         <div className="mb-8 flex flex-col items-center gap-4">
                             <Link
                                 href={home()}
@@ -30,10 +30,10 @@ export default function AuthSimpleLayout({
                             </Link>
 
                             <div className="space-y-2 text-center">
-                                <h1 className="text-2xl font-bold text-slate-950">
+                                <h1 className="text-2xl font-bold text-slate-950 dark:text-white">
                                     {title}
                                 </h1>
-                                <p className="text-center text-sm leading-6 text-slate-600">
+                                <p className="text-center text-sm leading-6 text-slate-600 dark:text-neutral-400">
                                     {description}
                                 </p>
                             </div>

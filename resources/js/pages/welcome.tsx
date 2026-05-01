@@ -9,15 +9,14 @@ import {
     ClipboardList,
     FileText,
     ImagePlus,
+    Moon,
     QrCode,
     ShieldCheck,
+    Sun,
     Users,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
-import ReactCrop, {
-    type Crop,
-    type PixelCrop,
-} from 'react-image-crop';
+import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
 import InputError from '@/components/input-error';
@@ -48,6 +47,7 @@ import {
 } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Spinner } from '@/components/ui/spinner';
+import { useAppearance } from '@/hooks/use-appearance';
 import { cn } from '@/lib/utils';
 import { dashboard, login } from '@/routes';
 
@@ -113,7 +113,7 @@ const participantTypeOptions = [
 ];
 
 const fieldClass =
-    'h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15';
+    'h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
 
 function getCroppedImageDataUrl(
     image: HTMLImageElement,
@@ -151,7 +151,10 @@ function getCroppedImageDataUrl(
 
 export default function Welcome() {
     const { auth } = usePage().props;
+    const { resolvedAppearance, updateAppearance } = useAppearance();
     const accessHref = auth.user ? dashboard() : login();
+    const nextAppearance = resolvedAppearance === 'dark' ? 'light' : 'dark';
+    const AppearanceIcon = resolvedAppearance === 'dark' ? Sun : Moon;
     const currentYear = new Date().getFullYear();
     const [eventPopoverOpen, setEventPopoverOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState('');
@@ -163,9 +166,9 @@ export default function Welcome() {
     const [profilePhotoError, setProfilePhotoError] = useState('');
     const [cropImageSrc, setCropImageSrc] = useState('');
     const [cropDialogOpen, setCropDialogOpen] = useState(false);
-    const [cropMimeType, setCropMimeType] = useState<'image/png' | 'image/jpeg'>(
-        'image/jpeg',
-    );
+    const [cropMimeType, setCropMimeType] = useState<
+        'image/png' | 'image/jpeg'
+    >('image/jpeg');
     const [crop, setCrop] = useState<Crop>({
         unit: '%',
         x: 10,
@@ -257,16 +260,16 @@ export default function Welcome() {
                 />
             </Head>
 
-            <div className="relative isolate min-h-screen overflow-hidden bg-[#f5f9ff] text-slate-900">
+            <div className="relative isolate min-h-screen overflow-hidden bg-[#f5f9ff] text-slate-900 dark:bg-neutral-950 dark:text-neutral-100">
                 <div
                     aria-hidden="true"
-                    className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(125deg,rgba(0,56,168,0.12)_0%,rgba(255,255,255,0)_35%,rgba(0,90,180,0.08)_62%,rgba(255,255,255,0)_100%)]"
+                    className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(125deg,rgba(0,56,168,0.12)_0%,rgba(255,255,255,0)_35%,rgba(0,90,180,0.08)_62%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(125deg,rgba(37,99,235,0.18)_0%,rgba(10,10,10,0)_35%,rgba(14,165,233,0.10)_62%,rgba(10,10,10,0)_100%)]"
                 />
                 <div
                     aria-hidden="true"
-                    className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(22deg,rgba(255,255,255,0.94)_0%,rgba(248,251,255,0.68)_42%,rgba(229,240,255,0.82)_100%),linear-gradient(155deg,rgba(0,56,168,0.09)_8%,rgba(255,255,255,0)_36%,rgba(0,56,168,0.06)_78%,rgba(255,255,255,0)_100%)]"
+                    className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(22deg,rgba(255,255,255,0.94)_0%,rgba(248,251,255,0.68)_42%,rgba(229,240,255,0.82)_100%),linear-gradient(155deg,rgba(0,56,168,0.09)_8%,rgba(255,255,255,0)_36%,rgba(0,56,168,0.06)_78%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(22deg,rgba(10,10,10,0.96)_0%,rgba(15,23,42,0.88)_42%,rgba(17,24,39,0.94)_100%),linear-gradient(155deg,rgba(37,99,235,0.14)_8%,rgba(10,10,10,0)_36%,rgba(14,165,233,0.10)_78%,rgba(10,10,10,0)_100%)]"
                 />
-                <header className="sticky top-0 z-50 border-b border-[#d9e5f5] bg-white/95 backdrop-blur">
+                <header className="sticky top-0 z-50 border-b border-[#d9e5f5] bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
                     <nav
                         className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8"
                         aria-label="Main navigation"
@@ -278,54 +281,66 @@ export default function Welcome() {
                                 className="h-12 w-12 object-contain"
                             />
                             <span>
-                                <span className="block text-sm font-semibold tracking-wide text-slate-950">
+                                <span className="block text-sm font-semibold tracking-wide text-slate-950 dark:text-white">
                                     CERS
                                 </span>
-                                <span className="block text-xs text-slate-600 sm:text-sm">
+                                <span className="block text-xs text-slate-600 sm:text-sm dark:text-neutral-400">
                                     CHED Event Registration System
                                 </span>
                             </span>
                         </a>
 
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between lg:gap-8">
-                            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
+                            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-medium text-slate-600 dark:text-neutral-300">
                                 {navigationLinks.map((link) => (
                                     <a
                                         key={link.href}
                                         href={link.href}
-                                        className="transition hover:text-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]"
+                                        className="transition hover:text-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] dark:hover:text-blue-300"
                                     >
                                         {link.label}
-
                                     </a>
                                 ))}
                             </div>
 
-                            <Link
-                                href={accessHref}
-                                className="inline-flex items-center justify-center rounded-xl border border-[#0038A8] bg-[#0038A8] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002f8f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]"
-                            >
-                                {auth.user ? 'Dashboard' : 'Login'}
-                            </Link>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    aria-label={`Switch to ${nextAppearance} mode`}
+                                    onClick={() =>
+                                        updateAppearance(nextAppearance)
+                                    }
+                                    className="inline-flex size-11 items-center justify-center rounded-xl border border-[#d9e5f5] bg-white text-slate-700 shadow-sm transition hover:border-[#0038A8]/30 hover:text-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:text-white"
+                                >
+                                    <AppearanceIcon className="size-5" />
+                                </button>
+
+                                <Link
+                                    href={accessHref}
+                                    className="inline-flex items-center justify-center rounded-xl border border-[#0038A8] bg-[#0038A8] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002f8f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]"
+                                >
+                                    {auth.user ? 'Dashboard' : 'Login'}
+                                </Link>
+                            </div>
                         </div>
                     </nav>
                 </header>
 
                 <main id="home">
                     <section className="relative overflow-hidden">
-                        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(252,209,22,0.20),transparent_32%),radial-gradient(circle_at_top_right,rgba(0,56,168,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.82)_100%)]" />
+                        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(252,209,22,0.20),transparent_32%),radial-gradient(circle_at_top_right,rgba(0,56,168,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.82)_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(252,209,22,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(37,99,235,0.16),transparent_30%),linear-gradient(180deg,rgba(10,10,10,0)_0%,rgba(10,10,10,0.72)_100%)]" />
                         <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-24">
-                            <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-3 motion-safe:duration-500">
-                                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9e5f5] bg-white px-4 py-2 text-sm font-medium text-[#0038A8] shadow-sm">
+                            <div className="motion-safe:animate-in motion-safe:duration-500 motion-safe:fade-in motion-safe:slide-in-from-bottom-3">
+                                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9e5f5] bg-white px-4 py-2 text-sm font-medium text-[#0038A8] shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-blue-300">
                                     <ShieldCheck className="h-4 w-4 text-[#CE1126]" />
                                     Government event registration platform
                                 </div>
 
-                                <h1 className="max-w-4xl text-4xl font-bold leading-tight text-slate-950 sm:text-5xl lg:text-6xl">
+                                <h1 className="max-w-4xl text-4xl leading-tight font-bold text-slate-950 sm:text-5xl lg:text-6xl dark:text-white">
                                     CHED Event Registration System
                                 </h1>
 
-                                <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
+                                <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg dark:text-neutral-300">
                                     A centralized platform for managing event
                                     registration, participant attendance, and
                                     event-related records for CHED activities.
@@ -341,14 +356,14 @@ export default function Welcome() {
                                 </div>
                             </div>
 
-                            <div className="rounded-2xl border border-[#d9e5f5] bg-white p-5 shadow-md shadow-slate-200/70 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 motion-safe:duration-700">
-                                <div className="rounded-2xl border border-[#d9e5f5] bg-[#f8fbff] p-5">
+                            <div className="rounded-2xl border border-[#d9e5f5] bg-white p-5 shadow-md shadow-slate-200/70 motion-safe:animate-in motion-safe:duration-700 motion-safe:fade-in motion-safe:slide-in-from-bottom-4 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30">
+                                <div className="rounded-2xl border border-[#d9e5f5] bg-[#f8fbff] p-5 dark:border-neutral-800 dark:bg-neutral-950">
                                     <div className="flex items-center justify-between gap-4">
                                         <div>
-                                            <p className="text-sm font-medium text-[#0038A8]">
+                                            <p className="text-sm font-medium text-[#0038A8] dark:text-blue-300">
                                                 Event Operations
                                             </p>
-                                            <h2 className="mt-1 text-2xl font-semibold text-slate-950">
+                                            <h2 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">
                                                 CERS Workflow
                                             </h2>
                                         </div>
@@ -364,10 +379,10 @@ export default function Welcome() {
                                             return (
                                                 <div
                                                     key={item.label}
-                                                    className="rounded-2xl border border-[#d9e5f5] bg-white p-4 shadow-sm transition hover:border-[#0038A8]/25 hover:shadow-md"
+                                                    className="rounded-2xl border border-[#d9e5f5] bg-white p-4 shadow-sm transition hover:border-[#0038A8]/25 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-blue-400/30"
                                                 >
                                                     <Icon className="h-6 w-6 text-[#0038A8]" />
-                                                    <p className="mt-4 text-sm font-semibold text-slate-800">
+                                                    <p className="mt-4 text-sm font-semibold text-slate-800 dark:text-neutral-100">
                                                         {item.label}
                                                     </p>
                                                 </div>
@@ -381,7 +396,7 @@ export default function Welcome() {
                                         (item) => (
                                             <div
                                                 key={item}
-                                                className="flex items-center gap-2 rounded-xl border border-[#d9e5f5] bg-white px-3 py-3 text-sm font-medium text-slate-700"
+                                                className="flex items-center gap-2 rounded-xl border border-[#d9e5f5] bg-white px-3 py-3 text-sm font-medium text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
                                             >
                                                 <CheckCircle2 className="h-4 w-4 text-[#CE1126]" />
                                                 {item}
@@ -395,7 +410,7 @@ export default function Welcome() {
 
                     <section
                         id="registration"
-                        className="border-y border-[#d9e5f5] bg-white/85 py-16 backdrop-blur-[2px] sm:py-20"
+                        className="border-y border-[#d9e5f5] bg-white/85 py-16 backdrop-blur-[2px] sm:py-20 dark:border-neutral-800 dark:bg-neutral-950/80"
                     >
                         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
                             <Form
@@ -406,25 +421,25 @@ export default function Welcome() {
                                     'password_confirmation',
                                 ]}
                                 disableWhileProcessing
-                                className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-md shadow-slate-200/70 sm:p-8"
+                                className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-md shadow-slate-200/70 sm:p-8 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30"
                             >
                                 {({ processing, errors }) => (
                                     <div className="grid gap-8">
-                                        <div className="border-b border-[#d9e5f5] pb-6">
-                                            <p className="text-sm font-semibold uppercase tracking-wide text-[#CE1126]">
+                                        <div className="border-b border-[#d9e5f5] pb-6 dark:border-neutral-800">
+                                            <p className="text-sm font-semibold tracking-wide text-[#CE1126] uppercase">
                                                 Event Registration
                                             </p>
-                                            <h2 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl">
+                                            <h2 className="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl dark:text-white">
                                                 Participant Registration Form
                                             </h2>
                                         </div>
 
                                         <section className="grid gap-5">
                                             <div>
-                                                <h3 className="text-base font-semibold text-slate-950">
+                                                <h3 className="text-base font-semibold text-slate-950 dark:text-white">
                                                     Participant details
                                                 </h3>
-                                                <p className="mt-1 text-sm text-slate-600">
+                                                <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
                                                     Tell us who will attend the
                                                     event.
                                                 </p>
@@ -597,7 +612,7 @@ export default function Welcome() {
                                                                 aria-expanded={
                                                                     participantTypePopoverOpen
                                                                 }
-                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff]"
+                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
                                                             >
                                                                 {selectedParticipantTypeLabel ||
                                                                     'Search and select type'}
@@ -670,17 +685,17 @@ export default function Welcome() {
                                                         required
                                                         className="grid grid-cols-2 gap-3"
                                                     >
-                                                        <label className="flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9e5f5] bg-[#f8fbff] px-4 text-sm font-medium text-slate-700 has-[[data-state=checked]]:border-[#0038A8] has-[[data-state=checked]]:bg-[#eef5ff]">
+                                                        <label className="flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9e5f5] bg-[#f8fbff] px-4 text-sm font-medium text-slate-700 has-[[data-state=checked]]:border-[#0038A8] has-[[data-state=checked]]:bg-[#eef5ff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200 dark:has-[[data-state=checked]]:border-blue-400 dark:has-[[data-state=checked]]:bg-blue-950/40">
                                                             <RadioGroupItem
                                                                 value="male"
-                                                                className="border-[#d9e5f5] text-[#0038A8] focus-visible:ring-[#0038A8]/15"
+                                                                className="border-[#d9e5f5] text-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700"
                                                             />
                                                             Male
                                                         </label>
-                                                        <label className="flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9e5f5] bg-[#f8fbff] px-4 text-sm font-medium text-slate-700 has-[[data-state=checked]]:border-[#0038A8] has-[[data-state=checked]]:bg-[#eef5ff]">
+                                                        <label className="flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-[#d9e5f5] bg-[#f8fbff] px-4 text-sm font-medium text-slate-700 has-[[data-state=checked]]:border-[#0038A8] has-[[data-state=checked]]:bg-[#eef5ff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200 dark:has-[[data-state=checked]]:border-blue-400 dark:has-[[data-state=checked]]:bg-blue-950/40">
                                                             <RadioGroupItem
                                                                 value="female"
-                                                                className="border-[#d9e5f5] text-[#0038A8] focus-visible:ring-[#0038A8]/15"
+                                                                className="border-[#d9e5f5] text-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700"
                                                             />
                                                             Female
                                                         </label>
@@ -692,12 +707,12 @@ export default function Welcome() {
                                             </div>
                                         </section>
 
-                                        <section className="grid gap-4 border-t border-[#d9e5f5] pt-6">
+                                        <section className="grid gap-4 border-t border-[#d9e5f5] pt-6 dark:border-neutral-800">
                                             <div>
-                                                <h3 className="text-base font-semibold text-slate-950">
+                                                <h3 className="text-base font-semibold text-slate-950 dark:text-white">
                                                     Event information
                                                 </h3>
-                                                <p className="mt-1 text-sm text-slate-600">
+                                                <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
                                                     Choose the event you want to
                                                     attend.
                                                 </p>
@@ -728,7 +743,7 @@ export default function Welcome() {
                                                             aria-expanded={
                                                                 eventPopoverOpen
                                                             }
-                                                            className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff]"
+                                                            className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
                                                         >
                                                             {selectedEventLabel ||
                                                                 'Search and select event'}
@@ -778,7 +793,6 @@ export default function Welcome() {
                                                                                 />
                                                                                 {
                                                                                     event.label
-                                                                                    
                                                                                 }
                                                                             </CommandItem>
                                                                         ),
@@ -794,15 +808,15 @@ export default function Welcome() {
                                             </div>
                                         </section>
 
-                                        <section className="grid gap-4 border-t border-[#d9e5f5] pt-6">
+                                        <section className="grid gap-4 border-t border-[#d9e5f5] pt-6 dark:border-neutral-800">
                                             <div>
-                                                <h3 className="text-base font-semibold text-slate-950">
+                                                <h3 className="text-base font-semibold text-slate-950 dark:text-white">
                                                     Account access
                                                 </h3>
-                                                <p className="mt-1 text-sm text-slate-600">
-                                                    Create a password so you
-                                                    can view your registration
-                                                    and attendance records.
+                                                <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
+                                                    Create a password so you can
+                                                    view your registration and
+                                                    attendance records.
                                                 </p>
                                             </div>
 
@@ -846,15 +860,21 @@ export default function Welcome() {
                                                 </div>
                                             </div>
 
-                                            <label className="flex items-start gap-3 text-sm leading-6 text-slate-600">
+                                            <label className="flex items-start gap-3 text-sm leading-6 text-slate-600 dark:text-neutral-400">
                                                 <input
                                                     type="checkbox"
                                                     name="consent"
                                                     value="yes"
                                                     required
-                                                    className="mt-1 size-4 rounded border-[#d9e5f5] text-[#0038A8] focus:ring-[#0038A8]/20"
+                                                    className="mt-1 size-4 rounded border-[#d9e5f5] text-[#0038A8] focus:ring-[#0038A8]/20 dark:border-neutral-700 dark:bg-neutral-950"
                                                 />
-                                                To promote networking between institutions with common interests, I give my consent to CHED to share my full name, designation, institution, and email address to other attendees of the event.
+                                                To promote networking between
+                                                institutions with common
+                                                interests, I give my consent to
+                                                CHED to share my full name,
+                                                designation, institution, and
+                                                email address to other attendees
+                                                of the event.
                                             </label>
                                             <InputError
                                                 message={errors.consent}
@@ -880,14 +900,14 @@ export default function Welcome() {
 
                     <section
                         id="features"
-                        className="bg-white/85 py-16 backdrop-blur-[2px] sm:py-20"
+                        className="bg-white/85 py-16 backdrop-blur-[2px] sm:py-20 dark:bg-neutral-950/80"
                     >
                         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                             <div className="max-w-2xl">
-                                <p className="text-sm font-semibold uppercase tracking-wide text-[#CE1126]">
+                                <p className="text-sm font-semibold tracking-wide text-[#CE1126] uppercase">
                                     Features
                                 </p>
-                                <h2 className="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl">
+                                <h2 className="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl dark:text-white">
                                     Built for efficient CHED event operations
                                 </h2>
                             </div>
@@ -899,15 +919,15 @@ export default function Welcome() {
                                     return (
                                         <article
                                             key={feature.title}
-                                            className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-sm transition duration-200 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 hover:-translate-y-1 hover:border-[#0038A8]/30 hover:shadow-md"
+                                            className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-[#0038A8]/30 hover:shadow-md motion-safe:animate-in motion-safe:duration-500 motion-safe:fade-in motion-safe:slide-in-from-bottom-2 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/20 dark:hover:border-blue-400/30"
                                         >
-                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef5ff] text-[#0038A8]">
+                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef5ff] text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300">
                                                 <Icon className="h-6 w-6" />
                                             </div>
-                                            <h3 className="mt-5 text-lg font-semibold text-slate-950">
+                                            <h3 className="mt-5 text-lg font-semibold text-slate-950 dark:text-white">
                                                 {feature.title}
                                             </h3>
-                                            <p className="mt-3 text-sm leading-6 text-slate-600">
+                                            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-neutral-400">
                                                 {feature.description}
                                             </p>
                                         </article>
@@ -916,16 +936,15 @@ export default function Welcome() {
                             </div>
                         </div>
                     </section>
-
                 </main>
 
-                <footer className="border-t border-slate-200 bg-white">
-                    <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-slate-600 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+                <footer className="border-t border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+                    <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-slate-600 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8 dark:text-neutral-400">
                         <p>
                             &copy; {currentYear} Commission on Higher Education.
                             All rights reserved.
                         </p>
-                        <p className="font-medium text-slate-700">
+                        <p className="font-medium text-slate-700 dark:text-neutral-300">
                             CHED Event Registration System
                         </p>
                     </div>
