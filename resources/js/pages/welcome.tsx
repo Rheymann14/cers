@@ -60,6 +60,8 @@ const navigationLinks = [
     { label: 'Features', href: '/features', sectionId: 'features' },
 ];
 
+const defaultActiveSection = 'home';
+
 const features = [
     {
         title: 'Online Registration',
@@ -172,7 +174,7 @@ function getCroppedImageDataUrl(
 
 function getInitialActiveSection() {
     if (typeof window === 'undefined') {
-        return 'home';
+        return defaultActiveSection;
     }
 
     if (
@@ -186,7 +188,7 @@ function getInitialActiveSection() {
         return 'features';
     }
 
-    return 'home';
+    return defaultActiveSection;
 }
 
 function getSectionPath(sectionId: string) {
@@ -209,7 +211,7 @@ export default function Welcome() {
     const AppearanceIcon = resolvedAppearance === 'dark' ? Sun : Moon;
     const currentYear = new Date().getFullYear();
     const [isNavbarScrolled, setIsNavbarScrolled] = useState(false);
-    const [activeSection, setActiveSection] = useState(getInitialActiveSection);
+    const [activeSection, setActiveSection] = useState(defaultActiveSection);
     const [eventPopoverOpen, setEventPopoverOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState('');
     const [participantTypePopoverOpen, setParticipantTypePopoverOpen] =
@@ -321,6 +323,8 @@ export default function Welcome() {
     useLayoutEffect(() => {
         const initialSection = getInitialActiveSection();
         let animationFrame = 0;
+
+        setActiveSection(initialSection);
 
         function revealWelcomePage() {
             animationFrame = window.requestAnimationFrame(() => {
