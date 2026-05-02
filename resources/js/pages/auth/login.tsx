@@ -50,7 +50,7 @@ export default function Login({
                             </div>
 
                             <div className="grid gap-2">
-                                <div className="flex items-center">
+                                {/* <div className="flex items-center">
                                     <Label htmlFor="password">Password</Label>
                                     {canResetPassword && (
                                         <TextLink
@@ -61,7 +61,7 @@ export default function Login({
                                             Forgot password?
                                         </TextLink>
                                     )}
-                                </div>
+                                </div> */}
                                 <PasswordInput
                                     id="password"
                                     name="password"
@@ -74,15 +74,7 @@ export default function Login({
                                 <InputError message={errors.password} />
                             </div>
 
-                            <div className="flex items-center space-x-3">
-                                <Checkbox
-                                    id="remember"
-                                    name="remember"
-                                    tabIndex={3}
-                                    className="border-[#d9e5f5] focus-visible:ring-[#0038A8]/15 data-[state=checked]:border-[#0038A8] data-[state=checked]:bg-[#0038A8] dark:border-neutral-700"
-                                />
-                                <Label htmlFor="remember">Remember me</Label>
-                            </div>
+                    
 
                             <Button
                                 type="submit"
@@ -96,7 +88,7 @@ export default function Login({
                             </Button>
                         </div>
 
-                        {canRegister && (
+                        {/* {canRegister && (
                             <div className="text-center text-sm text-slate-600 dark:text-neutral-400">
                                 Don't have an account?{' '}
                                 <TextLink
@@ -107,7 +99,7 @@ export default function Login({
                                     Sign up
                                 </TextLink>
                             </div>
-                        )}
+                        )} */}
                     </>
                 )}
             </Form>
@@ -124,5 +116,6 @@ export default function Login({
 Login.layout = {
     title: 'Access CERS',
     description:
-        'Sign in to manage CHED event registration, attendance, and records.',
+        'Enter your email and password to continue.',
+      
 };
