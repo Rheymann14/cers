@@ -12,7 +12,7 @@ test('new users can register from the welcome page', function () {
         'middle_name' => 'Middle',
         'surname' => 'User',
         'email' => 'test+'.uniqid().'@example.com',
-        'phone' => '0917 123 4567',
+        'phone' => '09171234567',
         'organization' => 'Test University',
         'position' => 'Faculty',
         'participant_type' => 'faculty',

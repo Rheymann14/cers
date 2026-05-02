@@ -30,7 +30,7 @@ class CreateNewUser implements CreatesNewUsers
             'surname' => ['required', 'string', 'max:255'],
             'email' => $this->emailRules(),
             'avatar' => ['nullable', 'string'],
-            'phone' => ['required', 'string', 'max:50'],
+            'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
             'organization' => ['required', 'string', 'max:255'],
             'position' => ['nullable', 'string', 'max:255'],
             'participant_type' => ['required', 'string', 'in:student,faculty,staff,guest'],

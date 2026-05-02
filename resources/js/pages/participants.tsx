@@ -78,6 +78,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useInitials } from '@/hooks/use-initials';
+import { normalizeContactNumber } from '@/lib/phone';
 import { cn } from '@/lib/utils';
 import { participants as participantsRoute } from '@/routes';
 
@@ -779,7 +780,7 @@ export default function Participants({
             middle_name: participant.middle_name ?? '',
             surname: participant.surname ?? '',
             email: participant.email,
-            phone: participant.phone ?? '',
+            phone: normalizeContactNumber(participant.phone ?? ''),
             organization: participant.organization ?? '',
             participant_type: participant.participant_type ?? '',
             sex: participant.sex ?? '',
@@ -1495,10 +1496,16 @@ export default function Participants({
                                                 onChange={(event) =>
                                                     setAddData(
                                                         'phone',
-                                                        event.target.value,
+                                                        normalizeContactNumber(
+                                                            event.target.value,
+                                                        ),
                                                     )
                                                 }
                                                 autoComplete="tel"
+                                                inputMode="numeric"
+                                                maxLength={11}
+                                                pattern="09[0-9]{9}"
+                                                placeholder="09XXXXXXXXX"
                                                 aria-invalid={!!addErrors.phone}
                                             />
                                             <InputError
@@ -1928,10 +1935,21 @@ export default function Participants({
                                 <Label htmlFor="phone">Phone</Label>
                                 <Input
                                     id="phone"
+                                    type="tel"
                                     value={data.phone}
                                     onChange={(event) =>
-                                        setData('phone', event.target.value)
+                                        setData(
+                                            'phone',
+                                            normalizeContactNumber(
+                                                event.target.value,
+                                            ),
+                                        )
                                     }
+                                    autoComplete="tel"
+                                    inputMode="numeric"
+                                    maxLength={11}
+                                    pattern="09[0-9]{9}"
+                                    placeholder="09XXXXXXXXX"
                                     aria-invalid={!!errors.phone}
                                 />
                                 <InputError message={errors.phone} />

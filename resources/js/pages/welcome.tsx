@@ -18,10 +18,7 @@ import {
     Users,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import ReactCrop, {
-    centerCrop,
-    makeAspectCrop,
-} from 'react-image-crop';
+import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
@@ -54,6 +51,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Spinner } from '@/components/ui/spinner';
 import { useAppearance } from '@/hooks/use-appearance';
+import { normalizeContactNumber } from '@/lib/phone';
 import { cn } from '@/lib/utils';
 import { login, participants } from '@/routes';
 
@@ -281,8 +279,7 @@ export default function Welcome() {
                 return;
             }
 
-            const registrationSection =
-                document.getElementById('registration');
+            const registrationSection = document.getElementById('registration');
             const featureSection = document.getElementById('features');
             let nextSection = 'home';
 
@@ -738,7 +735,17 @@ export default function Welcome() {
                                                         type="tel"
                                                         required
                                                         autoComplete="tel"
+                                                        inputMode="numeric"
+                                                        maxLength={11}
                                                         name="phone"
+                                                        onChange={(event) => {
+                                                            event.target.value =
+                                                                normalizeContactNumber(
+                                                                    event.target
+                                                                        .value,
+                                                                );
+                                                        }}
+                                                        pattern="09[0-9]{9}"
                                                         placeholder="09XX XXX XXXX"
                                                         className={fieldClass}
                                                     />
