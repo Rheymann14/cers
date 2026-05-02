@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\EventRegistrationController;
+use App\Http\Controllers\PageSettingsController;
 use App\Http\Controllers\ParticipantsController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,6 +16,15 @@ Route::post('event-registration', [EventRegistrationController::class, 'store'])
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('participants', ParticipantsController::class)->name('participants');
+    Route::get('page-settings', PageSettingsController::class)->name('page-settings');
+    Route::post('page-settings/{table}', [PageSettingsController::class, 'store'])
+        ->name('page-settings.store');
+    Route::patch('page-settings/{table}/{id}', [PageSettingsController::class, 'update'])
+        ->name('page-settings.update');
+    Route::patch('page-settings/{table}/{id}/status', [PageSettingsController::class, 'toggleStatus'])
+        ->name('page-settings.status');
+    Route::delete('page-settings/{table}/{id}', [PageSettingsController::class, 'destroy'])
+        ->name('page-settings.destroy');
     Route::patch('participants/{participant}', [ParticipantsController::class, 'update'])
         ->name('participants.update');
     Route::delete('participants/{participant}', [ParticipantsController::class, 'destroy'])

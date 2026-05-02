@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Organization;
+use App\Models\ParticipantType;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -70,6 +72,23 @@ class ParticipantsController extends Controller
             $validated['middle_name'] ?? null,
             $validated['surname'],
         ])->filter()->implode(' '));
+        $organization = Organization::query()->firstOrCreate(
+            ['slug' => str($validated['organization'])->slug()->toString()],
+            [
+                'name' => $validated['organization'],
+                'type' => 'school',
+                'is_active' => true,
+            ],
+        );
+        $participantType = ParticipantType::query()->firstOrCreate(
+            ['slug' => $validated['participant_type']],
+            [
+                'name' => str($validated['participant_type'])->headline()->toString(),
+                'is_active' => true,
+            ],
+        );
+        $validated['organization_id'] = $organization->id;
+        $validated['participant_type_id'] = $participantType->id;
 
         $participant->update($validated);
 

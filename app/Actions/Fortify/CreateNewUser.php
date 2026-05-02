@@ -4,7 +4,10 @@ namespace App\Actions\Fortify;
 
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
+use App\Models\Organization;
+use App\Models\ParticipantType;
 use App\Models\User;
+use App\Models\UserRole;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -44,6 +47,22 @@ class CreateNewUser implements CreatesNewUsers
             $input['middle_name'] ?? null,
             $input['surname'],
         ])->filter()->implode(' '));
+        $organization = Organization::query()->firstOrCreate(
+            ['slug' => Str::slug($input['organization'])],
+            [
+                'name' => $input['organization'],
+                'type' => 'school',
+                'is_active' => true,
+            ],
+        );
+        $participantType = ParticipantType::query()->firstOrCreate(
+            ['slug' => $input['participant_type']],
+            [
+                'name' => Str::headline($input['participant_type']),
+                'is_active' => true,
+            ],
+        );
+        $role = UserRole::query()->where('slug', 'participant')->first();
 
         return User::create([
             'name' => $name,
@@ -53,6 +72,9 @@ class CreateNewUser implements CreatesNewUsers
             'email' => $input['email'],
             'avatar' => $avatar,
             'phone' => $input['phone'],
+            'user_role_id' => $role?->id,
+            'organization_id' => $organization->id,
+            'participant_type_id' => $participantType->id,
             'organization' => $input['organization'],
             'position' => $input['position'] ?? null,
             'participant_type' => $input['participant_type'],
