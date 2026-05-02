@@ -8,9 +8,11 @@ import {
     ChevronLeft,
     ChevronRight,
     ChevronsUpDown,
+    ImagePlus,
     KeyRound,
     MoreHorizontal,
     Pencil,
+    Plus,
     RotateCcw,
     Search,
     Save,
@@ -19,9 +21,14 @@ import {
     X,
 } from 'lucide-react';
 import type { ComponentProps, FormEvent } from 'react';
-import { useMemo, useState } from 'react';
+import type { ChangeEvent } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import type { Crop, PixelCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 import { toast } from 'sonner';
 import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -76,6 +83,7 @@ import { participants as participantsRoute } from '@/routes';
 
 type Participant = {
     id: number;
+    participant_id: string | null;
     name: string;
     given_name: string | null;
     middle_name: string | null;
@@ -124,6 +132,12 @@ type ParticipantFormData = {
     event_name: string;
 };
 
+type AddParticipantFormData = ParticipantFormData & {
+    avatar: string;
+    password: string;
+    password_confirmation: string;
+};
+
 const columns: {
     key: SortKey;
     label: string;
@@ -167,6 +181,96 @@ const eventOptions: Option[] = [
     },
 ];
 
+const emptyParticipantFormData: ParticipantFormData = {
+    given_name: '',
+    middle_name: '',
+    surname: '',
+    email: '',
+    phone: '',
+    organization: '',
+    participant_type: '',
+    sex: '',
+    event_name: '',
+};
+
+const emptyAddParticipantFormData: AddParticipantFormData = {
+    ...emptyParticipantFormData,
+    avatar: '',
+    password: '',
+    password_confirmation: '',
+};
+
+const addParticipantSteps = ['Participant', 'Registration'] as const;
+
+const participantTypeBadgeClassNames = [
+    'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/40 dark:text-blue-300',
+    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-300',
+    'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/70 dark:bg-violet-950/40 dark:text-violet-300',
+    'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-300',
+    'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900/70 dark:bg-teal-950/40 dark:text-teal-300',
+    'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900/70 dark:bg-cyan-950/40 dark:text-cyan-300',
+];
+
+const participantTypeColorByValue = new Map(
+    participantTypeOptions.map((option, index) => [
+        option.value,
+        participantTypeBadgeClassNames[
+            index % participantTypeBadgeClassNames.length
+        ],
+    ]),
+);
+
+function getCenteredCircleCrop(width: number, height: number): Crop {
+    return centerCrop(
+        makeAspectCrop(
+            {
+                unit: '%',
+                width: 80,
+            },
+            1,
+            width,
+            height,
+        ),
+        width,
+        height,
+    );
+}
+
+function getCroppedImageDataUrl(
+    image: HTMLImageElement,
+    crop: PixelCrop,
+    mimeType: 'image/png' | 'image/jpeg',
+) {
+    const canvas = document.createElement('canvas');
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    const outputSize = 512;
+
+    canvas.width = outputSize;
+    canvas.height = outputSize;
+
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+        return '';
+    }
+
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(
+        image,
+        crop.x * scaleX,
+        crop.y * scaleY,
+        crop.width * scaleX,
+        crop.height * scaleY,
+        0,
+        0,
+        outputSize,
+        outputSize,
+    );
+
+    return canvas.toDataURL(mimeType, 0.92);
+}
+
 function formatLabel(value: string | null): string {
     if (!value) {
         return '-';
@@ -188,6 +292,27 @@ function formatDate(value: string): string {
 
 function getOptionLabel(options: Option[], value: string | null): string {
     return options.find((option) => option.value === value)?.label ?? '-';
+}
+
+function getParticipantTypeBadgeClassName(value: string | null): string {
+    if (!value) {
+        return 'border-border bg-muted text-muted-foreground';
+    }
+
+    const knownClassName = participantTypeColorByValue.get(value);
+
+    if (knownClassName) {
+        return knownClassName;
+    }
+
+    const colorIndex = [...value].reduce(
+        (total, character) => total + character.charCodeAt(0),
+        0,
+    );
+
+    return participantTypeBadgeClassNames[
+        colorIndex % participantTypeBadgeClassNames.length
+    ];
 }
 
 const preventDialogOutsideClose: NonNullable<
@@ -391,6 +516,18 @@ export default function Participants({
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const [pageSize, setPageSize] = useState(10);
     const [page, setPage] = useState(1);
+    const [addDialogOpen, setAddDialogOpen] = useState(false);
+    const [addStep, setAddStep] = useState(0);
+    const [addAvatarPreview, setAddAvatarPreview] = useState('');
+    const [addAvatarError, setAddAvatarError] = useState('');
+    const [addCropDialogOpen, setAddCropDialogOpen] = useState(false);
+    const [addCropImageSrc, setAddCropImageSrc] = useState('');
+    const [addCrop, setAddCrop] = useState<Crop>();
+    const [addCompletedCrop, setAddCompletedCrop] = useState<PixelCrop>();
+    const [addCropMimeType, setAddCropMimeType] = useState<
+        'image/png' | 'image/jpeg'
+    >('image/jpeg');
+    const addCropImageRef = useRef<HTMLImageElement | null>(null);
     const [editingParticipant, setEditingParticipant] =
         useState<Participant | null>(null);
     const [deletingParticipant, setDeletingParticipant] =
@@ -408,17 +545,16 @@ export default function Participants({
         errors,
         reset,
         clearErrors,
-    } = useForm<ParticipantFormData>({
-        given_name: '',
-        middle_name: '',
-        surname: '',
-        email: '',
-        phone: '',
-        organization: '',
-        participant_type: '',
-        sex: '',
-        event_name: '',
-    });
+    } = useForm<ParticipantFormData>(emptyParticipantFormData);
+    const {
+        data: addData,
+        setData: setAddData,
+        post: postParticipant,
+        processing: addingParticipant,
+        errors: addErrors,
+        reset: resetAddForm,
+        clearErrors: clearAddErrors,
+    } = useForm<AddParticipantFormData>(emptyAddParticipantFormData);
     const { delete: destroyParticipant, processing: deleting } = useForm({});
     const { post: postPasswordReset, processing: resettingPassword } = useForm(
         {},
@@ -432,6 +568,7 @@ export default function Participants({
             ? participants.filter((participant) =>
                   [
                       participant.name,
+                      participant.participant_id,
                       participant.email,
                       participant.phone,
                       participant.organization,
@@ -495,6 +632,143 @@ export default function Participants({
     function updatePageSize(value: number) {
         setPageSize(value);
         setPage(1);
+    }
+
+    function openAddDialog() {
+        clearAddErrors();
+        setAddAvatarError('');
+        setAddDialogOpen(true);
+    }
+
+    function closeAddDialog() {
+        if (addingParticipant) {
+            return;
+        }
+
+        setAddDialogOpen(false);
+        setAddStep(0);
+        setAddAvatarPreview('');
+        setAddAvatarError('');
+        setAddCropDialogOpen(false);
+        setAddCropImageSrc('');
+        setAddCrop(undefined);
+        setAddCompletedCrop(undefined);
+        clearAddErrors();
+        resetAddForm();
+    }
+
+    function handleAddAvatarSelect(event: ChangeEvent<HTMLInputElement>) {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+
+        if (!file) {
+            return;
+        }
+
+        if (!['image/png', 'image/jpeg'].includes(file.type)) {
+            const message = 'Upload a PNG, JPG, or JPEG image.';
+
+            setAddAvatarError(message);
+            toast.error(message);
+
+            return;
+        }
+
+        setAddAvatarError('');
+        setAddCropMimeType(
+            file.type === 'image/png' ? 'image/png' : 'image/jpeg',
+        );
+        setAddCrop({
+            unit: '%',
+            x: 10,
+            y: 10,
+            width: 80,
+            height: 80,
+        });
+        setAddCompletedCrop(undefined);
+
+        const reader = new FileReader();
+
+        reader.onload = () => {
+            setAddCropImageSrc(String(reader.result));
+            setAddCropDialogOpen(true);
+        };
+        reader.onerror = () => {
+            const message = 'Could not read the selected image.';
+
+            setAddAvatarError(message);
+            toast.error(message);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function removeAddAvatar() {
+        setAddAvatarPreview('');
+        setAddAvatarError('');
+        setAddData('avatar', '');
+        setAddCropImageSrc('');
+        setAddCompletedCrop(undefined);
+    }
+
+    function handleUseCroppedAddAvatar() {
+        const image = addCropImageRef.current;
+
+        if (!image) {
+            return;
+        }
+
+        const fallbackSize = Math.round(
+            Math.min(image.width, image.height) * 0.8,
+        );
+        const fallbackCrop: PixelCrop = {
+            unit: 'px',
+            x: Math.round((image.width - fallbackSize) / 2),
+            y: Math.round((image.height - fallbackSize) / 2),
+            width: fallbackSize,
+            height: fallbackSize,
+        };
+        const croppedDataUrl = getCroppedImageDataUrl(
+            image,
+            addCompletedCrop ?? fallbackCrop,
+            addCropMimeType,
+        );
+
+        if (!croppedDataUrl) {
+            const message = 'Could not crop the selected image.';
+
+            setAddAvatarError(message);
+            toast.error(message);
+
+            return;
+        }
+
+        setAddAvatarPreview(croppedDataUrl);
+        setAddData('avatar', croppedDataUrl);
+        setAddAvatarError('');
+        setAddCropDialogOpen(false);
+    }
+
+    function submitAdd(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        postParticipant('/participants', {
+            preserveScroll: true,
+            onSuccess: () => {
+                setAddDialogOpen(false);
+                setAddStep(0);
+                setAddAvatarPreview('');
+                setAddAvatarError('');
+                setAddCropDialogOpen(false);
+                setAddCropImageSrc('');
+                setAddCrop(undefined);
+                setAddCompletedCrop(undefined);
+                clearAddErrors();
+                resetAddForm();
+            },
+            onError: () => {
+                toast.error('Please review the highlighted fields.');
+            },
+        });
     }
 
     function openEditDialog(participant: Participant) {
@@ -680,6 +954,15 @@ export default function Participants({
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                                 <Button
                                     type="button"
+                                    size="sm"
+                                    onClick={openAddDialog}
+                                    className="h-8 justify-center px-2 text-xs"
+                                >
+                                    <Plus className="size-3.5" />
+                                    Add participant
+                                </Button>
+                                <Button
+                                    type="button"
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setDeletedDialogOpen(true)}
@@ -764,8 +1047,13 @@ export default function Participants({
 
                                             <div className="mt-3 flex flex-wrap gap-2">
                                                 <Badge
-                                                    variant="secondary"
-                                                    className="max-w-full"
+                                                    variant="outline"
+                                                    className={cn(
+                                                        'max-w-full',
+                                                        getParticipantTypeBadgeClassName(
+                                                            participant.participant_type,
+                                                        ),
+                                                    )}
                                                 >
                                                     {getOptionLabel(
                                                         participantTypeOptions,
@@ -814,10 +1102,11 @@ export default function Participants({
                                                     </div>
                                                     <div className="min-w-0">
                                                         <dt className="font-medium text-muted-foreground">
-                                                            ID
+                                                            Participant ID
                                                         </dt>
                                                         <dd className="mt-0.5 text-foreground">
-                                                            #{participant.id}
+                                                            {participant.participant_id ??
+                                                                '-'}
                                                         </dd>
                                                     </div>
                                                 </div>
@@ -913,7 +1202,9 @@ export default function Participants({
                                                         {participant.name}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        ID #{participant.id}
+                                                        Participant ID{' '}
+                                                        {participant.participant_id ??
+                                                            '-'}
                                                     </p>
                                                 </div>
                                             </div>
@@ -935,7 +1226,14 @@ export default function Participants({
                                             </span>
                                         </TableCell>
                                         <TableCell className="px-2 py-2">
-                                            <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-[#0038A8] dark:bg-blue-950/40 dark:text-blue-300">
+                                            <span
+                                                className={cn(
+                                                    'inline-flex rounded-full border px-2 py-1 text-[11px] font-medium',
+                                                    getParticipantTypeBadgeClassName(
+                                                        participant.participant_type,
+                                                    ),
+                                                )}
+                                            >
                                                 {formatLabel(
                                                     participant.participant_type,
                                                 )}
@@ -1036,6 +1334,513 @@ export default function Participants({
                     </div>
                 </div>
             </div>
+            <Dialog
+                open={addDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeAddDialog();
+                    } else {
+                        openAddDialog();
+                    }
+                }}
+            >
+                <DialogContent
+                    className="max-h-[calc(100vh-1rem)] gap-3 p-4 sm:max-w-2xl"
+                    onPointerDownOutside={preventDialogOutsideClose}
+                >
+                    <DialogHeader className="gap-1">
+                        <DialogTitle className="inline-flex items-center gap-2 text-base">
+                            <Plus className="size-4 text-muted-foreground" />
+                            Add participant
+                        </DialogTitle>
+                        <DialogDescription className="text-xs leading-5">
+                            Enter the participant details and account access
+                            information.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={submitAdd} className="grid gap-4">
+                        <div className="grid grid-cols-2 gap-1">
+                            {addParticipantSteps.map((step, index) => (
+                                <button
+                                    key={step}
+                                    type="button"
+                                    onClick={() => setAddStep(index)}
+                                    className={cn(
+                                        'min-w-0 rounded-md border px-2 py-2 text-center text-[11px] font-medium',
+                                        addStep === index
+                                            ? 'border-primary bg-primary text-primary-foreground'
+                                            : 'border-border bg-muted/35 text-muted-foreground',
+                                    )}
+                                >
+                                    <span className="block sm:hidden">
+                                        {index + 1}
+                                    </span>
+                                    <span className="hidden truncate sm:block">
+                                        {step}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="grid gap-3">
+                            {addStep === 0 && (
+                                <div className="grid gap-3">
+                                    <div className="grid gap-3 sm:grid-cols-3">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="add_given_name">
+                                                Given name
+                                            </Label>
+                                            <Input
+                                                id="add_given_name"
+                                                value={addData.given_name}
+                                                onChange={(event) =>
+                                                    setAddData(
+                                                        'given_name',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                autoComplete="given-name"
+                                                aria-invalid={
+                                                    !!addErrors.given_name
+                                                }
+                                            />
+                                            <InputError
+                                                message={addErrors.given_name}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="add_middle_name">
+                                                Middle name
+                                            </Label>
+                                            <Input
+                                                id="add_middle_name"
+                                                value={addData.middle_name}
+                                                onChange={(event) =>
+                                                    setAddData(
+                                                        'middle_name',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                autoComplete="additional-name"
+                                                aria-invalid={
+                                                    !!addErrors.middle_name
+                                                }
+                                            />
+                                            <InputError
+                                                message={addErrors.middle_name}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="add_surname">
+                                                Surname
+                                            </Label>
+                                            <Input
+                                                id="add_surname"
+                                                value={addData.surname}
+                                                onChange={(event) =>
+                                                    setAddData(
+                                                        'surname',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                autoComplete="family-name"
+                                                aria-invalid={
+                                                    !!addErrors.surname
+                                                }
+                                            />
+                                            <InputError
+                                                message={addErrors.surname}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {addStep === 0 && (
+                                <div className="grid gap-3">
+                                    <div className="grid gap-3 sm:grid-cols-3">
+                                        <div className="space-y-2 sm:col-span-2">
+                                            <Label htmlFor="add_email">
+                                                Email address
+                                            </Label>
+                                            <Input
+                                                id="add_email"
+                                                type="email"
+                                                value={addData.email}
+                                                onChange={(event) =>
+                                                    setAddData(
+                                                        'email',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                autoComplete="email"
+                                                aria-invalid={!!addErrors.email}
+                                            />
+                                            <InputError
+                                                message={addErrors.email}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="add_phone">
+                                                Contact number
+                                            </Label>
+                                            <Input
+                                                id="add_phone"
+                                                type="tel"
+                                                value={addData.phone}
+                                                onChange={(event) =>
+                                                    setAddData(
+                                                        'phone',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                autoComplete="tel"
+                                                aria-invalid={!!addErrors.phone}
+                                            />
+                                            <InputError
+                                                message={addErrors.phone}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="add_organization">
+                                            School or organization
+                                        </Label>
+                                        <Input
+                                            id="add_organization"
+                                            value={addData.organization}
+                                            onChange={(event) =>
+                                                setAddData(
+                                                    'organization',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            autoComplete="organization"
+                                            aria-invalid={
+                                                !!addErrors.organization
+                                            }
+                                        />
+                                        <InputError
+                                            message={addErrors.organization}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {addStep === 0 && (
+                                <div className="flex flex-col gap-3 rounded-md border border-dashed bg-muted/20 p-3 sm:flex-row sm:items-center">
+                                    <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-background">
+                                        {addAvatarPreview ? (
+                                            <img
+                                                src={addAvatarPreview}
+                                                alt="Profile preview"
+                                                className="size-full object-cover"
+                                            />
+                                        ) : (
+                                            <ImagePlus className="size-6 text-muted-foreground" />
+                                        )}
+                                    </div>
+                                    <div className="grid min-w-0 flex-1 gap-2">
+                                        <Label>Profile image</Label>
+                                        <div className="flex flex-wrap gap-2">
+                                            <Label
+                                                htmlFor="add_avatar"
+                                                className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow-xs hover:bg-primary/90"
+                                            >
+                                                <ImagePlus className="size-4" />
+                                                Choose image
+                                            </Label>
+                                            <input
+                                                id="add_avatar"
+                                                type="file"
+                                                accept="image/png,image/jpeg"
+                                                className="sr-only"
+                                                onChange={handleAddAvatarSelect}
+                                            />
+                                            {addAvatarPreview && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={removeAddAvatar}
+                                                >
+                                                    <X className="size-4" />
+                                                    Remove
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <InputError
+                                            message={
+                                                addErrors.avatar ||
+                                                addAvatarError
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {addStep === 1 && (
+                                <div className="grid gap-3">
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <SearchableOptionField
+                                            id="add_participant_type"
+                                            label="Participant type"
+                                            value={addData.participant_type}
+                                            options={participantTypeOptions}
+                                            placeholder="Search and select type"
+                                            searchPlaceholder="Search participant type..."
+                                            emptyMessage="No type found."
+                                            error={addErrors.participant_type}
+                                            onValueChange={(value) =>
+                                                setAddData(
+                                                    'participant_type',
+                                                    value,
+                                                )
+                                            }
+                                        />
+
+                                        <div className="space-y-2">
+                                            <Label>Sex</Label>
+                                            <Select
+                                                value={addData.sex}
+                                                onValueChange={(value) =>
+                                                    setAddData('sex', value)
+                                                }
+                                            >
+                                                <SelectTrigger
+                                                    className="w-full"
+                                                    aria-invalid={
+                                                        !!addErrors.sex
+                                                    }
+                                                >
+                                                    <SelectValue placeholder="Select sex" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {sexOptions.map(
+                                                        (option) => (
+                                                            <SelectItem
+                                                                key={
+                                                                    option.value
+                                                                }
+                                                                value={
+                                                                    option.value
+                                                                }
+                                                            >
+                                                                {option.label}
+                                                            </SelectItem>
+                                                        ),
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                            <InputError
+                                                message={addErrors.sex}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <SearchableOptionField
+                                        id="add_event_name"
+                                        label="Event"
+                                        value={addData.event_name}
+                                        options={eventOptions}
+                                        placeholder="Search and select event"
+                                        searchPlaceholder="Search event..."
+                                        emptyMessage="No event found."
+                                        error={addErrors.event_name}
+                                        onValueChange={(value) =>
+                                            setAddData('event_name', value)
+                                        }
+                                    />
+                                </div>
+                            )}
+
+                            {addStep === 1 && (
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="add_password">
+                                            Password
+                                        </Label>
+                                        <PasswordInput
+                                            id="add_password"
+                                            value={addData.password}
+                                            onChange={(event) =>
+                                                setAddData(
+                                                    'password',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            autoComplete="new-password"
+                                            aria-invalid={!!addErrors.password}
+                                        />
+                                        <InputError
+                                            message={addErrors.password}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="add_password_confirmation">
+                                            Confirm password
+                                        </Label>
+                                        <PasswordInput
+                                            id="add_password_confirmation"
+                                            value={
+                                                addData.password_confirmation
+                                            }
+                                            onChange={(event) =>
+                                                setAddData(
+                                                    'password_confirmation',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            autoComplete="new-password"
+                                            aria-invalid={
+                                                !!addErrors.password_confirmation
+                                            }
+                                        />
+                                        <InputError
+                                            message={
+                                                addErrors.password_confirmation
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <DialogFooter className="grid grid-cols-2 gap-2 sm:flex">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={closeAddDialog}
+                                disabled={addingParticipant}
+                            >
+                                <X className="size-4" />
+                                Cancel
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                    setAddStep((step) => Math.max(0, step - 1))
+                                }
+                                disabled={addingParticipant || addStep === 0}
+                            >
+                                <ChevronLeft className="size-4" />
+                                Back
+                            </Button>
+                            {addStep < addParticipantSteps.length - 1 ? (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() =>
+                                        setAddStep((step) =>
+                                            Math.min(
+                                                addParticipantSteps.length - 1,
+                                                step + 1,
+                                            ),
+                                        )
+                                    }
+                                    disabled={addingParticipant}
+                                    className="col-span-2 sm:col-span-1"
+                                >
+                                    Next
+                                    <ChevronRight className="size-4" />
+                                </Button>
+                            ) : (
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    disabled={addingParticipant}
+                                    className="col-span-2 sm:col-span-1"
+                                >
+                                    <Save className="size-4" />
+                                    Add participant
+                                </Button>
+                            )}
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+            <Dialog
+                open={addCropDialogOpen}
+                onOpenChange={setAddCropDialogOpen}
+            >
+                <DialogContent
+                    className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-xl"
+                    onPointerDownOutside={preventDialogOutsideClose}
+                >
+                    <DialogHeader className="gap-1">
+                        <DialogTitle className="inline-flex items-center gap-2 text-base">
+                            <ImagePlus className="size-4 text-muted-foreground" />
+                            Crop profile image
+                        </DialogTitle>
+                        <DialogDescription className="text-xs leading-5">
+                            Position the square crop for the participant image.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {addCropImageSrc && (
+                        <div className="max-h-[60vh] overflow-auto rounded-md border bg-muted/20 p-2">
+                            <ReactCrop
+                                crop={addCrop}
+                                onChange={(_, percentCrop) =>
+                                    setAddCrop(percentCrop)
+                                }
+                                onComplete={(pixelCrop) =>
+                                    setAddCompletedCrop(pixelCrop)
+                                }
+                                aspect={1}
+                                circularCrop
+                                keepSelection
+                            >
+                                <img
+                                    ref={addCropImageRef}
+                                    src={addCropImageSrc}
+                                    alt="Crop profile"
+                                    className="max-h-[52vh] w-full object-contain"
+                                    onLoad={(event) => {
+                                        const image = event.currentTarget;
+
+                                        setAddCrop(
+                                            getCenteredCircleCrop(
+                                                image.width,
+                                                image.height,
+                                            ),
+                                        );
+                                    }}
+                                />
+                            </ReactCrop>
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAddCropDialogOpen(false)}
+                        >
+                            <X className="size-4" />
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleUseCroppedAddAvatar}
+                        >
+                            <Save className="size-4" />
+                            Use image
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             <Dialog
                 open={editingParticipant !== null}
                 onOpenChange={(open) => {

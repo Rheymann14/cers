@@ -16,6 +16,8 @@ Route::post('event-registration', [EventRegistrationController::class, 'store'])
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('participants', ParticipantsController::class)->name('participants');
+    Route::post('participants', [ParticipantsController::class, 'store'])
+        ->name('participants.store');
     Route::get('page-settings', PageSettingsController::class)->name('page-settings');
     Route::post('page-settings/{table}', [PageSettingsController::class, 'store'])
         ->name('page-settings.store');

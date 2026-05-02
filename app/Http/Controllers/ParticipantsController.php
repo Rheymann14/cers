@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\User;
+use App\Models\UserRole;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -17,6 +20,7 @@ class ParticipantsController extends Controller
     {
         $columns = [
             'id',
+            'participant_id',
             'name',
             'given_name',
             'middle_name',
@@ -41,6 +45,76 @@ class ParticipantsController extends Controller
                 ->latest('deleted_at')
                 ->get($columns),
         ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'given_name' => ['required', 'string', 'max:255'],
+            'middle_name' => ['nullable', 'string', 'max:255'],
+            'surname' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
+            'avatar' => ['nullable', 'string'],
+            'phone' => ['required', 'string', 'max:50'],
+            'organization' => ['required', 'string', 'max:255'],
+            'participant_type' => ['required', 'string', Rule::in(['student', 'faculty', 'staff', 'guest'])],
+            'sex' => ['required', 'string', Rule::in(['male', 'female'])],
+            'event_name' => ['required', 'string', Rule::in([
+                'ched-regional-orientation',
+                'higher-education-summit',
+                'faculty-development-workshop',
+            ])],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $name = trim(collect([
+            $validated['given_name'],
+            $validated['middle_name'] ?? null,
+            $validated['surname'],
+        ])->filter()->implode(' '));
+        $organization = Organization::query()->firstOrCreate(
+            ['slug' => str($validated['organization'])->slug()->toString()],
+            [
+                'name' => $validated['organization'],
+                'type' => 'school',
+                'is_active' => true,
+            ],
+        );
+        $participantType = ParticipantType::query()->firstOrCreate(
+            ['slug' => $validated['participant_type']],
+            [
+                'name' => str($validated['participant_type'])->headline()->toString(),
+                'is_active' => true,
+            ],
+        );
+        $role = UserRole::query()->where('slug', 'participant')->first();
+
+        User::query()->create([
+            'name' => $name,
+            'participant_id' => $this->generateParticipantId(),
+            'given_name' => $validated['given_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'surname' => $validated['surname'],
+            'email' => $validated['email'],
+            'avatar' => $this->storeAvatar($validated['avatar'] ?? null),
+            'phone' => $validated['phone'],
+            'user_role_id' => $role?->id,
+            'organization_id' => $organization->id,
+            'participant_type_id' => $participantType->id,
+            'organization' => $validated['organization'],
+            'participant_type' => $validated['participant_type'],
+            'sex' => $validated['sex'],
+            'event_name' => $validated['event_name'],
+            'registration_consent_accepted_at' => now(),
+            'password' => $validated['password'],
+        ]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => 'Participant added successfully.',
+        ]);
+
+        return back();
     }
 
     public function update(Request $request, User $participant): RedirectResponse
@@ -135,5 +209,36 @@ class ParticipantsController extends Controller
         ]);
 
         return back();
+    }
+
+    private function generateParticipantId(): string
+    {
+        $year = now()->year;
+
+        do {
+            $participantId = 'CERS-'.Str::upper(Str::random(4)).'-'.$year;
+        } while (User::query()->where('participant_id', $participantId)->exists());
+
+        return $participantId;
+    }
+
+    private function storeAvatar(?string $avatar): ?string
+    {
+        if (! $avatar || ! preg_match('/^data:image\/(png|jpeg);base64,/', $avatar, $matches)) {
+            return null;
+        }
+
+        $contents = base64_decode(substr($avatar, strpos($avatar, ',') + 1), true);
+
+        if ($contents === false) {
+            return null;
+        }
+
+        $extension = $matches[1] === 'png' ? 'png' : 'jpg';
+        $path = 'profile-photos/'.Str::uuid().'.'.$extension;
+
+        Storage::disk('public')->put($path, $contents);
+
+        return Storage::url($path);
     }
 }

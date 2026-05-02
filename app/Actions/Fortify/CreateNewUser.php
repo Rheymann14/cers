@@ -66,6 +66,7 @@ class CreateNewUser implements CreatesNewUsers
 
         return User::create([
             'name' => $name,
+            'participant_id' => $this->generateParticipantId(),
             'given_name' => $input['given_name'],
             'middle_name' => $input['middle_name'] ?? null,
             'surname' => $input['surname'],
@@ -83,6 +84,17 @@ class CreateNewUser implements CreatesNewUsers
             'registration_consent_accepted_at' => now(),
             'password' => $input['password'],
         ]);
+    }
+
+    private function generateParticipantId(): string
+    {
+        $year = now()->year;
+
+        do {
+            $participantId = 'CERS-'.Str::upper(Str::random(4)).'-'.$year;
+        } while (User::query()->where('participant_id', $participantId)->exists());
+
+        return $participantId;
     }
 
     private function storeAvatar(?string $avatar): ?string

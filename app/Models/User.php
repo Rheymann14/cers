@@ -15,6 +15,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 
 #[Fillable([
     'name',
+    'participant_id',
     'given_name',
     'middle_name',
     'surname',
