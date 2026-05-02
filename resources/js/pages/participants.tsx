@@ -340,6 +340,47 @@ function ParticipantActions({
     );
 }
 
+function ParticipantAvatarThumbnail({
+    participant,
+    getInitials,
+    sizeClassName,
+    fallbackClassName,
+    onViewImage,
+}: {
+    participant: Participant;
+    getInitials: (name: string) => string;
+    sizeClassName: string;
+    fallbackClassName: string;
+    onViewImage: (participant: Participant) => void;
+}) {
+    const avatar = (
+        <Avatar className={sizeClassName}>
+            <AvatarImage
+                src={participant.avatar ?? undefined}
+                alt={participant.name}
+            />
+            <AvatarFallback className={fallbackClassName}>
+                {getInitials(participant.name)}
+            </AvatarFallback>
+        </Avatar>
+    );
+
+    if (!participant.avatar) {
+        return avatar;
+    }
+
+    return (
+        <button
+            type="button"
+            aria-label={`View profile image for ${participant.name}`}
+            onClick={() => onViewImage(participant)}
+            className="rounded-full ring-offset-background transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+            {avatar}
+        </button>
+    );
+}
+
 export default function Participants({
     participants,
     deletedParticipants,
@@ -357,6 +398,8 @@ export default function Participants({
     const [resettingPasswordParticipant, setResettingPasswordParticipant] =
         useState<Participant | null>(null);
     const [deletedDialogOpen, setDeletedDialogOpen] = useState(false);
+    const [viewingImageParticipant, setViewingImageParticipant] =
+        useState<Participant | null>(null);
     const {
         data,
         setData,
@@ -677,28 +720,29 @@ export default function Participants({
 
                     <div className="divide-y md:hidden">
                         {pageParticipants.length > 0 ? (
-                            pageParticipants.map((participant) => (
+                            pageParticipants.map((participant, index) => (
                                 <article
                                     key={participant.id}
                                     className="p-3 sm:p-4"
                                 >
                                     <div className="flex items-start gap-3">
-                                        <Avatar className="size-10">
-                                            <AvatarImage
-                                                src={
-                                                    participant.avatar ??
-                                                    undefined
-                                                }
-                                                alt={participant.name}
-                                            />
-                                            <AvatarFallback className="bg-[#eef5ff] text-xs font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300">
-                                                {getInitials(participant.name)}
-                                            </AvatarFallback>
-                                        </Avatar>
+                                        <ParticipantAvatarThumbnail
+                                            participant={participant}
+                                            getInitials={getInitials}
+                                            sizeClassName="size-10"
+                                            fallbackClassName="bg-[#eef5ff] text-xs font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
+                                            onViewImage={
+                                                setViewingImageParticipant
+                                            }
+                                        />
 
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0">
+                                                    <p className="mb-0.5 text-[11px] font-semibold text-muted-foreground">
+                                                        Seq{' '}
+                                                        {startIndex + index + 1}
+                                                    </p>
                                                     <h2 className="truncate text-sm font-semibold text-foreground">
                                                         {participant.name}
                                                     </h2>
@@ -801,6 +845,9 @@ export default function Participants({
                     <Table className="hidden table-fixed text-xs md:table">
                         <TableHeader>
                             <TableRow className="bg-muted/45 hover:bg-muted/45">
+                                <TableHead className="h-9 w-12 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                    Seq
+                                </TableHead>
                                 {columns.map((column) => {
                                     const isActive = sortKey === column.key;
                                     const SortIcon = isActive
@@ -842,27 +889,25 @@ export default function Participants({
                         </TableHeader>
                         <TableBody>
                             {pageParticipants.length > 0 ? (
-                                pageParticipants.map((participant) => (
+                                pageParticipants.map((participant, index) => (
                                     <TableRow
                                         key={participant.id}
                                         className="odd:bg-muted/[0.18]"
                                     >
+                                        <TableCell className="px-2 py-2 font-medium text-muted-foreground">
+                                            {startIndex + index + 1}
+                                        </TableCell>
                                         <TableCell className="px-2 py-2">
                                             <div className="flex min-w-0 items-center gap-2">
-                                                <Avatar className="size-8">
-                                                    <AvatarImage
-                                                        src={
-                                                            participant.avatar ??
-                                                            undefined
-                                                        }
-                                                        alt={participant.name}
-                                                    />
-                                                    <AvatarFallback className="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300">
-                                                        {getInitials(
-                                                            participant.name,
-                                                        )}
-                                                    </AvatarFallback>
-                                                </Avatar>
+                                                <ParticipantAvatarThumbnail
+                                                    participant={participant}
+                                                    getInitials={getInitials}
+                                                    sizeClassName="size-8"
+                                                    fallbackClassName="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
+                                                    onViewImage={
+                                                        setViewingImageParticipant
+                                                    }
+                                                />
                                                 <div className="min-w-0">
                                                     <p className="truncate font-semibold text-foreground">
                                                         {participant.name}
@@ -926,7 +971,7 @@ export default function Participants({
                             ) : (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={columns.length + 1}
+                                        colSpan={columns.length + 2}
                                         className="h-32 text-center text-muted-foreground"
                                     >
                                         No participants found.
@@ -1316,18 +1361,15 @@ export default function Participants({
                                     className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between"
                                 >
                                     <div className="flex min-w-0 items-center gap-2">
-                                        <Avatar className="size-8">
-                                            <AvatarImage
-                                                src={
-                                                    participant.avatar ??
-                                                    undefined
-                                                }
-                                                alt={participant.name}
-                                            />
-                                            <AvatarFallback className="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300">
-                                                {getInitials(participant.name)}
-                                            </AvatarFallback>
-                                        </Avatar>
+                                        <ParticipantAvatarThumbnail
+                                            participant={participant}
+                                            getInitials={getInitials}
+                                            sizeClassName="size-8"
+                                            fallbackClassName="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
+                                            onViewImage={
+                                                setViewingImageParticipant
+                                            }
+                                        />
                                         <div className="min-w-0">
                                             <p className="truncate text-xs font-semibold text-foreground">
                                                 {participant.name}
@@ -1368,6 +1410,37 @@ export default function Participants({
                             </div>
                         )}
                     </div>
+                </DialogContent>
+            </Dialog>
+            <Dialog
+                open={viewingImageParticipant !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setViewingImageParticipant(null);
+                    }
+                }}
+            >
+                <DialogContent className="h-dvh max-h-none w-dvw max-w-none rounded-none border-0 bg-black p-0 sm:max-w-none [&>button]:top-4 [&>button]:right-4 [&>button]:bg-white/15 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-white/25 [&>button]:focus:ring-white/60">
+                    <DialogHeader className="sr-only">
+                        <DialogTitle>
+                            {viewingImageParticipant?.name
+                                ? `${viewingImageParticipant.name} profile image`
+                                : 'Participant profile image'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Full screen participant profile image.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {viewingImageParticipant?.avatar && (
+                        <div className="flex h-full w-full items-center justify-center p-4 sm:p-8">
+                            <img
+                                src={viewingImageParticipant.avatar}
+                                alt={`${viewingImageParticipant.name} profile`}
+                                className="max-h-full max-w-full object-contain"
+                            />
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </>
