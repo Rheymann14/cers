@@ -10,7 +10,6 @@ type UseLayoutReturn = {
 
 const layouts: readonly Layout[] = ['sidebar', 'header'];
 const listeners = new Set<() => void>();
-let currentLayout: Layout = 'sidebar';
 
 const isLayout = (value: string | null): value is Layout => {
     return layouts.includes(value as Layout);
@@ -30,10 +29,18 @@ const getStoredLayout = (): Layout => {
         return 'sidebar';
     }
 
+    const appliedLayout = document.documentElement.dataset.layout ?? null;
+
+    if (isLayout(appliedLayout)) {
+        return appliedLayout;
+    }
+
     const storedLayout = localStorage.getItem('layout');
 
     return isLayout(storedLayout) ? storedLayout : 'sidebar';
 };
+
+let currentLayout: Layout = getStoredLayout();
 
 const subscribe = (callback: () => void) => {
     listeners.add(callback);
@@ -43,12 +50,21 @@ const subscribe = (callback: () => void) => {
 
 const notify = (): void => listeners.forEach((listener) => listener());
 
+const applyLayout = (layout: Layout): void => {
+    if (typeof document === 'undefined') {
+        return;
+    }
+
+    document.documentElement.dataset.layout = layout;
+};
+
 export function initializeLayout(): void {
     if (typeof window === 'undefined') {
         return;
     }
 
     currentLayout = getStoredLayout();
+    applyLayout(currentLayout);
 
     if (!localStorage.getItem('layout')) {
         localStorage.setItem('layout', currentLayout);
@@ -59,7 +75,7 @@ export function initializeLayout(): void {
 export function useLayout(): UseLayoutReturn {
     const layout: Layout = useSyncExternalStore(
         subscribe,
-        () => currentLayout,
+        () => getStoredLayout(),
         () => 'sidebar' as Layout,
     );
 
@@ -67,6 +83,7 @@ export function useLayout(): UseLayoutReturn {
         currentLayout = layout;
         localStorage.setItem('layout', layout);
         setCookie('layout', layout);
+        applyLayout(layout);
         notify();
     };
 

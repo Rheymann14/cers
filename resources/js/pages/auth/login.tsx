@@ -7,7 +7,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import { home } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 
@@ -101,7 +100,7 @@ export default function Login({
                             <div className="text-center text-sm text-slate-600 dark:text-neutral-400">
                                 Don't have an account?{' '}
                                 <TextLink
-                                    href={`${home()}#registration`}
+                                    href="/registration"
                                     tabIndex={5}
                                     className="font-medium text-[#0038A8] decoration-[#d9e5f5] hover:text-[#002f8f] dark:text-blue-300 dark:decoration-neutral-700 dark:hover:text-blue-200"
                                 >

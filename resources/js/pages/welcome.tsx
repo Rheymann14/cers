@@ -17,13 +17,12 @@ import {
     Sun,
     Users,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ReactCrop, {
     centerCrop,
     makeAspectCrop,
-    type Crop,
-    type PixelCrop,
 } from 'react-image-crop';
+import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
 import InputError from '@/components/input-error';
@@ -56,7 +55,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Spinner } from '@/components/ui/spinner';
 import { useAppearance } from '@/hooks/use-appearance';
 import { cn } from '@/lib/utils';
-import { dashboard, login } from '@/routes';
+import { login, participants } from '@/routes';
 
 const navigationLinks = [
     { label: 'Home', href: '/home', sectionId: 'home' },
@@ -173,15 +172,46 @@ function getCroppedImageDataUrl(
     return canvas.toDataURL(mimeType, 0.92);
 }
 
+function getInitialActiveSection() {
+    if (typeof window === 'undefined') {
+        return 'home';
+    }
+
+    if (
+        window.location.pathname === '/registration' ||
+        window.location.hash === '#registration'
+    ) {
+        return 'registration';
+    }
+
+    if (window.location.pathname === '/features') {
+        return 'features';
+    }
+
+    return 'home';
+}
+
+function getSectionPath(sectionId: string) {
+    if (sectionId === 'features') {
+        return '/features';
+    }
+
+    if (sectionId === 'registration') {
+        return '/registration';
+    }
+
+    return '/home';
+}
+
 export default function Welcome() {
     const { auth } = usePage().props;
     const { resolvedAppearance, updateAppearance } = useAppearance();
-    const accessHref = auth.user ? dashboard() : login();
+    const accessHref = auth.user ? participants() : login();
     const nextAppearance = resolvedAppearance === 'dark' ? 'light' : 'dark';
     const AppearanceIcon = resolvedAppearance === 'dark' ? Sun : Moon;
     const currentYear = new Date().getFullYear();
     const [isNavbarScrolled, setIsNavbarScrolled] = useState(false);
-    const [activeSection, setActiveSection] = useState('home');
+    const [activeSection, setActiveSection] = useState(getInitialActiveSection);
     const [eventPopoverOpen, setEventPopoverOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState('');
     const [participantTypePopoverOpen, setParticipantTypePopoverOpen] =
@@ -247,33 +277,37 @@ export default function Welcome() {
 
             if (activeScrollTargetRef.current) {
                 setActiveSection(activeScrollTargetRef.current);
+
                 return;
             }
 
+            const registrationSection =
+                document.getElementById('registration');
             const featureSection = document.getElementById('features');
-            const nextSection =
+            let nextSection = 'home';
+
+            if (
+                registrationSection &&
+                registrationSection.getBoundingClientRect().top <= 160
+            ) {
+                nextSection = 'registration';
+            }
+
+            if (
                 featureSection &&
                 featureSection.getBoundingClientRect().top <= 160
-                    ? 'features'
-                    : 'home';
+            ) {
+                nextSection = 'features';
+            }
 
             setActiveSection(nextSection);
 
-            const nextPath = nextSection === 'features' ? '/features' : '/home';
+            const nextPath = getSectionPath(nextSection);
 
             if (window.location.pathname !== nextPath) {
                 window.history.replaceState({}, '', nextPath);
             }
         };
-
-        if (window.location.pathname === '/features') {
-            setActiveSection('features');
-            requestAnimationFrame(() => {
-                document
-                    .getElementById('features')
-                    ?.scrollIntoView({ block: 'start' });
-            });
-        }
 
         handleScroll();
         window.addEventListener('scroll', handleScroll, { passive: true });
@@ -285,6 +319,31 @@ export default function Welcome() {
                 window.clearTimeout(activeScrollTimeoutRef.current);
             }
         };
+    }, []);
+
+    useLayoutEffect(() => {
+        const initialSection = getInitialActiveSection();
+        let animationFrame = 0;
+
+        function revealWelcomePage() {
+            animationFrame = window.requestAnimationFrame(() => {
+                delete document.documentElement.dataset.welcomeHydrating;
+            });
+        }
+
+        if (initialSection === 'home') {
+            window.scrollTo(0, 0);
+            revealWelcomePage();
+
+            return () => window.cancelAnimationFrame(animationFrame);
+        }
+
+        document
+            .getElementById(initialSection)
+            ?.scrollIntoView({ block: 'start' });
+        revealWelcomePage();
+
+        return () => window.cancelAnimationFrame(animationFrame);
     }, []);
 
     function handleProfilePhotoSelect(
@@ -299,6 +358,7 @@ export default function Welcome() {
 
         if (!['image/png', 'image/jpeg'].includes(file.type)) {
             setProfilePhotoError('Upload a PNG, JPG, or JPEG image.');
+
             return;
         }
 
@@ -330,7 +390,7 @@ export default function Welcome() {
     }
 
     function scrollToRegistration(event: React.MouseEvent<HTMLAnchorElement>) {
-        scrollToSection(event, 'registration');
+        scrollToSection(event, 'registration', '/registration');
     }
 
     function handleUseCroppedProfilePhoto() {
@@ -358,6 +418,7 @@ export default function Welcome() {
 
         if (!croppedDataUrl) {
             setProfilePhotoError('Could not crop the selected image.');
+
             return;
         }
 
@@ -460,7 +521,7 @@ export default function Welcome() {
                                     href={accessHref}
                                     className="inline-flex items-center justify-center rounded-xl border border-[#0038A8] bg-[#0038A8] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002f8f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]"
                                 >
-                                    {auth.user ? 'Dashboard' : 'Login'}
+                                    {auth.user ? 'Participants' : 'Login'}
                                 </Link>
                             </div>
                         </div>

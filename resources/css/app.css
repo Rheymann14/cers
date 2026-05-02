@@ -140,6 +140,11 @@
     body {
         @apply bg-background text-foreground;
     }
+
+    html[data-layout='header'] [data-layout-shell='sidebar'],
+    html[data-layout='sidebar'] [data-layout-shell='header'] {
+        display: none;
+    }
 }
 
 @media (prefers-reduced-motion: no-preference) {

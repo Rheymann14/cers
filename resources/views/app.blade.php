@@ -16,6 +16,16 @@
                         document.documentElement.classList.add('dark');
                     }
                 }
+
+                const layout = localStorage.getItem('layout');
+
+                if (layout === 'header' || layout === 'sidebar') {
+                    document.documentElement.dataset.layout = layout;
+                }
+
+                if (@js($page['component']) === 'welcome') {
+                    document.documentElement.dataset.welcomeHydrating = 'true';
+                }
             })();
         </script>
         <style>
@@ -25,6 +35,15 @@
 
             html.dark {
                 background-color: oklch(0.145 0 0);
+            }
+
+            html[data-welcome-hydrating="true"] body {
+                visibility: hidden;
+            }
+
+            html[data-layout="header"] [data-layout-shell="sidebar"],
+            html[data-layout="sidebar"] [data-layout-shell="header"] {
+                display: none !important;
             }
         </style>
 

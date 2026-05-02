@@ -9,6 +9,10 @@ import SettingsLayout from '@/layouts/settings/layout';
 
 const appName = import.meta.env.VITE_APP_NAME || 'CERS';
 
+// Set persisted UI preferences before the first React render.
+initializeTheme();
+initializeLayout();
+
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     defaults: {
@@ -44,7 +48,3 @@ createInertiaApp({
         color: '#0038A8',
     },
 });
-
-// This will set light / dark mode on load...
-initializeTheme();
-initializeLayout();

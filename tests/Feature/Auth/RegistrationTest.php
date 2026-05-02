@@ -24,5 +24,5 @@ test('new users can register from the welcome page', function () {
     ]);
 
     $this->assertAuthenticated();
-    $response->assertRedirect(route('dashboard', absolute: false));
+    $response->assertRedirect(route('participants', absolute: false));
 });
