@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 
 test('profile page is displayed', function () {
     $user = User::factory()->create();
@@ -48,6 +49,56 @@ test('email verification status is unchanged when the email address is unchanged
         ->assertRedirect(route('profile.edit'));
 
     expect($user->refresh()->email_verified_at)->not->toBeNull();
+});
+
+test('profile image can be updated', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+    $avatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+    $response = $this
+        ->actingAs($user)
+        ->patch(route('profile.update'), [
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => $avatar,
+            'remove_avatar' => false,
+        ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('profile.edit'));
+
+    $user->refresh();
+
+    expect($user->avatar)->toStartWith('/storage/profile-photos/');
+    Storage::disk('public')->assertExists(str_replace('/storage/', '', $user->avatar));
+});
+
+test('profile image can be removed', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('profile-photos/avatar.jpg', 'avatar');
+
+    $user = User::factory()->create([
+        'avatar' => '/storage/profile-photos/avatar.jpg',
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->patch(route('profile.update'), [
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => null,
+            'remove_avatar' => true,
+        ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('profile.edit'));
+
+    expect($user->refresh()->avatar)->toBeNull();
+    Storage::disk('public')->assertMissing('profile-photos/avatar.jpg');
 });
 
 test('user can delete their account', function () {

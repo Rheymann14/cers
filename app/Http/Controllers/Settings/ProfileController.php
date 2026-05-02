@@ -9,6 +9,8 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -30,13 +32,25 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $validated = $request->validated();
+        $user = $request->user();
+        $avatar = $validated['avatar'] ?? null;
+        $removeAvatar = $request->boolean('remove_avatar');
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        unset($validated['avatar'], $validated['remove_avatar']);
+
+        $user->fill($validated);
+
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
         }
 
-        $request->user()->save();
+        if ($removeAvatar || $avatar) {
+            $this->deleteAvatar($user->avatar);
+            $user->avatar = $avatar ? $this->storeAvatar($avatar) : null;
+        }
+
+        $user->save();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Profile updated.')]);
 
@@ -58,5 +72,38 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    private function storeAvatar(?string $avatar): ?string
+    {
+        if (! $avatar || ! preg_match('/^data:image\/(png|jpeg);base64,/', $avatar, $matches)) {
+            return null;
+        }
+
+        $contents = base64_decode(substr($avatar, strpos($avatar, ',') + 1), true);
+
+        if ($contents === false) {
+            return null;
+        }
+
+        $extension = $matches[1] === 'png' ? 'png' : 'jpg';
+        $path = 'profile-photos/'.Str::uuid().'.'.$extension;
+
+        Storage::disk('public')->put($path, $contents);
+
+        return Storage::url($path);
+    }
+
+    private function deleteAvatar(?string $avatar): void
+    {
+        if (! $avatar) {
+            return;
+        }
+
+        $storagePath = Str::after($avatar, '/storage/');
+
+        if ($storagePath !== $avatar) {
+            Storage::disk('public')->delete($storagePath);
+        }
     }
 }
