@@ -44,6 +44,14 @@ class ParticipantsController extends Controller
                 ->onlyTrashed()
                 ->latest('deleted_at')
                 ->get($columns),
+            'organizations' => Organization::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['name as value', 'name as label']),
+            'participantTypes' => ParticipantType::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['slug as value', 'name as label']),
         ]);
     }
 
@@ -56,8 +64,17 @@ class ParticipantsController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
             'avatar' => ['nullable', 'string'],
             'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
-            'organization' => ['required', 'string', 'max:255'],
-            'participant_type' => ['required', 'string', Rule::in(['student', 'faculty', 'staff', 'guest'])],
+            'organization' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::exists('organizations', 'name')->where('is_active', true),
+            ],
+            'participant_type' => [
+                'required',
+                'string',
+                Rule::exists('participant_types', 'slug')->where('is_active', true),
+            ],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
             'event_name' => ['required', 'string', Rule::in([
                 'ched-regional-orientation',
@@ -131,8 +148,17 @@ class ParticipantsController extends Controller
                 Rule::unique(User::class)->ignore($participant),
             ],
             'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
-            'organization' => ['required', 'string', 'max:255'],
-            'participant_type' => ['required', 'string', Rule::in(['student', 'faculty', 'staff', 'guest'])],
+            'organization' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::exists('organizations', 'name')->where('is_active', true),
+            ],
+            'participant_type' => [
+                'required',
+                'string',
+                Rule::exists('participant_types', 'slug')->where('is_active', true),
+            ],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
             'event_name' => ['required', 'string', Rule::in([
                 'ched-regional-orientation',

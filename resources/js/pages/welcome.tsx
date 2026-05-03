@@ -13,7 +13,6 @@ import {
     Moon,
     QrCode,
     Trash2,
-    ShieldCheck,
     Sun,
     Users,
 } from 'lucide-react';
@@ -111,15 +110,28 @@ const eventOptions = [
     },
 ];
 
-const participantTypeOptions = [
-    { value: 'student', label: 'Student' },
-    { value: 'faculty', label: 'Faculty' },
-    { value: 'staff', label: 'Staff' },
-    { value: 'guest', label: 'Guest' },
-];
+type LookupOption = {
+    value: string;
+    label: string;
+};
+
+type WelcomeProps = {
+    organizations: LookupOption[];
+    participantTypes: LookupOption[];
+};
+
+const otherOrganizationValue = '__other__';
 
 const fieldClass =
     'h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
+
+function RequiredMark() {
+    return (
+        <span aria-hidden="true" className="text-[#CE1126]">
+            *
+        </span>
+    );
+}
 
 function getCenteredCircleCrop(width: number, height: number): Crop {
     return centerCrop(
@@ -203,7 +215,10 @@ function getSectionPath(sectionId: string) {
     return '/home';
 }
 
-export default function Welcome() {
+export default function Welcome({
+    organizations,
+    participantTypes,
+}: WelcomeProps) {
     const { auth } = usePage().props;
     const { resolvedAppearance, updateAppearance } = useAppearance();
     const accessHref = auth.user ? participants() : login();
@@ -214,6 +229,9 @@ export default function Welcome() {
     const [activeSection, setActiveSection] = useState(defaultActiveSection);
     const [eventPopoverOpen, setEventPopoverOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState('');
+    const [organizationPopoverOpen, setOrganizationPopoverOpen] =
+        useState(false);
+    const [selectedOrganization, setSelectedOrganization] = useState('');
     const [participantTypePopoverOpen, setParticipantTypePopoverOpen] =
         useState(false);
     const [selectedParticipantType, setSelectedParticipantType] = useState('');
@@ -239,8 +257,15 @@ export default function Welcome() {
     const selectedEventLabel =
         eventOptions.find((event) => event.value === selectedEvent)?.label ??
         '';
+    const selectedOrganizationLabel =
+        selectedOrganization === otherOrganizationValue
+            ? 'Others'
+            : (organizations.find(
+                  (organization) =>
+                      organization.value === selectedOrganization,
+              )?.label ?? '');
     const selectedParticipantTypeLabel =
-        participantTypeOptions.find(
+        participantTypes.find(
             (type) => type.value === selectedParticipantType,
         )?.label ?? '';
 
@@ -534,9 +559,22 @@ export default function Welcome() {
                         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(252,209,22,0.20),transparent_32%),radial-gradient(circle_at_top_right,rgba(0,56,168,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.82)_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(252,209,22,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(37,99,235,0.16),transparent_30%),linear-gradient(180deg,rgba(10,10,10,0)_0%,rgba(10,10,10,0.72)_100%)]" />
                         <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-24">
                             <div className="motion-safe:animate-in motion-safe:duration-500 motion-safe:fade-in motion-safe:slide-in-from-bottom-3">
-                                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#d9e5f5] bg-white px-4 py-2 text-sm font-medium text-[#0038A8] shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-blue-300">
-                                    <ShieldCheck className="h-4 w-4 text-[#CE1126]" />
-                                    Government event registration platform
+                                <div className="mb-6 inline-flex items-center gap-4">
+                                    <img
+                                        src="/achieve.png"
+                                        alt="ACHIEVE logo"
+                                        className="-m-2 size-20 object-contain"
+                                    />
+                                    <img
+                                        src="/ched_logo.png"
+                                        alt="CHED logo"
+                                        className="size-16 object-contain"
+                                    />
+                                    <img
+                                        src="/unifast.webp"
+                                        alt="UniFAST logo"
+                                        className="size-16 object-contain"
+                                    />
                                 </div>
 
                                 <h1 className="max-w-4xl text-4xl leading-tight font-bold text-slate-950 sm:text-5xl lg:text-6xl dark:text-white">
@@ -655,7 +693,8 @@ export default function Welcome() {
                                             <div className="grid gap-4 md:grid-cols-3">
                                                 <div className="grid gap-2">
                                                     <Label htmlFor="given_name">
-                                                        Given Name
+                                                        Given Name{' '}
+                                                        <RequiredMark />
                                                     </Label>
                                                     <Input
                                                         id="given_name"
@@ -695,7 +734,7 @@ export default function Welcome() {
 
                                                 <div className="grid gap-2">
                                                     <Label htmlFor="surname">
-                                                        Surname
+                                                        Surname <RequiredMark />
                                                     </Label>
                                                     <Input
                                                         id="surname"
@@ -715,7 +754,8 @@ export default function Welcome() {
                                             <div className="grid gap-4 md:grid-cols-3">
                                                 <div className="grid gap-2 md:col-span-2">
                                                     <Label htmlFor="email">
-                                                        Email address
+                                                        Email address{' '}
+                                                        <RequiredMark />
                                                     </Label>
                                                     <Input
                                                         id="email"
@@ -732,7 +772,8 @@ export default function Welcome() {
                                                 </div>
                                                 <div className="grid gap-2">
                                                     <Label htmlFor="phone">
-                                                        Contact number
+                                                        Contact number{' '}
+                                                        <RequiredMark />
                                                     </Label>
                                                     <Input
                                                         id="phone"
@@ -761,18 +802,138 @@ export default function Welcome() {
 
                                             <div className="grid gap-4 md:grid-cols-3">
                                                 <div className="grid gap-2 md:col-span-3">
-                                                    <Label htmlFor="organization">
-                                                        School or organization
-                                                    </Label>
-                                                    <Input
-                                                        id="organization"
-                                                        type="text"
-                                                        required
-                                                        autoComplete="organization"
-                                                        name="organization"
-                                                        placeholder="Institution name"
-                                                        className={fieldClass}
-                                                    />
+                                                    <p
+                                                        id="organization_label"
+                                                        className="text-sm font-medium"
+                                                    >
+                                                        School or organization{' '}
+                                                        <RequiredMark />
+                                                    </p>
+                                                    {selectedOrganization !==
+                                                        otherOrganizationValue && (
+                                                        <input
+                                                            type="hidden"
+                                                            name="organization"
+                                                            value={
+                                                                selectedOrganization
+                                                            }
+                                                            readOnly
+                                                        />
+                                                    )}
+                                                    <Popover
+                                                        open={
+                                                            organizationPopoverOpen
+                                                        }
+                                                        onOpenChange={
+                                                            setOrganizationPopoverOpen
+                                                        }
+                                                    >
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                role="combobox"
+                                                                aria-labelledby="organization_label"
+                                                                aria-expanded={
+                                                                    organizationPopoverOpen
+                                                                }
+                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
+                                                            >
+                                                                {selectedOrganizationLabel ||
+                                                                    'Search and select school or organization'}
+                                                                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent
+                                                            align="start"
+                                                            className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                                                        >
+                                                            <Command>
+                                                                <CommandInput placeholder="Search school or organization..." />
+                                                                <CommandList>
+                                                                    <CommandEmpty>
+                                                                        No
+                                                                        school
+                                                                        or
+                                                                        organization
+                                                                        found.
+                                                                    </CommandEmpty>
+                                                                    <CommandGroup>
+                                                                        {organizations.map(
+                                                                            (
+                                                                                organization,
+                                                                            ) => (
+                                                                                <CommandItem
+                                                                                    key={
+                                                                                        organization.value
+                                                                                    }
+                                                                                    value={
+                                                                                        organization.label
+                                                                                    }
+                                                                                    onSelect={() => {
+                                                                                        setSelectedOrganization(
+                                                                                            organization.value,
+                                                                                        );
+                                                                                        setOrganizationPopoverOpen(
+                                                                                            false,
+                                                                                        );
+                                                                                    }}
+                                                                                >
+                                                                                    <Check
+                                                                                        className={cn(
+                                                                                            'mr-2 size-4',
+                                                                                            selectedOrganization ===
+                                                                                                organization.value
+                                                                                                ? 'opacity-100'
+                                                                                                : 'opacity-0',
+                                                                                        )}
+                                                                                    />
+                                                                                    {
+                                                                                        organization.label
+                                                                                    }
+                                                                                </CommandItem>
+                                                                            ),
+                                                                        )}
+                                                                        <CommandItem
+                                                                            value="Others"
+                                                                            onSelect={() => {
+                                                                                setSelectedOrganization(
+                                                                                    otherOrganizationValue,
+                                                                                );
+                                                                                setOrganizationPopoverOpen(
+                                                                                    false,
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Check
+                                                                                className={cn(
+                                                                                    'mr-2 size-4',
+                                                                                    selectedOrganization ===
+                                                                                        otherOrganizationValue
+                                                                                        ? 'opacity-100'
+                                                                                        : 'opacity-0',
+                                                                                )}
+                                                                            />
+                                                                            Others
+                                                                        </CommandItem>
+                                                                    </CommandGroup>
+                                                                </CommandList>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    {selectedOrganization ===
+                                                        otherOrganizationValue && (
+                                                        <Input
+                                                            type="text"
+                                                            required
+                                                            autoComplete="organization"
+                                                            name="organization"
+                                                            placeholder="Enter school or organization"
+                                                            className={
+                                                                fieldClass
+                                                            }
+                                                        />
+                                                    )}
                                                     <InputError
                                                         message={
                                                             errors.organization
@@ -859,7 +1020,8 @@ export default function Welcome() {
                                                         id="participant_type_label"
                                                         className="text-sm font-medium"
                                                     >
-                                                        Participant type
+                                                        Participant type{' '}
+                                                        <RequiredMark />
                                                     </p>
                                                     <input
                                                         type="hidden"
@@ -905,7 +1067,7 @@ export default function Welcome() {
                                                                         found.
                                                                     </CommandEmpty>
                                                                     <CommandGroup>
-                                                                        {participantTypeOptions.map(
+                                                                        {participantTypes.map(
                                                                             (
                                                                                 type,
                                                                             ) => (
@@ -954,7 +1116,7 @@ export default function Welcome() {
 
                                                 <div className="grid gap-3">
                                                     <p className="text-sm font-medium">
-                                                        Sex
+                                                        Sex <RequiredMark />
                                                     </p>
                                                     <RadioGroup
                                                         name="sex"
@@ -999,7 +1161,7 @@ export default function Welcome() {
                                                     id="event_name_label"
                                                     className="text-sm font-medium"
                                                 >
-                                                    Event
+                                                    Event <RequiredMark />
                                                 </p>
                                                 <input
                                                     type="hidden"
@@ -1102,7 +1264,8 @@ export default function Welcome() {
                                             <div className="grid gap-4 sm:grid-cols-2">
                                                 <div className="grid gap-2">
                                                     <Label htmlFor="password">
-                                                        Password
+                                                        Password{' '}
+                                                        <RequiredMark />
                                                     </Label>
                                                     <PasswordInput
                                                         id="password"
@@ -1121,7 +1284,8 @@ export default function Welcome() {
 
                                                 <div className="grid gap-2">
                                                     <Label htmlFor="password_confirmation">
-                                                        Confirm password
+                                                        Confirm password{' '}
+                                                        <RequiredMark />
                                                     </Label>
                                                     <PasswordInput
                                                         id="password_confirmation"
@@ -1145,15 +1309,15 @@ export default function Welcome() {
                                                     name="consent"
                                                     value="yes"
                                                     required
-                                                    className="mt-1 size-4 rounded border-[#d9e5f5] text-[#0038A8] focus:ring-[#0038A8]/20 dark:border-neutral-700 dark:bg-neutral-950"
+                                                    className="mt-0.5 size-5 rounded border-[#d9e5f5] text-[#0038A8] focus:ring-[#0038A8]/20 dark:border-neutral-700 dark:bg-neutral-950"
                                                 />
-                                                To promote networking between
-                                                institutions with common
-                                                interests, I give my consent to
-                                                CHED to share my full name,
-                                                designation, institution, and
-                                                email address to other attendees
-                                                of the event.
+                                                I consent to CERS sharing my
+                                                full name, designation,
+                                                institution, and email address
+                                                with other event attendees to
+                                                support networking among
+                                                institutions with shared
+                                                interests. <RequiredMark />
                                             </label>
                                             <InputError
                                                 message={errors.consent}

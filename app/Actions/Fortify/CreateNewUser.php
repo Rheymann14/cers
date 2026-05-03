@@ -11,6 +11,7 @@ use App\Models\UserRole;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
 class CreateNewUser implements CreatesNewUsers
@@ -31,9 +32,17 @@ class CreateNewUser implements CreatesNewUsers
             'email' => $this->emailRules(),
             'avatar' => ['nullable', 'string'],
             'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
-            'organization' => ['required', 'string', 'max:255'],
+            'organization' => [
+                'required',
+                'string',
+                'max:255',
+            ],
             'position' => ['nullable', 'string', 'max:255'],
-            'participant_type' => ['required', 'string', 'in:student,faculty,staff,guest'],
+            'participant_type' => [
+                'required',
+                'string',
+                Rule::exists('participant_types', 'slug')->where('is_active', true),
+            ],
             'sex' => ['required', 'string', 'in:male,female'],
             'event_name' => ['required', 'string', 'in:ched-regional-orientation,higher-education-summit,faculty-development-workshop'],
             'consent' => ['accepted'],

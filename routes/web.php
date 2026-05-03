@@ -3,12 +3,13 @@
 use App\Http\Controllers\EventRegistrationController;
 use App\Http\Controllers\PageSettingsController;
 use App\Http\Controllers\ParticipantsController;
+use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
-Route::inertia('/home', 'welcome');
-Route::inertia('/registration', 'welcome')->name('registration');
-Route::inertia('/features', 'welcome');
+Route::get('/', WelcomeController::class)->name('home');
+Route::get('/home', WelcomeController::class);
+Route::get('/registration', WelcomeController::class)->name('registration');
+Route::get('/features', WelcomeController::class);
 
 Route::post('event-registration', [EventRegistrationController::class, 'store'])
     ->middleware(['guest'])

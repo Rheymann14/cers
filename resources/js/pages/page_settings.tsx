@@ -11,7 +11,6 @@ import {
     Pencil,
     Plus,
     Search,
-    ShieldCheck,
     ToggleLeft,
     ToggleRight,
     Trash2,
@@ -56,11 +55,6 @@ type BaseSetting = {
     users_count: number;
 };
 
-type UserRole = BaseSetting & {
-    description: string | null;
-    is_default: boolean;
-};
-
 type ParticipantType = BaseSetting & {
     description: string | null;
 };
@@ -69,21 +63,19 @@ type Organization = BaseSetting & {
     type: string;
 };
 
-type SettingsKey = 'roles' | 'participant-types' | 'organizations';
+type SettingsKey = 'participant-types' | 'organizations';
 
-type SettingsRecord = UserRole | ParticipantType | Organization;
+type SettingsRecord = ParticipantType | Organization;
 
 type SettingsForm = {
     name: string;
     slug: string;
     description: string;
     type: string;
-    is_default: boolean;
     is_active: boolean;
 };
 
 type Props = {
-    userRoles: UserRole[];
     participantTypes: ParticipantType[];
     organizations: Organization[];
 };
@@ -95,7 +87,6 @@ const defaultForm: SettingsForm = {
     slug: '',
     description: '',
     type: 'school',
-    is_default: false,
     is_active: true,
 };
 
@@ -115,7 +106,6 @@ const preventDialogOutsideClose: NonNullable<
 };
 
 export default function PageSettings({
-    userRoles,
     participantTypes,
     organizations,
 }: Props) {
@@ -135,57 +125,8 @@ export default function PageSettings({
                 </div>
 
                 <SettingsTable
-                    tableKey="roles"
-                    title="User Role Management"
-                    description="Control the account roles available to CERS users."
-                    icon={ShieldCheck}
-                    searchPlaceholder="Search user roles..."
-                    emptyText="No user roles found."
-                    items={userRoles}
-                    columns={[
-                        {
-                            label: 'Role',
-                            render: (item) => (
-                                <div>
-                                    <p className="font-medium text-foreground">
-                                        {item.name}
-                                    </p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                        {'description' in item
-                                            ? (item.description ?? '-')
-                                            : '-'}
-                                    </p>
-                                </div>
-                            ),
-                        },
-                        { label: 'Slug', render: (item) => item.slug },
-                        {
-                            label: 'Default',
-                            render: (item) =>
-                                'is_default' in item && item.is_default ? (
-                                    <Badge variant="secondary">Default</Badge>
-                                ) : (
-                                    <span className="text-muted-foreground">
-                                        No
-                                    </span>
-                                ),
-                        },
-                        {
-                            label: 'Status',
-                            render: (item) => (
-                                <StatusBadge active={item.is_active} />
-                            ),
-                        },
-                        {
-                            label: 'Users',
-                            render: (item) => item.users_count.toLocaleString(),
-                        },
-                    ]}
-                />
-
-                <SettingsTable
                     tableKey="participant-types"
-                    title="Participant Type"
+                    title="Participant Types"
                     description="Manage the participant categories shown during event registration."
                     icon={GraduationCap}
                     searchPlaceholder="Search participant types..."
@@ -349,7 +290,6 @@ function SettingsTable({
             slug: item.slug,
             description: 'description' in item ? (item.description ?? '') : '',
             type: 'type' in item ? item.type : 'school',
-            is_default: 'is_default' in item ? item.is_default : false,
             is_active: item.is_active,
         });
         setDialogMode('edit');
@@ -484,9 +424,6 @@ function SettingsTable({
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
                                 <StatusBadge active={item.is_active} />
-                                {'is_default' in item && item.is_default && (
-                                    <Badge variant="secondary">Default</Badge>
-                                )}
                                 {'type' in item && (
                                     <Badge variant="outline">{item.type}</Badge>
                                 )}
@@ -701,21 +638,6 @@ function SettingsTable({
                         )}
 
                         <div className="grid gap-3 sm:grid-cols-2">
-                            {tableKey === 'roles' && (
-                                <label className="flex items-center gap-2 rounded-md border p-3 text-sm">
-                                    <input
-                                        type="checkbox"
-                                        checked={data.is_default}
-                                        onChange={(event) =>
-                                            setData(
-                                                'is_default',
-                                                event.target.checked,
-                                            )
-                                        }
-                                    />
-                                    Default role
-                                </label>
-                            )}
                             <label className="flex items-center gap-2 rounded-md border p-3 text-sm">
                                 <input
                                     type="checkbox"

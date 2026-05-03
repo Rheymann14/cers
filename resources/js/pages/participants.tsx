@@ -103,6 +103,8 @@ type Participant = {
 type Props = {
     participants: Participant[];
     deletedParticipants: Participant[];
+    organizations: Option[];
+    participantTypes: Option[];
 };
 
 type SortKey =
@@ -155,13 +157,6 @@ const columns: {
 
 const pageSizeOptions = [5, 10, 25];
 
-const participantTypeOptions: Option[] = [
-    { value: 'student', label: 'Student' },
-    { value: 'faculty', label: 'Faculty' },
-    { value: 'staff', label: 'Staff' },
-    { value: 'guest', label: 'Guest' },
-];
-
 const sexOptions = [
     { value: 'male', label: 'Male' },
     { value: 'female', label: 'Female' },
@@ -211,15 +206,6 @@ const participantTypeBadgeClassNames = [
     'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900/70 dark:bg-teal-950/40 dark:text-teal-300',
     'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900/70 dark:bg-cyan-950/40 dark:text-cyan-300',
 ];
-
-const participantTypeColorByValue = new Map(
-    participantTypeOptions.map((option, index) => [
-        option.value,
-        participantTypeBadgeClassNames[
-            index % participantTypeBadgeClassNames.length
-        ],
-    ]),
-);
 
 function getCenteredCircleCrop(width: number, height: number): Crop {
     return centerCrop(
@@ -295,15 +281,20 @@ function getOptionLabel(options: Option[], value: string | null): string {
     return options.find((option) => option.value === value)?.label ?? '-';
 }
 
-function getParticipantTypeBadgeClassName(value: string | null): string {
+function getParticipantTypeBadgeClassName(
+    value: string | null,
+    options: Option[],
+): string {
     if (!value) {
         return 'border-border bg-muted text-muted-foreground';
     }
 
-    const knownClassName = participantTypeColorByValue.get(value);
+    const knownIndex = options.findIndex((option) => option.value === value);
 
-    if (knownClassName) {
-        return knownClassName;
+    if (knownIndex >= 0) {
+        return participantTypeBadgeClassNames[
+            knownIndex % participantTypeBadgeClassNames.length
+        ];
     }
 
     const colorIndex = [...value].reduce(
@@ -510,6 +501,8 @@ function ParticipantAvatarThumbnail({
 export default function Participants({
     participants,
     deletedParticipants,
+    organizations,
+    participantTypes,
 }: Props) {
     const getInitials = useInitials();
     const [search, setSearch] = useState('');
@@ -1053,11 +1046,12 @@ export default function Participants({
                                                         'max-w-full',
                                                         getParticipantTypeBadgeClassName(
                                                             participant.participant_type,
+                                                            participantTypes,
                                                         ),
                                                     )}
                                                 >
                                                     {getOptionLabel(
-                                                        participantTypeOptions,
+                                                        participantTypes,
                                                         participant.participant_type,
                                                     )}
                                                 </Badge>
@@ -1232,10 +1226,12 @@ export default function Participants({
                                                     'inline-flex rounded-full border px-2 py-1 text-[11px] font-medium',
                                                     getParticipantTypeBadgeClassName(
                                                         participant.participant_type,
+                                                        participantTypes,
                                                     ),
                                                 )}
                                             >
-                                                {formatLabel(
+                                                {getOptionLabel(
+                                                    participantTypes,
                                                     participant.participant_type,
                                                 )}
                                             </span>
@@ -1514,28 +1510,19 @@ export default function Participants({
                                         </div>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="add_organization">
-                                            School or organization
-                                        </Label>
-                                        <Input
-                                            id="add_organization"
-                                            value={addData.organization}
-                                            onChange={(event) =>
-                                                setAddData(
-                                                    'organization',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            autoComplete="organization"
-                                            aria-invalid={
-                                                !!addErrors.organization
-                                            }
-                                        />
-                                        <InputError
-                                            message={addErrors.organization}
-                                        />
-                                    </div>
+                                    <SearchableOptionField
+                                        id="add_organization"
+                                        label="School or organization"
+                                        value={addData.organization}
+                                        options={organizations}
+                                        placeholder="Search and select school or organization"
+                                        searchPlaceholder="Search school or organization..."
+                                        emptyMessage="No school or organization found."
+                                        error={addErrors.organization}
+                                        onValueChange={(value) =>
+                                            setAddData('organization', value)
+                                        }
+                                    />
                                 </div>
                             )}
 
@@ -1598,7 +1585,7 @@ export default function Participants({
                                             id="add_participant_type"
                                             label="Participant type"
                                             value={addData.participant_type}
-                                            options={participantTypeOptions}
+                                            options={participantTypes}
                                             placeholder="Search and select type"
                                             searchPlaceholder="Search participant type..."
                                             emptyMessage="No type found."
@@ -1955,29 +1942,25 @@ export default function Participants({
                                 <InputError message={errors.phone} />
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="organization">
-                                    Organization
-                                </Label>
-                                <Input
-                                    id="organization"
-                                    value={data.organization}
-                                    onChange={(event) =>
-                                        setData(
-                                            'organization',
-                                            event.target.value,
-                                        )
-                                    }
-                                    aria-invalid={!!errors.organization}
-                                />
-                                <InputError message={errors.organization} />
-                            </div>
+                            <SearchableOptionField
+                                id="organization"
+                                label="School or organization"
+                                value={data.organization}
+                                options={organizations}
+                                placeholder="Search and select school or organization"
+                                searchPlaceholder="Search school or organization..."
+                                emptyMessage="No school or organization found."
+                                error={errors.organization}
+                                onValueChange={(value) =>
+                                    setData('organization', value)
+                                }
+                            />
 
                             <SearchableOptionField
                                 id="participant_type"
                                 label="Participant type"
                                 value={data.participant_type}
-                                options={participantTypeOptions}
+                                options={participantTypes}
                                 placeholder="Search and select type"
                                 searchPlaceholder="Search participant type..."
                                 emptyMessage="No type found."
