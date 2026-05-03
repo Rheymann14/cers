@@ -486,7 +486,7 @@ export default function Profile({
                 </DialogContent>
             </Dialog>
 
-            <DeleteUser />
+          
         </>
     );
 }

@@ -19,4 +19,5 @@ export type AuthLayoutProps = {
     title?: string;
     description?: string;
     size?: 'default' | 'wide';
+    background?: 'default' | 'welcome-banner';
 };

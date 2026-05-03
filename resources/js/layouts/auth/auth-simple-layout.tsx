@@ -9,9 +9,26 @@ export default function AuthSimpleLayout({
     title,
     description,
     size = 'default',
+    background = 'default',
 }: AuthLayoutProps) {
+    const useWelcomeBannerBackground = background === 'welcome-banner';
+
     return (
-        <div className="min-h-svh bg-gradient-to-br from-white via-[#f8fbff] to-[#eef5ff] text-slate-900 dark:from-neutral-950 dark:via-neutral-950 dark:to-slate-900 dark:text-neutral-100">
+        <div
+            className={cn(
+                'relative isolate min-h-svh overflow-hidden text-slate-900 dark:text-neutral-100',
+                useWelcomeBannerBackground
+                    ? 'bg-[#f5f9ff] dark:bg-neutral-950'
+                    : 'bg-gradient-to-br from-white via-[#f8fbff] to-[#eef5ff] dark:from-neutral-950 dark:via-neutral-950 dark:to-slate-900',
+            )}
+        >
+            {useWelcomeBannerBackground && (
+                <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(252,209,22,0.20),transparent_32%),radial-gradient(circle_at_top_right,rgba(0,56,168,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.82)_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(252,209,22,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(37,99,235,0.16),transparent_30%),linear-gradient(180deg,rgba(10,10,10,0)_0%,rgba(10,10,10,0.72)_100%)]"
+                />
+            )}
+
             <div className="mx-auto flex min-h-svh max-w-7xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
                 <div
                     className={cn(

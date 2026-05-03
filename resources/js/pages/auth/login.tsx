@@ -74,8 +74,6 @@ export default function Login({
                                 <InputError message={errors.password} />
                             </div>
 
-                    
-
                             <Button
                                 type="submit"
                                 className="mt-4 h-11 w-full rounded-xl bg-[#0038A8] font-semibold text-white shadow-sm shadow-[#0038A8]/15 hover:bg-[#002f8f] focus-visible:ring-[#0038A8]/20"
@@ -115,7 +113,6 @@ export default function Login({
 
 Login.layout = {
     title: 'Access CERS',
-    description:
-        'Enter your email and password to continue.',
-      
+    description: 'Enter your email and password to continue.',
+    background: 'welcome-banner',
 };
