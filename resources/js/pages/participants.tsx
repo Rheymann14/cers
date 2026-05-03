@@ -479,6 +479,14 @@ function UserStatusBadge({ active }: { active: boolean }) {
     );
 }
 
+function ParticipantName({ name }: { name: string }) {
+    return (
+        <p className="font-semibold break-words whitespace-normal text-foreground">
+            {name}
+        </p>
+    );
+}
+
 function ParticipantAvatarThumbnail({
     participant,
     getInitials,
@@ -1232,9 +1240,9 @@ export default function Participants({
                                                     }
                                                 />
                                                 <div className="min-w-0">
-                                                    <p className="truncate font-semibold text-foreground">
-                                                        {participant.name}
-                                                    </p>
+                                                    <ParticipantName
+                                                        name={participant.name}
+                                                    />
                                                     <p className="text-xs text-muted-foreground">
                                                         Participant ID{' '}
                                                         {participant.participant_id ??
