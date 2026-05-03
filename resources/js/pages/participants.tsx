@@ -17,6 +17,8 @@ import {
     Search,
     Save,
     Trash2,
+    ToggleLeft,
+    ToggleRight,
     UserX,
     X,
 } from 'lucide-react';
@@ -28,7 +30,6 @@ import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { toast } from 'sonner';
 import InputError from '@/components/input-error';
-import PasswordInput from '@/components/password-input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -96,6 +97,7 @@ type Participant = {
     participant_type: string | null;
     sex: string | null;
     event_name: string | null;
+    is_active: boolean;
     created_at: string;
     deleted_at: string | null;
 };
@@ -137,8 +139,6 @@ type ParticipantFormData = {
 
 type AddParticipantFormData = ParticipantFormData & {
     avatar: string;
-    password: string;
-    password_confirmation: string;
 };
 
 const columns: {
@@ -192,8 +192,6 @@ const emptyParticipantFormData: ParticipantFormData = {
 const emptyAddParticipantFormData: AddParticipantFormData = {
     ...emptyParticipantFormData,
     avatar: '',
-    password: '',
-    password_confirmation: '',
 };
 
 const addParticipantSteps = ['Participant', 'Registration'] as const;
@@ -274,6 +272,8 @@ function formatDate(value: string): string {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
     }).format(new Date(value));
 }
 
@@ -412,11 +412,13 @@ function ParticipantActions({
     participant,
     onEdit,
     onDelete,
+    onStatus,
     onResetPassword,
 }: {
     participant: Participant;
     onEdit: (participant: Participant) => void;
     onDelete: (participant: Participant) => void;
+    onStatus: (participant: Participant) => void;
     onResetPassword: (participant: Participant) => void;
 }) {
     return (
@@ -437,6 +439,14 @@ function ParticipantActions({
                     <Pencil className="size-4" />
                     Edit
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onStatus(participant)}>
+                    {participant.is_active ? (
+                        <ToggleLeft className="size-4" />
+                    ) : (
+                        <ToggleRight className="size-4" />
+                    )}
+                    {participant.is_active ? 'Set inactive' : 'Set active'}
+                </DropdownMenuItem>
                 <DropdownMenuItem
                     onSelect={() => onResetPassword(participant)}
                     className="text-amber-600 focus:text-amber-700 dark:text-amber-400 dark:focus:text-amber-300 [&_svg]:!text-amber-500"
@@ -454,6 +464,18 @@ function ParticipantActions({
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
+    );
+}
+
+function UserStatusBadge({ active }: { active: boolean }) {
+    return active ? (
+        <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+            Active
+        </Badge>
+    ) : (
+        <Badge className="border-transparent bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
+            Inactive
+        </Badge>
     );
 }
 
@@ -554,6 +576,7 @@ export default function Participants({
         {},
     );
     const { patch: restoreParticipant, processing: restoring } = useForm({});
+    const { patch: patchParticipantStatus } = useForm({});
 
     const filteredParticipants = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
@@ -569,6 +592,7 @@ export default function Participants({
                       participant.participant_type,
                       participant.sex,
                       participant.event_name,
+                      participant.is_active ? 'active' : 'inactive',
                   ]
                       .filter(Boolean)
                       .join(' ')
@@ -844,6 +868,15 @@ export default function Participants({
         });
     }
 
+    function submitStatus(participant: Participant) {
+        patchParticipantStatus(`/participants/${participant.id}/status`, {
+            preserveScroll: true,
+            onError: () => {
+                toast.error('Unable to update participant status.');
+            },
+        });
+    }
+
     function closeResetPasswordDialog() {
         if (resettingPassword) {
             return;
@@ -1033,6 +1066,7 @@ export default function Participants({
                                                     onDelete={
                                                         setDeletingParticipant
                                                     }
+                                                    onStatus={submitStatus}
                                                     onResetPassword={
                                                         setResettingPasswordParticipant
                                                     }
@@ -1071,6 +1105,11 @@ export default function Participants({
                                                         participant.created_at,
                                                     )}
                                                 </Badge>
+                                                <UserStatusBadge
+                                                    active={
+                                                        participant.is_active
+                                                    }
+                                                />
                                             </div>
 
                                             <dl className="mt-3 grid gap-2 text-xs">
@@ -1201,6 +1240,13 @@ export default function Participants({
                                                         {participant.participant_id ??
                                                             '-'}
                                                     </p>
+                                                    <div className="mt-1">
+                                                        <UserStatusBadge
+                                                            active={
+                                                                participant.is_active
+                                                            }
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </TableCell>
@@ -1256,6 +1302,7 @@ export default function Participants({
                                                 onDelete={
                                                     setDeletingParticipant
                                                 }
+                                                onStatus={submitStatus}
                                                 onResetPassword={
                                                     setResettingPasswordParticipant
                                                 }
@@ -1351,7 +1398,7 @@ export default function Participants({
                             Add participant
                         </DialogTitle>
                         <DialogDescription className="text-xs leading-5">
-                            Enter the participant details and account access
+                            Enter the participant details and registration
                             information.
                         </DialogDescription>
                     </DialogHeader>
@@ -1650,58 +1697,6 @@ export default function Participants({
                                             setAddData('event_name', value)
                                         }
                                     />
-                                </div>
-                            )}
-
-                            {addStep === 1 && (
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="add_password">
-                                            Password
-                                        </Label>
-                                        <PasswordInput
-                                            id="add_password"
-                                            value={addData.password}
-                                            onChange={(event) =>
-                                                setAddData(
-                                                    'password',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            autoComplete="new-password"
-                                            aria-invalid={!!addErrors.password}
-                                        />
-                                        <InputError
-                                            message={addErrors.password}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="add_password_confirmation">
-                                            Confirm password
-                                        </Label>
-                                        <PasswordInput
-                                            id="add_password_confirmation"
-                                            value={
-                                                addData.password_confirmation
-                                            }
-                                            onChange={(event) =>
-                                                setAddData(
-                                                    'password_confirmation',
-                                                    event.target.value,
-                                                )
-                                            }
-                                            autoComplete="new-password"
-                                            aria-invalid={
-                                                !!addErrors.password_confirmation
-                                            }
-                                        />
-                                        <InputError
-                                            message={
-                                                addErrors.password_confirmation
-                                            }
-                                        />
-                                    </div>
                                 </div>
                             )}
                         </div>

@@ -17,14 +17,14 @@ Route::post('event-registration', [EventRegistrationController::class, 'store'])
     ->middleware(['guest'])
     ->name('event-registration.store');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('participant-profile', [ParticipantProfileController::class, 'edit'])
         ->name('participant-profile.edit');
     Route::patch('participant-profile', [ParticipantProfileController::class, 'update'])
         ->name('participant-profile.update');
 });
 
-Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('participants', ParticipantsController::class)->name('participants');
     Route::post('participants', [ParticipantsController::class, 'store'])
@@ -42,6 +42,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         ->name('participants.update');
     Route::delete('participants/{participant}', [ParticipantsController::class, 'destroy'])
         ->name('participants.destroy');
+    Route::patch('participants/{participant}/status', [ParticipantsController::class, 'toggleStatus'])
+        ->name('participants.status');
     Route::post('participants/{participant}/password-reset', [ParticipantsController::class, 'resetPassword'])
         ->name('participants.password-reset');
     Route::patch('participants/{participant}/restore', [ParticipantsController::class, 'restore'])

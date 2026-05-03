@@ -31,6 +31,7 @@ class ParticipantsController extends Controller
             'participant_type',
             'sex',
             'event_name',
+            'is_active',
             'created_at',
             'deleted_at',
         ];
@@ -62,9 +63,9 @@ class ParticipantsController extends Controller
             'surname' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
             'avatar' => ['nullable', 'string'],
-            'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
+            'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/'],
             'organization' => [
-                'required',
+                'nullable',
                 'string',
                 'max:255',
                 Rule::exists('organizations', 'name')->where('is_active', true),
@@ -75,12 +76,11 @@ class ParticipantsController extends Controller
                 Rule::exists('participant_types', 'slug')->where('is_active', true),
             ],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
-            'event_name' => ['required', 'string', Rule::in([
+            'event_name' => ['nullable', 'string', Rule::in([
                 'ched-regional-orientation',
                 'higher-education-summit',
                 'faculty-development-workshop',
             ])],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
         $name = trim(collect([
@@ -88,14 +88,17 @@ class ParticipantsController extends Controller
             $validated['middle_name'] ?? null,
             $validated['surname'],
         ])->filter()->implode(' '));
-        $organization = Organization::query()->firstOrCreate(
-            ['slug' => str($validated['organization'])->slug()->toString()],
-            [
-                'name' => $validated['organization'],
-                'type' => 'school',
-                'is_active' => true,
-            ],
-        );
+        $organization = isset($validated['organization'])
+            ? Organization::query()->firstOrCreate(
+                ['slug' => str($validated['organization'])->slug()->toString()],
+                [
+                    'name' => $validated['organization'],
+                    'type' => 'school',
+                    'is_active' => true,
+                ],
+            )
+            : null;
+
         User::query()->create([
             'name' => $name,
             'participant_id' => $this->generateParticipantId(),
@@ -104,14 +107,15 @@ class ParticipantsController extends Controller
             'surname' => $validated['surname'],
             'email' => $validated['email'],
             'avatar' => $this->storeAvatar($validated['avatar'] ?? null),
-            'phone' => $validated['phone'],
-            'organization_id' => $organization->id,
-            'organization' => $validated['organization'],
+            'phone' => $validated['phone'] ?? null,
+            'organization_id' => $organization?->id,
+            'organization' => $validated['organization'] ?? null,
             'participant_type' => $validated['participant_type'],
             'sex' => $validated['sex'],
-            'event_name' => $validated['event_name'],
+            'event_name' => $validated['event_name'] ?? null,
+            'is_active' => true,
             'registration_consent_accepted_at' => now(),
-            'password' => $validated['password'],
+            'password' => 'cers2026',
         ]);
 
         Inertia::flash('toast', [
@@ -203,6 +207,31 @@ class ParticipantsController extends Controller
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => 'Participant restored successfully.',
+        ]);
+
+        return back();
+    }
+
+    public function toggleStatus(Request $request, User $participant): RedirectResponse
+    {
+        if ($request->user()?->is($participant) && $participant->is_active) {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => 'You cannot set your own account inactive.',
+            ]);
+
+            return back();
+        }
+
+        $participant->update([
+            'is_active' => ! $participant->is_active,
+        ]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $participant->is_active
+                ? 'Participant set active successfully.'
+                : 'Participant set inactive successfully.',
         ]);
 
         return back();

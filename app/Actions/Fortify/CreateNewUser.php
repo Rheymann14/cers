@@ -62,6 +62,7 @@ class CreateNewUser implements CreatesNewUsers
                 'is_active' => true,
             ],
         );
+
         return User::create([
             'name' => $name,
             'participant_id' => $this->generateParticipantId(),
@@ -77,6 +78,7 @@ class CreateNewUser implements CreatesNewUsers
             'participant_type' => $input['participant_type'],
             'sex' => $input['sex'],
             'event_name' => $input['event_name'],
+            'is_active' => true,
             'registration_consent_accepted_at' => now(),
             'password' => $input['password'],
         ]);

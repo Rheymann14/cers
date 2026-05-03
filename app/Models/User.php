@@ -28,6 +28,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'participant_type',
     'sex',
     'event_name',
+    'is_active',
     'registration_consent_accepted_at',
     'password',
 ])]
@@ -74,6 +75,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'is_active' => 'boolean',
             'registration_consent_accepted_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',

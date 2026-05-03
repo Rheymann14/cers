@@ -18,6 +18,8 @@ class WelcomeController extends Controller
                 ->get(['name as value', 'name as label']),
             'participantTypes' => ParticipantType::query()
                 ->where('is_active', true)
+                ->whereNotIn('slug', ['admin', 'administrator'])
+                ->whereNotIn('name', ['Admin', 'Administrator'])
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label']),
         ]);
