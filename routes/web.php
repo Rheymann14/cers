@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventRegistrationController;
 use App\Http\Controllers\PageSettingsController;
+use App\Http\Controllers\ParticipantProfileController;
 use App\Http\Controllers\ParticipantsController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
@@ -17,6 +18,13 @@ Route::post('event-registration', [EventRegistrationController::class, 'store'])
     ->name('event-registration.store');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('participant-profile', [ParticipantProfileController::class, 'edit'])
+        ->name('participant-profile.edit');
+    Route::patch('participant-profile', [ParticipantProfileController::class, 'update'])
+        ->name('participant-profile.update');
+});
+
+Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('participants', ParticipantsController::class)->name('participants');
     Route::post('participants', [ParticipantsController::class, 'store'])

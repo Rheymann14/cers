@@ -1,5 +1,5 @@
-import { Link } from '@inertiajs/react';
-import { LayoutDashboard, Settings, Users } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { LayoutDashboard, Settings, UserRound, Users } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -37,14 +37,30 @@ const footerNavItems: NavItem[] = [
     },
 ];
 
+const participantNavItems: NavItem[] = [
+    {
+        title: 'Participant Profile',
+        href: '/participant-profile',
+        icon: UserRound,
+    },
+];
+
 export function AppSidebar() {
+    const { auth } = usePage().props;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()}>
+                            <Link
+                                href={
+                                    auth.isAdmin
+                                        ? dashboard()
+                                        : '/participant-profile'
+                                }
+                            >
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -53,11 +69,15 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain
+                    items={auth.isAdmin ? mainNavItems : participantNavItems}
+                />
             </SidebarContent>
 
             <SidebarFooter>
-                <NavFooter items={footerNavItems} className="mt-auto" />
+                {auth.isAdmin && (
+                    <NavFooter items={footerNavItems} className="mt-auto" />
+                )}
                 <NavUser />
             </SidebarFooter>
         </Sidebar>

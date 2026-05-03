@@ -33,7 +33,7 @@ test('email can be verified', function () {
 
     Event::assertDispatched(Verified::class);
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
-    $response->assertRedirect(route('participants', absolute: false).'?verified=1');
+    $response->assertRedirect(route('participant-profile.edit', absolute: false).'?verified=1');
 });
 
 test('email is not verified with invalid hash', function () {
@@ -70,7 +70,7 @@ test('email is not verified with invalid user id', function () {
     expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
 });
 
-test('verified user is redirected to participants from verification prompt', function () {
+test('verified user is redirected to profile from verification prompt', function () {
     $user = User::factory()->create();
 
     Event::fake();
@@ -78,7 +78,7 @@ test('verified user is redirected to participants from verification prompt', fun
     $response = $this->actingAs($user)->get(route('verification.notice'));
 
     Event::assertNotDispatched(Verified::class);
-    $response->assertRedirect(route('participants', absolute: false));
+    $response->assertRedirect(route('participant-profile.edit', absolute: false));
 });
 
 test('already verified user visiting verification link is redirected without firing event again', function () {
@@ -93,7 +93,7 @@ test('already verified user visiting verification link is redirected without fir
     );
 
     $this->actingAs($user)->get($verificationUrl)
-        ->assertRedirect(route('participants', absolute: false).'?verified=1');
+        ->assertRedirect(route('participant-profile.edit', absolute: false).'?verified=1');
 
     Event::assertNotDispatched(Verified::class);
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();

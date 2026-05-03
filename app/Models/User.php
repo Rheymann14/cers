@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
 #[Fillable([
@@ -37,6 +38,34 @@ class User extends Authenticatable
     use HasFactory, Notifiable, SoftDeletes, TwoFactorAuthenticatable;
 
     /**
+     * Determine if the user should be treated as an administrator.
+     */
+    public function isAdministrator(): bool
+    {
+        return in_array($this->normalizeParticipantType($this->participant_type), ['admin', 'administrator'], true);
+    }
+
+    public function setParticipantTypeAttribute(?string $value): void
+    {
+        $this->attributes['participant_type'] = $this->normalizeParticipantType($value);
+    }
+
+    private function normalizeParticipantType(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $participantType = Str::slug($value);
+
+        if ($participantType === 'administrator') {
+            return 'admin';
+        }
+
+        return $participantType === '' ? null : $participantType;
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -50,5 +79,4 @@ class User extends Authenticatable
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
-
 }

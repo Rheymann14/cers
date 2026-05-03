@@ -19,7 +19,43 @@ test('users can authenticate using the login screen', function () {
     ]);
 
     $this->assertAuthenticated();
-    $response->assertRedirect(route('participants', absolute: false));
+    $response->assertRedirect(route('participant-profile.edit', absolute: false));
+});
+
+test('administrator users are redirected to the dashboard after login', function (string $participantType) {
+    $user = User::factory()->create([
+        'participant_type' => $participantType,
+    ]);
+
+    $response = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticated();
+    $response->assertRedirect(route('dashboard', absolute: false));
+})->with(['admin', 'administrator']);
+
+test('non administrator users are redirected to profile after login', function () {
+    $user = User::factory()->create([
+        'participant_type' => 'participant',
+    ]);
+
+    $response = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticated();
+    $response->assertRedirect(route('participant-profile.edit', absolute: false));
+});
+
+test('participant type is normalized before saving', function () {
+    $user = User::factory()->create([
+        'participant_type' => 'Administrator',
+    ]);
+
+    expect($user->participant_type)->toBe('admin');
 });
 
 test('users with two factor enabled are redirected to two factor challenge', function () {

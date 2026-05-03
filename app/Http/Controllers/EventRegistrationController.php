@@ -31,6 +31,6 @@ class EventRegistrationController extends Controller
             'message' => 'Registration submitted successfully.',
         ]);
 
-        return redirect()->route('participants');
+        return redirect()->route($user->isAdministrator() ? 'dashboard' : 'participant-profile.edit');
     }
 }

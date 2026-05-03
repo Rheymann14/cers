@@ -3,6 +3,15 @@ export type User = {
     name: string;
     email: string;
     avatar?: string;
+    given_name?: string | null;
+    middle_name?: string | null;
+    surname?: string | null;
+    phone?: string | null;
+    organization?: string | null;
+    position?: string | null;
+    participant_type?: string | null;
+    sex?: string | null;
+    event_name?: string | null;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
     created_at: string;
@@ -12,6 +21,7 @@ export type User = {
 
 export type Auth = {
     user: User;
+    isAdmin: boolean;
 };
 
 export type TwoFactorSetupData = {
