@@ -17,12 +17,14 @@ class PageSettingsController extends Controller
     {
         return Inertia::render('page_settings', [
             'participantTypes' => ParticipantType::query()
-                ->select(['id', 'name', 'slug', 'is_active'])
+                ->select(['id', 'name', 'slug', 'is_active', 'created_by_user_id', 'created_at'])
+                ->with('creator:id,name')
                 ->withCount('users')
                 ->orderBy('name')
                 ->get(),
             'organizations' => Organization::query()
-                ->select(['id', 'name', 'slug', 'type', 'is_active'])
+                ->select(['id', 'name', 'slug', 'type', 'is_active', 'created_by_user_id', 'created_at'])
+                ->with('creator:id,name')
                 ->withCount('users')
                 ->orderBy('name')
                 ->get(),
@@ -34,7 +36,10 @@ class PageSettingsController extends Controller
         $modelClass = $this->modelClass($table);
         $validated = $this->validatedData($request, $table);
 
-        $modelClass::query()->create($validated);
+        $modelClass::query()->create([
+            ...$validated,
+            'created_by_user_id' => $request->user()?->id,
+        ]);
 
         Inertia::flash('toast', [
             'type' => 'success',

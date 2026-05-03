@@ -53,6 +53,11 @@ type BaseSetting = {
     slug: string;
     is_active: boolean;
     users_count: number;
+    created_at: string | null;
+    creator: {
+        id: number;
+        name: string;
+    } | null;
 };
 
 type ParticipantType = BaseSetting;
@@ -85,6 +90,12 @@ const defaultForm: SettingsForm = {
     type: 'school',
     is_active: true,
 };
+
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+});
 
 const preventDialogOutsideClose: NonNullable<
     ComponentProps<typeof DialogContent>['onPointerDownOutside']
@@ -148,6 +159,14 @@ export default function PageSettings({
                             label: 'Participants',
                             render: (item) => item.users_count.toLocaleString(),
                         },
+                        {
+                            label: 'Date Created',
+                            render: (item) => formatDate(item.created_at),
+                        },
+                        {
+                            label: 'Added By',
+                            render: (item) => item.creator?.name ?? 'System',
+                        },
                     ]}
                 />
 
@@ -183,6 +202,14 @@ export default function PageSettings({
                         {
                             label: 'Participants',
                             render: (item) => item.users_count.toLocaleString(),
+                        },
+                        {
+                            label: 'Date Created',
+                            render: (item) => formatDate(item.created_at),
+                        },
+                        {
+                            label: 'Added By',
+                            render: (item) => item.creator?.name ?? 'System',
                         },
                     ]}
                 />
@@ -417,6 +444,12 @@ function SettingsTable({
                                 )}
                                 <Badge variant="outline">
                                     {item.users_count.toLocaleString()} users
+                                </Badge>
+                                <Badge variant="outline">
+                                    {formatDate(item.created_at)}
+                                </Badge>
+                                <Badge variant="outline">
+                                    Added by {item.creator?.name ?? 'System'}
                                 </Badge>
                             </div>
                         </article>
@@ -810,6 +843,14 @@ function StatusBadge({ active }: { active: boolean }) {
             Inactive
         </Badge>
     );
+}
+
+function formatDate(value: string | null) {
+    if (!value) {
+        return '-';
+    }
+
+    return dateFormatter.format(new Date(value));
 }
 
 PageSettings.layout = {
