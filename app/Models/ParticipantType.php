@@ -21,6 +21,6 @@ class ParticipantType extends Model
 
     public function users(): HasMany
     {
-        return $this->hasMany(User::class);
+        return $this->hasMany(User::class, 'participant_type', 'slug');
     }
 }

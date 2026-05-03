@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\User;
-use App\Models\UserRole;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -97,15 +96,6 @@ class ParticipantsController extends Controller
                 'is_active' => true,
             ],
         );
-        $participantType = ParticipantType::query()->firstOrCreate(
-            ['slug' => $validated['participant_type']],
-            [
-                'name' => str($validated['participant_type'])->headline()->toString(),
-                'is_active' => true,
-            ],
-        );
-        $role = UserRole::query()->where('slug', 'participant')->first();
-
         User::query()->create([
             'name' => $name,
             'participant_id' => $this->generateParticipantId(),
@@ -115,9 +105,7 @@ class ParticipantsController extends Controller
             'email' => $validated['email'],
             'avatar' => $this->storeAvatar($validated['avatar'] ?? null),
             'phone' => $validated['phone'],
-            'user_role_id' => $role?->id,
             'organization_id' => $organization->id,
-            'participant_type_id' => $participantType->id,
             'organization' => $validated['organization'],
             'participant_type' => $validated['participant_type'],
             'sex' => $validated['sex'],
@@ -180,15 +168,7 @@ class ParticipantsController extends Controller
                 'is_active' => true,
             ],
         );
-        $participantType = ParticipantType::query()->firstOrCreate(
-            ['slug' => $validated['participant_type']],
-            [
-                'name' => str($validated['participant_type'])->headline()->toString(),
-                'is_active' => true,
-            ],
-        );
         $validated['organization_id'] = $organization->id;
-        $validated['participant_type_id'] = $participantType->id;
 
         $participant->update($validated);
 

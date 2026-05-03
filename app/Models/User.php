@@ -7,7 +7,6 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -22,9 +21,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'email',
     'avatar',
     'phone',
-    'user_role_id',
     'organization_id',
-    'participant_type_id',
     'organization',
     'position',
     'participant_type',
@@ -54,18 +51,4 @@ class User extends Authenticatable
         ];
     }
 
-    public function role(): BelongsTo
-    {
-        return $this->belongsTo(UserRole::class, 'user_role_id');
-    }
-
-    public function normalizedOrganization(): BelongsTo
-    {
-        return $this->belongsTo(Organization::class, 'organization_id');
-    }
-
-    public function normalizedParticipantType(): BelongsTo
-    {
-        return $this->belongsTo(ParticipantType::class, 'participant_type_id');
-    }
 }

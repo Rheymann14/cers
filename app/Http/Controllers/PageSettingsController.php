@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Organization;
 use App\Models\ParticipantType;
-use App\Models\UserRole;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,12 +16,6 @@ class PageSettingsController extends Controller
     public function __invoke(): Response
     {
         return Inertia::render('page_settings', [
-            'userRoles' => UserRole::query()
-                ->select(['id', 'name', 'slug', 'description', 'is_default', 'is_active'])
-                ->withCount('users')
-                ->orderByDesc('is_default')
-                ->orderBy('name')
-                ->get(),
             'participantTypes' => ParticipantType::query()
                 ->select(['id', 'name', 'slug', 'description', 'is_active'])
                 ->withCount('users')
@@ -101,7 +94,6 @@ class PageSettingsController extends Controller
     private function modelClass(string $table): string
     {
         return match ($table) {
-            'roles' => UserRole::class,
             'participant-types' => ParticipantType::class,
             'organizations' => Organization::class,
             default => abort(404),
@@ -130,12 +122,6 @@ class PageSettingsController extends Controller
         ];
 
         return match ($table) {
-            'roles' => $request->validate([
-                ...$baseRules,
-                'description' => ['nullable', 'string', 'max:255'],
-                'is_default' => ['boolean'],
-                'is_active' => ['boolean'],
-            ]),
             'participant-types' => $request->validate([
                 ...$baseRules,
                 'description' => ['nullable', 'string', 'max:255'],
@@ -153,7 +139,6 @@ class PageSettingsController extends Controller
     private function tableName(string $table): string
     {
         return match ($table) {
-            'roles' => 'user_roles',
             'participant-types' => 'participant_types',
             'organizations' => 'organizations',
             default => abort(404),
