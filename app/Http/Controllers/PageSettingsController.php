@@ -17,7 +17,7 @@ class PageSettingsController extends Controller
     {
         return Inertia::render('page_settings', [
             'participantTypes' => ParticipantType::query()
-                ->select(['id', 'name', 'slug', 'description', 'is_active'])
+                ->select(['id', 'name', 'slug', 'is_active'])
                 ->withCount('users')
                 ->orderBy('name')
                 ->get(),
@@ -124,7 +124,6 @@ class PageSettingsController extends Controller
         return match ($table) {
             'participant-types' => $request->validate([
                 ...$baseRules,
-                'description' => ['nullable', 'string', 'max:255'],
                 'is_active' => ['boolean'],
             ]),
             'organizations' => $request->validate([

@@ -55,9 +55,7 @@ type BaseSetting = {
     users_count: number;
 };
 
-type ParticipantType = BaseSetting & {
-    description: string | null;
-};
+type ParticipantType = BaseSetting;
 
 type Organization = BaseSetting & {
     type: string;
@@ -70,7 +68,6 @@ type SettingsRecord = ParticipantType | Organization;
 type SettingsForm = {
     name: string;
     slug: string;
-    description: string;
     type: string;
     is_active: boolean;
 };
@@ -85,7 +82,6 @@ const pageSizeOptions = [5, 10, 25];
 const defaultForm: SettingsForm = {
     name: '',
     slug: '',
-    description: '',
     type: 'school',
     is_active: true,
 };
@@ -136,16 +132,9 @@ export default function PageSettings({
                         {
                             label: 'Type',
                             render: (item) => (
-                                <div>
-                                    <p className="font-medium text-foreground">
-                                        {item.name}
-                                    </p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                        {'description' in item
-                                            ? (item.description ?? '-')
-                                            : '-'}
-                                    </p>
-                                </div>
+                                <p className="font-medium text-foreground">
+                                    {item.name}
+                                </p>
                             ),
                         },
                         { label: 'Slug', render: (item) => item.slug },
@@ -288,7 +277,6 @@ function SettingsTable({
         setData({
             name: item.name,
             slug: item.slug,
-            description: 'description' in item ? (item.description ?? '') : '',
             type: 'type' in item ? item.type : 'school',
             is_active: item.is_active,
         });
@@ -602,7 +590,7 @@ function SettingsTable({
                             </div>
                         </div>
 
-                        {tableKey === 'organizations' ? (
+                        {tableKey === 'organizations' && (
                             <div className="space-y-2">
                                 <Label htmlFor={`${tableKey}-type`}>
                                     Organization type
@@ -616,24 +604,6 @@ function SettingsTable({
                                     aria-invalid={!!errors.type}
                                 />
                                 <InputError message={errors.type} />
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                <Label htmlFor={`${tableKey}-description`}>
-                                    Description
-                                </Label>
-                                <Input
-                                    id={`${tableKey}-description`}
-                                    value={data.description}
-                                    onChange={(event) =>
-                                        setData(
-                                            'description',
-                                            event.target.value,
-                                        )
-                                    }
-                                    aria-invalid={!!errors.description}
-                                />
-                                <InputError message={errors.description} />
                             </div>
                         )}
 

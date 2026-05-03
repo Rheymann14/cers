@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Menu, Settings, Users } from 'lucide-react';
+import { LayoutDashboard, Menu, Settings, Users } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -32,7 +32,7 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
-import { pageSettings, participants } from '@/routes';
+import { dashboard, pageSettings, participants } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {
@@ -40,6 +40,11 @@ type Props = {
 };
 
 const mainNavItems: NavItem[] = [
+    {
+        title: 'Dashboard',
+        href: dashboard(),
+        icon: LayoutDashboard,
+    },
     {
         title: 'Participants',
         href: participants(),
@@ -128,7 +133,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                     </div>
 
                     <Link
-                        href={participants()}
+                        href={dashboard()}
                         className="flex items-center space-x-2"
                     >
                         <AppLogo />

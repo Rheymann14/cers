@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventRegistrationController;
 use App\Http\Controllers\PageSettingsController;
 use App\Http\Controllers\ParticipantsController;
@@ -16,6 +17,7 @@ Route::post('event-registration', [EventRegistrationController::class, 'store'])
     ->name('event-registration.store');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('participants', ParticipantsController::class)->name('participants');
     Route::post('participants', [ParticipantsController::class, 'store'])
         ->name('participants.store');
