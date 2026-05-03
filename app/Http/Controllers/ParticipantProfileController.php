@@ -17,6 +17,10 @@ class ParticipantProfileController extends Controller
     public function edit(Request $request): Response
     {
         return Inertia::render('participant_profile', [
+            'organizations' => Organization::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['name as value', 'name as label']),
             'participantTypes' => ParticipantType::query()
                 ->where('is_active', true)
                 ->orderBy('name')
@@ -35,7 +39,12 @@ class ParticipantProfileController extends Controller
             'avatar' => ['nullable', 'string'],
             'remove_avatar' => ['nullable', 'boolean'],
             'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
-            'organization' => ['required', 'string', 'max:255'],
+            'organization' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::exists('organizations', 'name')->where('is_active', true),
+            ],
             'position' => ['nullable', 'string', 'max:255'],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
             'event_name' => ['required', 'string', Rule::in([
@@ -56,14 +65,10 @@ class ParticipantProfileController extends Controller
             $validated['surname'],
         ])->filter()->implode(' '));
 
-        $organization = Organization::query()->firstOrCreate(
-            ['slug' => Str::slug($validated['organization'])],
-            [
-                'name' => $validated['organization'],
-                'type' => 'school',
-                'is_active' => true,
-            ],
-        );
+        $organization = Organization::query()
+            ->where('name', $validated['organization'])
+            ->where('is_active', true)
+            ->firstOrFail();
 
         $validated['organization_id'] = $organization->id;
 

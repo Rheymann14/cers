@@ -72,18 +72,6 @@ return new class extends Migration
             );
         }
 
-        foreach ([
-            ['name' => 'Student', 'slug' => 'student', 'description' => 'Student participant.'],
-            ['name' => 'Faculty', 'slug' => 'faculty', 'description' => 'Faculty participant.'],
-            ['name' => 'Staff', 'slug' => 'staff', 'description' => 'Administrative or support staff participant.'],
-            ['name' => 'Guest', 'slug' => 'guest', 'description' => 'External guest participant.'],
-        ] as $type) {
-            DB::table('participant_types')->updateOrInsert(
-                ['slug' => $type['slug']],
-                [...$type, 'is_active' => true, 'created_at' => $now, 'updated_at' => $now],
-            );
-        }
-
         DB::table('users')
             ->whereNotNull('organization')
             ->select('organization')

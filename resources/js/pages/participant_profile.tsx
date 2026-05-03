@@ -1,13 +1,37 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { ImagePlus, Save, Trash2 } from 'lucide-react';
+import { Check, ChevronsUpDown, ImagePlus, Save, Trash2 } from 'lucide-react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import type { Crop, PixelCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 import { toast } from 'sonner';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import {
     Select,
     SelectContent,
@@ -16,6 +40,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { normalizeContactNumber } from '@/lib/phone';
+import { cn } from '@/lib/utils';
 
 type Option = {
     value: string;
@@ -24,6 +49,7 @@ type Option = {
 
 type Props = {
     participantTypes: Option[];
+    organizations: Option[];
 };
 
 type ParticipantProfileForm = {
@@ -35,30 +61,65 @@ type ParticipantProfileForm = {
     remove_avatar: boolean;
     phone: string;
     organization: string;
-    position: string;
     sex: string;
     event_name: string;
 };
-
-const eventOptions: Option[] = [
-    {
-        value: 'ched-regional-orientation',
-        label: 'CHED Regional Orientation',
-    },
-    {
-        value: 'higher-education-summit',
-        label: 'Higher Education Summit',
-    },
-    {
-        value: 'faculty-development-workshop',
-        label: 'Faculty Development Workshop',
-    },
-];
 
 const sexOptions: Option[] = [
     { value: 'male', label: 'Male' },
     { value: 'female', label: 'Female' },
 ];
+
+function getCenteredCircleCrop(width: number, height: number): Crop {
+    return centerCrop(
+        makeAspectCrop(
+            {
+                unit: '%',
+                width: 80,
+            },
+            1,
+            width,
+            height,
+        ),
+        width,
+        height,
+    );
+}
+
+function getCroppedImageDataUrl(
+    image: HTMLImageElement,
+    crop: PixelCrop,
+    mimeType: 'image/png' | 'image/jpeg',
+) {
+    const canvas = document.createElement('canvas');
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    const outputSize = 512;
+
+    canvas.width = outputSize;
+    canvas.height = outputSize;
+
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+        return '';
+    }
+
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(
+        image,
+        crop.x * scaleX,
+        crop.y * scaleY,
+        crop.width * scaleX,
+        crop.height * scaleY,
+        0,
+        0,
+        outputSize,
+        outputSize,
+    );
+
+    return canvas.toDataURL(mimeType, 0.92);
+}
 
 function optionLabel(options: Option[], value?: string | null) {
     return (
@@ -66,10 +127,136 @@ function optionLabel(options: Option[], value?: string | null) {
     );
 }
 
-export default function ParticipantProfile({ participantTypes }: Props) {
+function ReadOnlyField({
+    id,
+    label,
+    value,
+}: {
+    id: string;
+    label: string;
+    value: string;
+}) {
+    return (
+        <div className="grid gap-2">
+            <Label htmlFor={id}>{label}</Label>
+            <div
+                id={id}
+                className="flex min-h-10 w-full items-center rounded-md border border-input bg-muted/60 px-3 py-2 text-sm text-muted-foreground"
+            >
+                <span className="truncate">{value || 'Not assigned'}</span>
+            </div>
+        </div>
+    );
+}
+
+function SearchableOptionField({
+    id,
+    label,
+    value,
+    options,
+    placeholder,
+    searchPlaceholder,
+    emptyMessage,
+    error,
+    onValueChange,
+}: {
+    id: string;
+    label: string;
+    value: string;
+    options: Option[];
+    placeholder: string;
+    searchPlaceholder: string;
+    emptyMessage: string;
+    error?: string;
+    onValueChange: (value: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const selectedOption = options.find((option) => option.value === value);
+
+    return (
+        <div className="grid gap-2">
+            <Label id={`${id}_label`}>{label}</Label>
+            <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        aria-labelledby={`${id}_label`}
+                        aria-expanded={open}
+                        aria-invalid={!!error}
+                        className={cn(
+                            'min-h-10 w-full justify-between font-normal',
+                            !selectedOption && 'text-muted-foreground',
+                        )}
+                    >
+                        <span className="truncate">
+                            {selectedOption?.label ?? placeholder}
+                        </span>
+                        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                    align="start"
+                    className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                >
+                    <Command>
+                        <CommandInput placeholder={searchPlaceholder} />
+                        <CommandList>
+                            <CommandEmpty>{emptyMessage}</CommandEmpty>
+                            <CommandGroup>
+                                {options.map((option) => (
+                                    <CommandItem
+                                        key={option.value}
+                                        value={option.label}
+                                        onSelect={() => {
+                                            onValueChange(option.value);
+                                            setOpen(false);
+                                        }}
+                                    >
+                                        <Check
+                                            className={cn(
+                                                'mr-2 size-4',
+                                                value === option.value
+                                                    ? 'opacity-100'
+                                                    : 'opacity-0',
+                                            )}
+                                        />
+                                        {option.label}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
+            <InputError message={error} />
+        </div>
+    );
+}
+
+export default function ParticipantProfile({
+    participantTypes,
+    organizations,
+}: Props) {
     const { auth } = usePage().props;
     const user = auth.user;
     const [avatarPreview, setAvatarPreview] = useState(user.avatar ?? '');
+    const [avatarError, setAvatarError] = useState('');
+    const [cropImageSrc, setCropImageSrc] = useState('');
+    const [cropDialogOpen, setCropDialogOpen] = useState(false);
+    const [cropMimeType, setCropMimeType] = useState<
+        'image/png' | 'image/jpeg'
+    >('image/jpeg');
+    const [crop, setCrop] = useState<Crop>({
+        unit: '%',
+        x: 10,
+        y: 10,
+        width: 80,
+        height: 80,
+    });
+    const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+    const cropImageRef = useRef<HTMLImageElement | null>(null);
     const participantTypeLabel = useMemo(
         () => optionLabel(participantTypes, user.participant_type),
         [participantTypes, user.participant_type],
@@ -85,7 +272,6 @@ export default function ParticipantProfile({ participantTypes }: Props) {
             remove_avatar: false,
             phone: normalizeContactNumber(user.phone ?? ''),
             organization: user.organization ?? '',
-            position: user.position ?? '',
             sex: user.sex ?? '',
             event_name: user.event_name ?? '',
         });
@@ -114,34 +300,89 @@ export default function ParticipantProfile({ participantTypes }: Props) {
         }
 
         if (!['image/png', 'image/jpeg'].includes(file.type)) {
+            setAvatarError('Upload a PNG, JPG, or JPEG image.');
             toast.error('Upload a PNG, JPG, or JPEG image.');
+
             return;
         }
 
+        setAvatarError('');
+        setCropMimeType(file.type === 'image/png' ? 'image/png' : 'image/jpeg');
+        setCrop({
+            unit: '%',
+            x: 10,
+            y: 10,
+            width: 80,
+            height: 80,
+        });
+        setCompletedCrop(undefined);
+
         const reader = new FileReader();
         reader.onload = () => {
-            const value = String(reader.result);
-            setAvatarPreview(value);
-            setData('avatar', value);
-            setData('remove_avatar', false);
-            clearErrors('avatar', 'remove_avatar');
+            setCropImageSrc(String(reader.result));
+            setCropDialogOpen(true);
         };
-        reader.onerror = () =>
+        reader.onerror = () => {
+            setAvatarError('Could not read the selected image.');
             toast.error('Could not read the selected image.');
+        };
         reader.readAsDataURL(file);
+    }
+
+    function useCroppedAvatar() {
+        const image = cropImageRef.current;
+
+        if (!image) {
+            return;
+        }
+
+        const fallbackSize = Math.round(
+            Math.min(image.width, image.height) * 0.8,
+        );
+        const fallbackCrop: PixelCrop = {
+            unit: 'px',
+            x: Math.round((image.width - fallbackSize) / 2),
+            y: Math.round((image.height - fallbackSize) / 2),
+            width: fallbackSize,
+            height: fallbackSize,
+        };
+
+        const croppedDataUrl = getCroppedImageDataUrl(
+            image,
+            completedCrop ?? fallbackCrop,
+            cropMimeType,
+        );
+
+        if (!croppedDataUrl) {
+            setAvatarError('Could not crop the selected image.');
+            toast.error('Could not crop the selected image.');
+
+            return;
+        }
+
+        setAvatarPreview(croppedDataUrl);
+        setData('avatar', croppedDataUrl);
+        setData('remove_avatar', false);
+        setCropDialogOpen(false);
+        setAvatarError('');
+        clearErrors('avatar', 'remove_avatar');
     }
 
     function removeAvatar() {
         setAvatarPreview('');
         setData('avatar', '');
         setData('remove_avatar', true);
+        setAvatarError('');
+        setCropImageSrc('');
+        setCompletedCrop(undefined);
+        clearErrors('avatar', 'remove_avatar');
     }
 
     return (
         <>
             <Head title="Participant profile" />
 
-            <div className="mx-auto w-full max-w-5xl px-4 py-6">
+            <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:py-8">
                 <div className="mb-6">
                     <Heading
                         title="Participant Profile"
@@ -150,235 +391,307 @@ export default function ParticipantProfile({ participantTypes }: Props) {
                 </div>
 
                 <form onSubmit={submit} className="space-y-6">
-                    <section className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-[auto_1fr] sm:items-center">
-                        <div className="flex size-24 items-center justify-center overflow-hidden rounded-full border bg-muted">
-                            {avatarPreview ? (
-                                <img
-                                    src={avatarPreview}
-                                    alt="Profile preview"
-                                    className="size-full object-cover"
-                                />
-                            ) : (
-                                <ImagePlus className="size-8 text-muted-foreground" />
-                            )}
-                        </div>
-                        <div className="grid gap-2">
-                            <Label>Profile image</Label>
-                            <div className="flex flex-wrap gap-2">
-                                <Label
-                                    htmlFor="participant_avatar"
-                                    className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
-                                >
-                                    <ImagePlus className="size-4" />
-                                    Choose image
-                                </Label>
-                                <input
-                                    id="participant_avatar"
-                                    type="file"
-                                    accept="image/png,image/jpeg"
-                                    className="sr-only"
-                                    onChange={selectAvatar}
-                                />
-                                {avatarPreview && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        aria-label="Remove profile image"
-                                        onClick={removeAvatar}
+                    <input
+                        type="hidden"
+                        name="event_name"
+                        value={data.event_name}
+                        readOnly
+                    />
+
+                    <div className="grid gap-6 lg:grid-cols-[320px_1fr] lg:items-start">
+                        <section className="grid gap-5 rounded-lg border bg-card p-5 shadow-xs">
+                            <div className="grid justify-items-center gap-4 text-center">
+                                <div className="flex size-28 items-center justify-center overflow-hidden rounded-full border bg-muted shadow-sm ring-4 ring-background sm:size-32">
+                                    {avatarPreview ? (
+                                        <img
+                                            src={avatarPreview}
+                                            alt="Profile preview"
+                                            className="size-full object-cover"
+                                        />
+                                    ) : (
+                                        <ImagePlus className="size-9 text-muted-foreground" />
+                                    )}
+                                </div>
+
+                                <div className="grid gap-1">
+                                    <h2 className="text-lg leading-tight font-semibold">
+                                        {[
+                                            data.given_name,
+                                            data.middle_name,
+                                            data.surname,
+                                        ]
+                                            .filter(Boolean)
+                                            .join(' ') || 'Participant'}
+                                    </h2>
+                                    <p className="text-sm break-all text-muted-foreground">
+                                        {data.email}
+                                    </p>
+                                </div>
+
+                                <div className="flex w-full flex-wrap justify-center gap-2">
+                                    <Label
+                                        htmlFor="participant_avatar"
+                                        className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
                                     >
-                                        <Trash2 className="size-4" />
-                                    </Button>
-                                )}
-                            </div>
-                            <InputError
-                                message={errors.avatar ?? errors.remove_avatar}
-                            />
-                        </div>
-                    </section>
-
-                    <section className="grid gap-4 rounded-lg border bg-card p-4">
-                        <div className="grid gap-4 sm:grid-cols-3">
-                            <div className="grid gap-2">
-                                <Label htmlFor="given_name">Given name</Label>
-                                <Input
-                                    id="given_name"
-                                    value={data.given_name}
-                                    onChange={(event) =>
-                                        setData(
-                                            'given_name',
-                                            event.target.value,
-                                        )
-                                    }
-                                    required
-                                />
-                                <InputError message={errors.given_name} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="middle_name">Middle name</Label>
-                                <Input
-                                    id="middle_name"
-                                    value={data.middle_name}
-                                    onChange={(event) =>
-                                        setData(
-                                            'middle_name',
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                                <InputError message={errors.middle_name} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="surname">Surname</Label>
-                                <Input
-                                    id="surname"
-                                    value={data.surname}
-                                    onChange={(event) =>
-                                        setData('surname', event.target.value)
-                                    }
-                                    required
-                                />
-                                <InputError message={errors.surname} />
-                            </div>
-                        </div>
-
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="grid gap-2">
-                                <Label htmlFor="email">Email</Label>
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    value={data.email}
-                                    onChange={(event) =>
-                                        setData('email', event.target.value)
-                                    }
-                                    required
-                                />
-                                <InputError message={errors.email} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="phone">Phone</Label>
-                                <Input
-                                    id="phone"
-                                    value={data.phone}
-                                    inputMode="numeric"
-                                    placeholder="09XXXXXXXXX"
-                                    onChange={(event) =>
-                                        setData(
-                                            'phone',
-                                            normalizeContactNumber(
-                                                event.target.value,
-                                            ),
-                                        )
-                                    }
-                                    required
-                                />
-                                <InputError message={errors.phone} />
-                            </div>
-                        </div>
-
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="grid gap-2">
-                                <Label htmlFor="organization">
-                                    School or organization
-                                </Label>
-                                <Input
-                                    id="organization"
-                                    value={data.organization}
-                                    onChange={(event) =>
-                                        setData(
-                                            'organization',
-                                            event.target.value,
-                                        )
-                                    }
-                                    required
-                                />
-                                <InputError message={errors.organization} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="position">Position</Label>
-                                <Input
-                                    id="position"
-                                    value={data.position}
-                                    onChange={(event) =>
-                                        setData('position', event.target.value)
-                                    }
-                                />
-                                <InputError message={errors.position} />
-                            </div>
-                        </div>
-
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="grid gap-2">
-                                <Label htmlFor="participant_type">
-                                    Participant type
-                                </Label>
-                                <Input
-                                    id="participant_type"
-                                    value={participantTypeLabel}
-                                    readOnly
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="sex">Sex</Label>
-                                <Select
-                                    value={data.sex}
-                                    onValueChange={(value) =>
-                                        setData('sex', value)
-                                    }
-                                >
-                                    <SelectTrigger id="sex">
-                                        <SelectValue placeholder="Select sex" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {sexOptions.map((option) => (
-                                            <SelectItem
-                                                key={option.value}
-                                                value={option.value}
-                                            >
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <InputError message={errors.sex} />
-                            </div>
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="event_name">Event name</Label>
-                            <Select
-                                value={data.event_name}
-                                onValueChange={(value) =>
-                                    setData('event_name', value)
-                                }
-                            >
-                                <SelectTrigger id="event_name">
-                                    <SelectValue placeholder="Select event" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {eventOptions.map((option) => (
-                                        <SelectItem
-                                            key={option.value}
-                                            value={option.value}
+                                        <ImagePlus className="size-4" />
+                                        Choose image
+                                    </Label>
+                                    <input
+                                        id="participant_avatar"
+                                        type="file"
+                                        accept="image/png,image/jpeg"
+                                        className="sr-only"
+                                        onChange={selectAvatar}
+                                    />
+                                    {avatarPreview && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            aria-label="Remove profile image"
+                                            onClick={removeAvatar}
                                         >
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <InputError message={errors.event_name} />
-                        </div>
-                    </section>
+                                            <Trash2 className="size-4" />
+                                        </Button>
+                                    )}
+                                </div>
 
-                    <div className="flex justify-end">
-                        <Button disabled={processing}>
-                            <Save className="size-4" />
-                            Save changes
-                        </Button>
+                                <InputError
+                                    message={
+                                        avatarError ||
+                                        errors.avatar ||
+                                        errors.remove_avatar
+                                    }
+                                />
+                            </div>
+
+                            <div className="grid gap-3 border-t pt-4">
+                                <ReadOnlyField
+                                    id="participant_id"
+                                    label="Participant ID #"
+                                    value={String(user.participant_id ?? '')}
+                                />
+                                <ReadOnlyField
+                                    id="participant_type"
+                                    label="Participant type"
+                                    value={participantTypeLabel}
+                                />
+                            </div>
+                        </section>
+
+                        <section className="grid gap-5 rounded-lg border bg-card p-4 shadow-xs sm:p-5">
+                            <div>
+                                <h2 className="text-base font-semibold">
+                                    Personal Information
+                                </h2>
+                                <p className="text-sm text-muted-foreground">
+                                    Keep your contact and organization details
+                                    updated.
+                                </p>
+                            </div>
+
+                            <div className="grid gap-4 sm:grid-cols-3">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="given_name">
+                                        Given name
+                                    </Label>
+                                    <Input
+                                        id="given_name"
+                                        value={data.given_name}
+                                        onChange={(event) =>
+                                            setData(
+                                                'given_name',
+                                                event.target.value,
+                                            )
+                                        }
+                                        required
+                                    />
+                                    <InputError message={errors.given_name} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="middle_name">
+                                        Middle name
+                                    </Label>
+                                    <Input
+                                        id="middle_name"
+                                        value={data.middle_name}
+                                        onChange={(event) =>
+                                            setData(
+                                                'middle_name',
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError message={errors.middle_name} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="surname">Surname</Label>
+                                    <Input
+                                        id="surname"
+                                        value={data.surname}
+                                        onChange={(event) =>
+                                            setData(
+                                                'surname',
+                                                event.target.value,
+                                            )
+                                        }
+                                        required
+                                    />
+                                    <InputError message={errors.surname} />
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="email">Email</Label>
+                                    <Input
+                                        id="email"
+                                        type="email"
+                                        value={data.email}
+                                        onChange={(event) =>
+                                            setData('email', event.target.value)
+                                        }
+                                        required
+                                    />
+                                    <InputError message={errors.email} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="phone">Phone</Label>
+                                    <Input
+                                        id="phone"
+                                        value={data.phone}
+                                        inputMode="numeric"
+                                        placeholder="09XXXXXXXXX"
+                                        onChange={(event) =>
+                                            setData(
+                                                'phone',
+                                                normalizeContactNumber(
+                                                    event.target.value,
+                                                ),
+                                            )
+                                        }
+                                        required
+                                    />
+                                    <InputError message={errors.phone} />
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <SearchableOptionField
+                                    id="organization"
+                                    label="School or organization"
+                                    value={data.organization}
+                                    options={organizations}
+                                    placeholder="Search and select school or organization"
+                                    searchPlaceholder="Search school or organization..."
+                                    emptyMessage="No school or organization found."
+                                    error={errors.organization}
+                                    onValueChange={(value) =>
+                                        setData('organization', value)
+                                    }
+                                />
+                                <div className="grid gap-2">
+                                    <Label htmlFor="sex">Sex</Label>
+                                    <Select
+                                        value={data.sex}
+                                        onValueChange={(value) =>
+                                            setData('sex', value)
+                                        }
+                                    >
+                                        <SelectTrigger id="sex">
+                                            <SelectValue placeholder="Select sex" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {sexOptions.map((option) => (
+                                                <SelectItem
+                                                    key={option.value}
+                                                    value={option.value}
+                                                >
+                                                    {option.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError message={errors.sex} />
+                                </div>
+                            </div>
+
+                            <InputError message={errors.event_name} />
+
+                            <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end">
+                                <Button
+                                    className="w-full sm:w-auto"
+                                    disabled={processing}
+                                >
+                                    <Save className="size-4" />
+                                    Save changes
+                                </Button>
+                            </div>
+                        </section>
                     </div>
                 </form>
             </div>
+
+            <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
+                <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>Crop profile image</DialogTitle>
+                        <DialogDescription>
+                            Adjust the image to fit your profile preview.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {cropImageSrc && (
+                        <div className="overflow-hidden rounded-lg border bg-muted/30 p-3">
+                            <ReactCrop
+                                crop={crop}
+                                aspect={1}
+                                circularCrop
+                                minWidth={120}
+                                onChange={(_, percentCrop) =>
+                                    setCrop(percentCrop)
+                                }
+                                onComplete={(pixelCrop) =>
+                                    setCompletedCrop(pixelCrop)
+                                }
+                                className="max-h-[60vh]"
+                            >
+                                <img
+                                    ref={cropImageRef}
+                                    src={cropImageSrc}
+                                    alt="Selected profile"
+                                    className="max-h-[56vh] w-full object-contain"
+                                    onLoad={(event) => {
+                                        const { width, height } =
+                                            event.currentTarget;
+
+                                        setCrop(
+                                            getCenteredCircleCrop(
+                                                width,
+                                                height,
+                                            ),
+                                        );
+                                        setCompletedCrop(undefined);
+                                    }}
+                                />
+                            </ReactCrop>
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setCropDialogOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="button" onClick={useCroppedAvatar}>
+                            Use image
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
