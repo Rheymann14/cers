@@ -25,8 +25,17 @@ class WelcomeController extends Controller
                 ->get(['slug as value', 'name as label']),
             'events' => Event::query()
                 ->where('is_active', true)
+                ->whereNotNull('starts_at')
+                ->whereNotNull('ends_at')
+                ->where('ends_at', '>=', now())
+                ->orderBy('starts_at')
                 ->orderBy('name')
-                ->get(['slug as value', 'name as label']),
+                ->get([
+                    'slug as value',
+                    'name as label',
+                    'starts_at',
+                    'ends_at',
+                ]),
         ]);
     }
 }

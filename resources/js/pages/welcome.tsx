@@ -23,6 +23,7 @@ import 'react-image-crop/dist/ReactCrop.css';
 
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Command,
@@ -100,10 +101,15 @@ type LookupOption = {
     label: string;
 };
 
+type EventOption = LookupOption & {
+    starts_at: string | null;
+    ends_at: string | null;
+};
+
 type WelcomeProps = {
     organizations: LookupOption[];
     participantTypes: LookupOption[];
-    events: LookupOption[];
+    events: EventOption[];
 };
 
 const otherOrganizationValue = '__other__';
@@ -189,6 +195,76 @@ function getInitialActiveSection() {
     return defaultActiveSection;
 }
 
+function toDateOnly(value: string | null) {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function toDateTime(value: string | null) {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    return date;
+}
+
+function getEventStatus(event: EventOption) {
+    const today = new Date();
+    const todayDate = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+    );
+    const startsAt = toDateOnly(event.starts_at);
+    const endsAt = toDateTime(event.ends_at);
+
+    if (endsAt && today > endsAt) {
+        return 'closed';
+    }
+
+    if (startsAt && todayDate < startsAt) {
+        return 'upcoming';
+    }
+
+    return 'ongoing';
+}
+
+function EventStatusBadge({ event }: { event: EventOption }) {
+    const status = getEventStatus(event);
+
+    return (
+        <Badge
+            className={cn(
+                'shrink-0 border-transparent text-[11px] capitalize',
+                status === 'ongoing' &&
+                    'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+                status === 'closed' &&
+                    'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+                status === 'upcoming' &&
+                    'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+            )}
+            variant="secondary"
+        >
+            {status}
+        </Badge>
+    );
+}
+
 function getSectionPath(sectionId: string) {
     if (sectionId === 'features') {
         return '/features';
@@ -213,7 +289,7 @@ export default function Welcome({
     const AppearanceIcon = resolvedAppearance === 'dark' ? Sun : Moon;
     const currentYear = new Date().getFullYear();
     const [isNavbarScrolled, setIsNavbarScrolled] = useState(false);
-    const [activeSection, setActiveSection] = useState(defaultActiveSection);
+    const [activeSection, setActiveSection] = useState(getInitialActiveSection);
     const [eventPopoverOpen, setEventPopoverOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState('');
     const [organizationPopoverOpen, setOrganizationPopoverOpen] =
@@ -241,8 +317,9 @@ export default function Welcome({
     const cropImageRef = useRef<HTMLImageElement | null>(null);
     const activeScrollTargetRef = useRef<string | null>(null);
     const activeScrollTimeoutRef = useRef<number | null>(null);
-    const selectedEventLabel =
-        events.find((event) => event.value === selectedEvent)?.label ?? '';
+    const selectedEventOption =
+        events.find((event) => event.value === selectedEvent) ?? null;
+    const selectedEventLabel = selectedEventOption?.label ?? '';
     const selectedOrganizationLabel =
         selectedOrganization === otherOrganizationValue
             ? 'Others'
@@ -332,8 +409,6 @@ export default function Welcome({
     useLayoutEffect(() => {
         const initialSection = getInitialActiveSection();
         let animationFrame = 0;
-
-        setActiveSection(initialSection);
 
         function revealWelcomePage() {
             animationFrame = window.requestAnimationFrame(() => {
@@ -1170,8 +1245,19 @@ export default function Welcome({
                                                             }
                                                             className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
                                                         >
-                                                            {selectedEventLabel ||
-                                                                'Search and select event'}
+                                                            <span className="flex min-w-0 items-center gap-2">
+                                                                <span className="truncate">
+                                                                    {selectedEventLabel ||
+                                                                        'Search and select event'}
+                                                                </span>
+                                                                {selectedEventOption ? (
+                                                                    <EventStatusBadge
+                                                                        event={
+                                                                            selectedEventOption
+                                                                        }
+                                                                    />
+                                                                ) : null}
+                                                            </span>
                                                             <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                                                         </Button>
                                                     </PopoverTrigger>
@@ -1216,9 +1302,16 @@ export default function Welcome({
                                                                                             : 'opacity-0',
                                                                                     )}
                                                                                 />
-                                                                                {
-                                                                                    event.label
-                                                                                }
+                                                                                <span className="min-w-0 flex-1 truncate">
+                                                                                    {
+                                                                                        event.label
+                                                                                    }
+                                                                                </span>
+                                                                                <EventStatusBadge
+                                                                                    event={
+                                                                                        event
+                                                                                    }
+                                                                                />
                                                                             </CommandItem>
                                                                         ),
                                                                     )}

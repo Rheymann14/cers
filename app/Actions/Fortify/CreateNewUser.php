@@ -46,7 +46,11 @@ class CreateNewUser implements CreatesNewUsers
             'event_name' => [
                 'required',
                 'string',
-                Rule::exists('events', 'slug')->where('is_active', true),
+                Rule::exists('events', 'slug')->where(fn ($query) => $query
+                    ->where('is_active', true)
+                    ->whereNotNull('starts_at')
+                    ->whereNotNull('ends_at')
+                    ->where('ends_at', '>=', now())),
             ],
             'consent' => ['accepted'],
             'password' => $this->passwordRules(),
@@ -70,6 +74,9 @@ class CreateNewUser implements CreatesNewUsers
         $event = Event::query()
             ->where('slug', $input['event_name'])
             ->where('is_active', true)
+            ->whereNotNull('starts_at')
+            ->whereNotNull('ends_at')
+            ->where('ends_at', '>=', now())
             ->firstOrFail();
 
         return User::create([

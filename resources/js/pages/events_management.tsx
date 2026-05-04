@@ -1,6 +1,4 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import type { ComponentProps, FormEvent } from 'react';
-import { useMemo, useState } from 'react';
 import {
     AlertTriangle,
     CalendarDays,
@@ -18,6 +16,8 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
+import type { ComponentProps, FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 type EventMaterial = {
     id: number;
@@ -158,6 +159,16 @@ function toDateTimeLocal(value: string | null) {
     return localDate.toISOString().slice(0, 16);
 }
 
+function fromDateTimeLocalToIso(value: string) {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return date.toISOString();
+}
+
 function formatDateTime(value: string | null) {
     if (!value) {
         return '-';
@@ -176,6 +187,36 @@ function formatFileSize(value: number | null) {
     }
 
     return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function toDateTime(value: string | null) {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    return date;
+}
+
+function getEventDateStatus(event: ManagedEvent) {
+    const now = new Date();
+    const startsAt = toDateTime(event.starts_at);
+    const endsAt = toDateTime(event.ends_at);
+
+    if (endsAt && now > endsAt) {
+        return 'closed';
+    }
+
+    if (startsAt && now < startsAt) {
+        return 'upcoming';
+    }
+
+    return 'ongoing';
 }
 
 function TruncatedFileName({ name }: { name: string }) {
@@ -320,13 +361,20 @@ export default function EventsManagement({ events }: Props) {
         if (dialogMode === 'edit' && editingEvent) {
             transform((data) => ({
                 ...data,
+                starts_at: fromDateTimeLocalToIso(data.starts_at),
+                ends_at: fromDateTimeLocalToIso(data.ends_at),
                 _method: 'patch',
             }));
             post(`/events-management/${editingEvent.id}`, options);
+
             return;
         }
 
-        transform((data) => data);
+        transform((data) => ({
+            ...data,
+            starts_at: fromDateTimeLocalToIso(data.starts_at),
+            ends_at: fromDateTimeLocalToIso(data.ends_at),
+        }));
         post('/events-management', options);
     }
 
@@ -485,7 +533,7 @@ export default function EventsManagement({ events }: Props) {
                                         />
                                     </div>
                                     <div className="mt-3 flex flex-wrap gap-2">
-                                        <StatusBadge active={event.is_active} />
+                                        <EventDateStatusBadge event={event} />
                                         <Badge variant="outline">
                                             {formatDateTime(event.starts_at)}
                                         </Badge>
@@ -540,7 +588,7 @@ export default function EventsManagement({ events }: Props) {
                                 <TableHead className="h-9 w-56 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
                                     Event Kit Materials
                                 </TableHead>
-                                <TableHead className="h-9 w-24 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                <TableHead className="h-9 w-32 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
                                     Status
                                 </TableHead>
                                 <TableHead className="h-9 w-24 px-2 text-right text-[11px] font-semibold text-muted-foreground uppercase">
@@ -667,8 +715,8 @@ export default function EventsManagement({ events }: Props) {
                                             )}
                                         </TableCell>
                                         <TableCell className="px-2 py-2">
-                                            <StatusBadge
-                                                active={event.is_active}
+                                            <EventDateStatusBadge
+                                                event={event}
                                             />
                                         </TableCell>
                                         <TableCell className="px-2 py-2">
@@ -1348,14 +1396,22 @@ function ActionButtons({
     );
 }
 
-function StatusBadge({ active }: { active: boolean }) {
-    return active ? (
-        <Badge className="border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-            Active
-        </Badge>
-    ) : (
-        <Badge className="border-transparent bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
-            Inactive
+function EventDateStatusBadge({ event }: { event: ManagedEvent }) {
+    const status = getEventDateStatus(event);
+
+    return (
+        <Badge
+            className={cn(
+                'border-transparent capitalize',
+                status === 'ongoing' &&
+                    'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
+                status === 'closed' &&
+                    'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300',
+                status === 'upcoming' &&
+                    'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
+            )}
+        >
+            {status}
         </Badge>
     );
 }
