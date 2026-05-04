@@ -25,7 +25,7 @@ Route::post('event-registration', [EventRegistrationController::class, 'store'])
     ->middleware(['guest', 'throttle:10,1'])
     ->name('event-registration.store');
 
-Route::middleware(['auth', 'active', 'verified'])->group(function () {
+Route::middleware(['auth', 'active', 'verified', 'participant'])->group(function () {
     Route::get('participant-profile', [ParticipantProfileController::class, 'edit'])
         ->name('participant-profile.edit');
     Route::patch('participant-profile', [ParticipantProfileController::class, 'update'])

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\Municipality;
 use App\Models\Organization;
 use App\Models\ParticipantType;
+use App\Models\Province;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,6 +34,8 @@ class ParticipantsController extends Controller
             'participant_type',
             'sex',
             'event_name',
+            'province_id',
+            'municipality_id',
             'is_active',
             'created_at',
             'deleted_at',
@@ -39,10 +43,12 @@ class ParticipantsController extends Controller
 
         return Inertia::render('participants', [
             'participants' => User::query()
+                ->with(['province:id,code,name', 'municipality:id,code,name'])
                 ->latest()
                 ->get($columns),
             'deletedParticipants' => User::query()
                 ->onlyTrashed()
+                ->with(['province:id,code,name', 'municipality:id,code,name'])
                 ->latest('deleted_at')
                 ->get($columns),
             'organizations' => Organization::query()
@@ -57,6 +63,10 @@ class ParticipantsController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label']),
+            'provinces' => Province::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['code as value', 'name as label']),
         ]);
     }
 
@@ -70,6 +80,16 @@ class ParticipantsController extends Controller
             'avatar' => ['nullable', 'string'],
             'website' => ['prohibited'],
             'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/'],
+            'province' => [
+                'required',
+                'string',
+                Rule::exists('provinces', 'code')->where('is_active', true),
+            ],
+            'municipality' => [
+                'required',
+                'string',
+                Rule::exists('municipalities', 'code')->where('is_active', true),
+            ],
             'organization' => [
                 'nullable',
                 'string',
@@ -88,6 +108,22 @@ class ParticipantsController extends Controller
                 Rule::exists('events', 'slug')->where('is_active', true),
             ],
         ]);
+
+        $province = Province::query()
+            ->where('code', $validated['province'])
+            ->where('is_active', true)
+            ->firstOrFail();
+        $municipality = Municipality::query()
+            ->where('code', $validated['municipality'])
+            ->where('province_id', $province->id)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $municipality) {
+            return back()
+                ->withErrors(['municipality' => 'The selected municipality must belong to the selected province.'])
+                ->withInput();
+        }
 
         $name = trim(collect([
             $validated['given_name'],
@@ -120,6 +156,8 @@ class ParticipantsController extends Controller
             'email' => $validated['email'],
             'avatar' => $this->storeAvatar($validated['avatar'] ?? null),
             'phone' => $validated['phone'] ?? null,
+            'province_id' => $province->id,
+            'municipality_id' => $municipality->id,
             'organization_id' => $organization?->id,
             'organization' => $validated['organization'] ?? null,
             'participant_type' => $validated['participant_type'],
@@ -153,6 +191,16 @@ class ParticipantsController extends Controller
                 Rule::unique(User::class)->ignore($participant),
             ],
             'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
+            'province' => [
+                'nullable',
+                'string',
+                Rule::exists('provinces', 'code')->where('is_active', true),
+            ],
+            'municipality' => [
+                'nullable',
+                'string',
+                Rule::exists('municipalities', 'code')->where('is_active', true),
+            ],
             'organization' => [
                 'required',
                 'string',
@@ -177,6 +225,42 @@ class ParticipantsController extends Controller
             $validated['middle_name'] ?? null,
             $validated['surname'],
         ])->filter()->implode(' '));
+
+        $provinceCode = $validated['province'] ?? null;
+        $municipalityCode = $validated['municipality'] ?? null;
+
+        unset($validated['province'], $validated['municipality']);
+
+        if ($provinceCode) {
+            $province = Province::query()
+                ->where('code', $provinceCode)
+                ->where('is_active', true)
+                ->firstOrFail();
+
+            $validated['province_id'] = $province->id;
+
+            if ($municipalityCode) {
+                $municipality = Municipality::query()
+                    ->where('code', $municipalityCode)
+                    ->where('province_id', $province->id)
+                    ->where('is_active', true)
+                    ->first();
+
+                if (! $municipality) {
+                    return back()
+                        ->withErrors(['municipality' => 'The selected municipality must belong to the selected province.'])
+                        ->withInput();
+                }
+
+                $validated['municipality_id'] = $municipality->id;
+            } else {
+                $validated['municipality_id'] = null;
+            }
+        } else {
+            $validated['province_id'] = null;
+            $validated['municipality_id'] = null;
+        }
+
         $organization = Organization::query()->firstOrCreate(
             ['slug' => str($validated['organization'])->slug()->toString()],
             [

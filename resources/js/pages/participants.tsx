@@ -26,7 +26,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import type { ComponentProps, FormEvent } from 'react';
 import type { ChangeEvent } from 'react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
@@ -96,6 +96,8 @@ type Participant = {
     email: string;
     avatar: string | null;
     phone: string | null;
+    province: LocationOption | null;
+    municipality: LocationOption | null;
     organization: string | null;
     participant_type: string | null;
     sex: string | null;
@@ -111,11 +113,13 @@ type Props = {
     organizations: Option[];
     participantTypes: Option[];
     events: Option[];
+    provinces: Option[];
 };
 
 type SortKey =
     | 'name'
     | 'email'
+    | 'location'
     | 'organization'
     | 'participant_type'
     | 'sex'
@@ -129,12 +133,19 @@ type Option = {
     label: string;
 };
 
+type LocationOption = {
+    code: string;
+    name: string;
+};
+
 type ParticipantFormData = {
     given_name: string;
     middle_name: string;
     surname: string;
     email: string;
     phone: string;
+    province: string;
+    municipality: string;
     organization: string;
     participant_type: string;
     sex: string;
@@ -150,8 +161,9 @@ const columns: {
     label: string;
     className?: string;
 }[] = [
-    { key: 'name', label: 'Participant' },
-    { key: 'email', label: 'Contact' },
+    { key: 'name', label: 'Participant', className: 'w-52' },
+    { key: 'email', label: 'Contact', className: 'w-48' },
+    { key: 'location', label: 'Location', className: 'w-40' },
     { key: 'organization', label: 'Org' },
     { key: 'participant_type', label: 'Type', className: 'w-24' },
     { key: 'sex', label: 'Sex', className: 'w-20' },
@@ -172,6 +184,8 @@ const emptyParticipantFormData: ParticipantFormData = {
     surname: '',
     email: '',
     phone: '',
+    province: '',
+    municipality: '',
     organization: '',
     participant_type: '',
     sex: '',
@@ -268,6 +282,12 @@ function formatDate(value: string): string {
 
 function getOptionLabel(options: Option[], value: string | null): string {
     return options.find((option) => option.value === value)?.label ?? '-';
+}
+
+function getLocationLabel(participant: Participant): string {
+    return [participant.province?.name, participant.municipality?.name]
+        .filter(Boolean)
+        .join(' / ') || '-';
 }
 
 function getInitials(name: string) {
@@ -373,6 +393,7 @@ function SearchableOptionField({
     searchPlaceholder,
     emptyMessage,
     error,
+    disabled = false,
     onValueChange,
 }: {
     id: string;
@@ -383,6 +404,7 @@ function SearchableOptionField({
     searchPlaceholder: string;
     emptyMessage: string;
     error?: string;
+    disabled?: boolean;
     onValueChange: (value: string) => void;
 }) {
     const [open, setOpen] = useState(false);
@@ -400,9 +422,12 @@ function SearchableOptionField({
                         aria-labelledby={`${id}_label`}
                         aria-expanded={open}
                         aria-invalid={!!error}
+                        disabled={disabled}
                         className={cn(
                             'w-full justify-between font-normal',
                             !selectedOption && 'text-muted-foreground',
+                            disabled &&
+                                'cursor-not-allowed opacity-70 hover:bg-background',
                         )}
                     >
                         <span className="truncate">
@@ -581,7 +606,7 @@ function ParticipantIdButton({
         <button
             type="button"
             onClick={() => onOpen(participant)}
-            className="rounded-sm font-medium text-[#0038A8] underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:text-blue-300"
+            className="inline-block max-w-full rounded-sm break-all align-bottom font-medium text-[#0038A8] underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:text-blue-300"
         >
             {participant.participant_id ?? '-'}
         </button>
@@ -777,6 +802,7 @@ export default function Participants({
     organizations,
     participantTypes,
     events,
+    provinces,
 }: Props) {
     const getInitials = useInitials();
     const [search, setSearch] = useState('');
@@ -792,6 +818,16 @@ export default function Participants({
     const [addCropImageSrc, setAddCropImageSrc] = useState('');
     const [addCrop, setAddCrop] = useState<Crop>();
     const [addCompletedCrop, setAddCompletedCrop] = useState<PixelCrop>();
+    const [addMunicipalitiesLoading, setAddMunicipalitiesLoading] =
+        useState(false);
+    const [addMunicipalityOptions, setAddMunicipalityOptions] = useState<
+        Option[]
+    >([]);
+    const [editMunicipalitiesLoading, setEditMunicipalitiesLoading] =
+        useState(false);
+    const [editMunicipalityOptions, setEditMunicipalityOptions] = useState<
+        Option[]
+    >([]);
     const [addCropMimeType, setAddCropMimeType] = useState<
         'image/png' | 'image/jpeg'
     >('image/jpeg');
@@ -840,6 +876,112 @@ export default function Participants({
         restoring ||
         updatingStatus;
 
+    useEffect(() => {
+        if (!addData.province) {
+            return;
+        }
+
+        const controller = new AbortController();
+
+        async function loadMunicipalities() {
+            setAddMunicipalitiesLoading(true);
+
+            try {
+                const searchParams = new URLSearchParams({
+                    province: addData.province,
+                });
+                const response = await fetch(
+                    `/welcome-lookups/municipalities?${searchParams.toString()}`,
+                    {
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                        signal: controller.signal,
+                    },
+                );
+
+                if (!response.ok) {
+                    throw new Error('Unable to load municipalities.');
+                }
+
+                const data = (await response.json()) as Option[];
+
+                setAddMunicipalityOptions(data);
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    return;
+                }
+
+                setAddMunicipalityOptions([]);
+                setAddData('municipality', '');
+                toast.error(
+                    'Municipalities could not be loaded. Please select the province again.',
+                );
+            } finally {
+                if (!controller.signal.aborted) {
+                    setAddMunicipalitiesLoading(false);
+                }
+            }
+        }
+
+        loadMunicipalities();
+
+        return () => controller.abort();
+    }, [addData.province, setAddData]);
+
+    useEffect(() => {
+        if (!editingParticipant || !data.province) {
+            return;
+        }
+
+        const controller = new AbortController();
+
+        async function loadMunicipalities() {
+            setEditMunicipalitiesLoading(true);
+
+            try {
+                const searchParams = new URLSearchParams({
+                    province: data.province,
+                });
+                const response = await fetch(
+                    `/welcome-lookups/municipalities?${searchParams.toString()}`,
+                    {
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                        signal: controller.signal,
+                    },
+                );
+
+                if (!response.ok) {
+                    throw new Error('Unable to load municipalities.');
+                }
+
+                const municipalities = (await response.json()) as Option[];
+
+                setEditMunicipalityOptions(municipalities);
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    return;
+                }
+
+                setEditMunicipalityOptions([]);
+                setData('municipality', '');
+                toast.error(
+                    'Municipalities could not be loaded. Please select the province again.',
+                );
+            } finally {
+                if (!controller.signal.aborted) {
+                    setEditMunicipalitiesLoading(false);
+                }
+            }
+        }
+
+        loadMunicipalities();
+
+        return () => controller.abort();
+    }, [data.province, editingParticipant, setData]);
+
     const filteredParticipants = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
 
@@ -850,6 +992,7 @@ export default function Participants({
                       participant.participant_id,
                       participant.email,
                       participant.phone,
+                      getLocationLabel(participant),
                       participant.organization,
                       participant.participant_type,
                       participant.sex,
@@ -864,8 +1007,14 @@ export default function Participants({
             : participants;
 
         return [...filtered].sort((a, b) => {
-            const aValue = a[sortKey] ?? '';
-            const bValue = b[sortKey] ?? '';
+            const aValue =
+                sortKey === 'location'
+                    ? getLocationLabel(a)
+                    : (a[sortKey] ?? '');
+            const bValue =
+                sortKey === 'location'
+                    ? getLocationLabel(b)
+                    : (b[sortKey] ?? '');
 
             if (sortKey === 'created_at') {
                 const comparison =
@@ -933,6 +1082,8 @@ export default function Participants({
         setAddCropImageSrc('');
         setAddCrop(undefined);
         setAddCompletedCrop(undefined);
+        setAddMunicipalityOptions([]);
+        setAddMunicipalitiesLoading(false);
         clearAddErrors();
         resetAddForm();
     }
@@ -1042,6 +1193,8 @@ export default function Participants({
                 setAddCropImageSrc('');
                 setAddCrop(undefined);
                 setAddCompletedCrop(undefined);
+                setAddMunicipalityOptions([]);
+                setAddMunicipalitiesLoading(false);
                 clearAddErrors();
                 resetAddForm();
             },
@@ -1060,11 +1213,23 @@ export default function Participants({
             surname: participant.surname ?? '',
             email: participant.email,
             phone: normalizeContactNumber(participant.phone ?? ''),
+            province: participant.province?.code ?? '',
+            municipality: participant.municipality?.code ?? '',
             organization: participant.organization ?? '',
             participant_type: participant.participant_type ?? '',
             sex: participant.sex ?? '',
             event_name: participant.event_name ?? '',
         });
+        setEditMunicipalityOptions(
+            participant.municipality
+                ? [
+                      {
+                          value: participant.municipality.code,
+                          label: participant.municipality.name,
+                      },
+                  ]
+                : [],
+        );
     }
 
     function closeEditDialog() {
@@ -1073,6 +1238,8 @@ export default function Participants({
         }
 
         setEditingParticipant(null);
+        setEditMunicipalityOptions([]);
+        setEditMunicipalitiesLoading(false);
         clearErrors();
         reset();
     }
@@ -1088,6 +1255,8 @@ export default function Participants({
             preserveScroll: true,
             onSuccess: () => {
                 setEditingParticipant(null);
+                setEditMunicipalityOptions([]);
+                setEditMunicipalitiesLoading(false);
                 clearErrors();
                 reset();
             },
@@ -1428,6 +1597,17 @@ export default function Participants({
                                                                 '-'}
                                                         </dd>
                                                     </div>
+                                                    <div className="min-w-0">
+                                                        <dt className="font-medium text-muted-foreground">
+                                                            Province /
+                                                            Municipality
+                                                        </dt>
+                                                        <dd className="mt-0.5 line-clamp-2 text-foreground">
+                                                            {getLocationLabel(
+                                                                participant,
+                                                            )}
+                                                        </dd>
+                                                    </div>
                                                 </dl>
                                             </div>
                                         </div>
@@ -1500,8 +1680,8 @@ export default function Participants({
                                                 <TableCell className="px-2 py-2 font-medium text-muted-foreground">
                                                     {startIndex + index + 1}
                                                 </TableCell>
-                                                <TableCell className="px-2 py-2">
-                                                    <div className="flex min-w-0 items-center gap-2">
+                                                <TableCell className="overflow-hidden px-2 py-2">
+                                                    <div className="flex min-w-0 items-center gap-2 overflow-hidden">
                                                         <ParticipantAvatarThumbnail
                                                             participant={
                                                                 participant
@@ -1515,27 +1695,29 @@ export default function Participants({
                                                                 setViewingImageParticipant
                                                             }
                                                         />
-                                                        <div className="min-w-0">
-                                                            <ParticipantName
-                                                                name={
-                                                                    participant.name
-                                                                }
-                                                            />
+                                                        <div className="grid min-w-0 gap-1 overflow-hidden">
+                                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                                                <ParticipantName
+                                                                    name={
+                                                                        participant.name
+                                                                    }
+                                                                />
+                                                                <UserStatusBadge
+                                                                    active={
+                                                                        participant.is_active
+                                                                    }
+                                                                />
+                                                            </div>
                                                             <p className="text-xs text-muted-foreground">
-                                                                Participant ID{' '}
+                                                                Participant ID
+                                                            </p>
+                                                            <div className="min-w-0 text-xs leading-5">
                                                                 <ParticipantIdButton
                                                                     participant={
                                                                         participant
                                                                     }
                                                                     onOpen={
                                                                         setViewingIdParticipant
-                                                                    }
-                                                                />
-                                                            </p>
-                                                            <div className="mt-1">
-                                                                <UserStatusBadge
-                                                                    active={
-                                                                        participant.is_active
                                                                     }
                                                                 />
                                                             </div>
@@ -1552,6 +1734,13 @@ export default function Participants({
                                                                 '-'}
                                                         </p>
                                                     </div>
+                                                </TableCell>
+                                                <TableCell className="px-2 py-2 leading-5 whitespace-normal">
+                                                    <span className="line-clamp-2">
+                                                        {getLocationLabel(
+                                                            participant,
+                                                        )}
+                                                    </span>
                                                 </TableCell>
                                                 <TableCell className="px-2 py-2 leading-5 whitespace-normal">
                                                     <span className="line-clamp-2">
@@ -1857,6 +2046,53 @@ export default function Participants({
                                                 message={addErrors.phone}
                                             />
                                         </div>
+                                    </div>
+
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <SearchableOptionField
+                                            id="add_province"
+                                            label="Province"
+                                            value={addData.province}
+                                            options={provinces}
+                                            placeholder="Search and select province"
+                                            searchPlaceholder="Search province..."
+                                            emptyMessage="No province found."
+                                            error={addErrors.province}
+                                            onValueChange={(value) => {
+                                                setAddMunicipalityOptions([]);
+                                                setAddData('province', value);
+                                                setAddData(
+                                                    'municipality',
+                                                    '',
+                                                );
+                                            }}
+                                        />
+
+                                        <SearchableOptionField
+                                            id="add_municipality"
+                                            label="Municipality or city"
+                                            value={addData.municipality}
+                                            options={addMunicipalityOptions}
+                                            placeholder={
+                                                addData.province
+                                                    ? 'Search and select municipality or city'
+                                                    : 'Select province first'
+                                            }
+                                            searchPlaceholder="Search municipality or city..."
+                                            emptyMessage={
+                                                addMunicipalitiesLoading
+                                                    ? 'Loading municipalities...'
+                                                    : 'No municipality or city found.'
+                                            }
+                                            error={addErrors.municipality}
+                                            disabled={!addData.province}
+                                            onValueChange={(value) =>
+                                                setAddData(
+                                                    'municipality',
+                                                    value,
+                                                )
+                                            }
+                                        />
                                     </div>
 
                                     <SearchableOptionField
@@ -2238,6 +2474,45 @@ export default function Participants({
                                 />
                                 <InputError message={errors.phone} />
                             </div>
+
+                            <SearchableOptionField
+                                id="province"
+                                label="Province"
+                                value={data.province}
+                                options={provinces}
+                                placeholder="Search and select province"
+                                searchPlaceholder="Search province..."
+                                emptyMessage="No province found."
+                                error={errors.province}
+                                onValueChange={(value) => {
+                                    setEditMunicipalityOptions([]);
+                                    setData('province', value);
+                                    setData('municipality', '');
+                                }}
+                            />
+
+                            <SearchableOptionField
+                                id="municipality"
+                                label="Municipality or city"
+                                value={data.municipality}
+                                options={editMunicipalityOptions}
+                                placeholder={
+                                    data.province
+                                        ? 'Search and select municipality or city'
+                                        : 'Select province first'
+                                }
+                                searchPlaceholder="Search municipality or city..."
+                                emptyMessage={
+                                    editMunicipalitiesLoading
+                                        ? 'Loading municipalities...'
+                                        : 'No municipality or city found.'
+                                }
+                                error={errors.municipality}
+                                disabled={!data.province}
+                                onValueChange={(value) =>
+                                    setData('municipality', value)
+                                }
+                            />
 
                             <SearchableOptionField
                                 id="organization"
