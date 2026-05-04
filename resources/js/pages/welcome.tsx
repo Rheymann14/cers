@@ -1,12 +1,10 @@
 import { Form, Head, Link, usePage } from '@inertiajs/react';
 import {
-    BarChart3,
     CalendarPlus,
     Check,
     CheckCircle2,
     ChevronsUpDown,
     ClipboardCheck,
-    ClipboardList,
     ArrowDown,
     FileText,
     ImagePlus,
@@ -16,6 +14,7 @@ import {
     Sun,
     Users,
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import type { Crop, PixelCrop } from 'react-image-crop';
@@ -89,13 +88,6 @@ const features = [
     },
 ];
 
-const visualItems = [
-    { label: 'Event Registration', icon: ClipboardList },
-    { label: 'QR / Attendance', icon: QrCode },
-    { label: 'Participant Records', icon: Users },
-    { label: 'Reports', icon: BarChart3 },
-];
-
 type LookupOption = {
     value: string;
     label: string;
@@ -117,11 +109,156 @@ const otherOrganizationValue = '__other__';
 const fieldClass =
     'h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
 
+const sampleVirtualId = {
+    email: 'juan.delacruz@example.com',
+    fullName: 'Juan Delacruz',
+    organization: 'Agency',
+    participantId: 'CERS-VKTO-2026',
+};
+
+function hashString(value: string) {
+    let hash = 2166136261;
+
+    for (let index = 0; index < value.length; index += 1) {
+        hash ^= value.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+
+    return (hash >>> 0).toString(36).toUpperCase();
+}
+
+function createQrToken({
+    email,
+    fullName,
+    organization,
+    participantId,
+}: {
+    email: string;
+    fullName: string;
+    organization: string;
+    participantId: string;
+}) {
+    const fingerprint = hashString(
+        ['CERS-VIRTUAL-ID', participantId, fullName, email, organization]
+            .map((value) => value.trim().toLowerCase())
+            .join('|'),
+    );
+
+    return `CERS:VID:1:${fingerprint}`;
+}
+
 function RequiredMark() {
     return (
         <span aria-hidden="true" className="text-[#CE1126]">
             *
         </span>
+    );
+}
+
+function WelcomeVirtualIdPreview() {
+    const qrValue = createQrToken(sampleVirtualId);
+
+    return (
+        <div className="rounded-2xl border border-[#d9e5f5] bg-white p-3 shadow-md shadow-slate-200/70 motion-safe:animate-in motion-safe:duration-700 motion-safe:fade-in motion-safe:slide-in-from-bottom-4 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30">
+            <div className="rounded-2xl border border-[#d9e5f5] bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
+                <div className="flex items-center gap-3">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0038A8] shadow-sm dark:bg-neutral-900">
+                        <QrCode className="size-6" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-2xl leading-tight font-bold text-slate-950 dark:text-white">
+                            Virtual ID
+                        </p>
+                        <p className="text-sm font-medium text-slate-600 dark:text-neutral-300">
+                            QR-based attendance verification
+                        </p>
+                    </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 rounded-2xl border border-white/80 bg-[radial-gradient(circle_at_9%_8%,rgba(252,209,22,0.22),transparent_30%),radial-gradient(circle_at_88%_8%,rgba(0,56,168,0.14),transparent_32%),linear-gradient(135deg,#ffffff_0%,#f1f8ff_52%,#fff8e7_100%)] p-3 shadow-sm sm:grid-cols-[1fr_36%] dark:border-neutral-800 dark:bg-neutral-900">
+                    <div className="grid min-w-0 content-between gap-4">
+                        <div className="flex items-center gap-2">
+                            <img
+                                src="/ched_logo.png"
+                                alt="CHED"
+                                className="size-8 rounded-full bg-white object-contain p-1 shadow-sm"
+                            />
+                            <div>
+                                <p className="text-base leading-tight font-bold text-slate-950 dark:text-white">
+                                    CERS
+                                </p>
+                                <p className="text-xs font-medium text-slate-600 dark:text-neutral-300">
+                                    Participant Identification
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-[56px_1fr] items-center gap-3">
+                            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-white bg-white text-base font-bold text-[#0038A8] shadow-sm">
+                                JD
+                            </div>
+                            <div className="min-w-0">
+                                <h2 className="text-base leading-tight font-bold text-slate-950 dark:text-white">
+                                    {sampleVirtualId.fullName}
+                                </h2>
+                                <p className="text-xs font-medium text-slate-600 dark:text-neutral-300">
+                                    {sampleVirtualId.organization}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="text-[10px] font-medium tracking-wide text-slate-500 uppercase dark:text-neutral-400">
+                                Participant ID
+                            </p>
+                            <div className="mt-1 inline-flex max-w-full rounded-full bg-white px-3 py-1 text-xs font-bold tracking-wide text-slate-950 shadow-sm dark:bg-neutral-900 dark:text-white">
+                                <span className="truncate">
+                                    {sampleVirtualId.participantId}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid min-w-0 content-center justify-items-center gap-2 rounded-2xl border border-white/80 bg-white/95 p-3 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-[#0038A8] dark:text-blue-300">
+                            <QrCode className="size-3.5" />
+                            QR Code
+                        </div>
+                        <div className="rounded-lg bg-white p-1.5 shadow-inner">
+                            <QRCodeSVG
+                                value={qrValue}
+                                size={144}
+                                level="M"
+                                marginSize={1}
+                                className="size-24 sm:size-28"
+                            />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-xs font-bold break-words text-slate-950 dark:text-white">
+                                {sampleVirtualId.participantId}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-slate-500 dark:text-neutral-400">
+                                CERS scanner verification only.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {['Fast Check-In', 'QR Attendance', 'Secure Access'].map(
+                        (item) => (
+                            <div
+                                key={item}
+                                className="flex items-center justify-center gap-1.5 rounded-xl border border-white/80 bg-white/80 px-2.5 py-2 text-xs font-medium text-slate-700 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
+                            >
+                                <CheckCircle2 className="size-3.5 text-[#0038A8]" />
+                                <span>{item}</span>
+                            </div>
+                        ),
+                    )}
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -660,55 +797,7 @@ export default function Welcome({
                                 </div>
                             </div>
 
-                            <div className="rounded-2xl border border-[#d9e5f5] bg-white p-5 shadow-md shadow-slate-200/70 motion-safe:animate-in motion-safe:duration-700 motion-safe:fade-in motion-safe:slide-in-from-bottom-4 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30">
-                                <div className="rounded-2xl border border-[#d9e5f5] bg-[#f8fbff] p-5 dark:border-neutral-800 dark:bg-neutral-950">
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div>
-                                            <p className="text-sm font-medium text-[#0038A8] dark:text-blue-300">
-                                                Event Operations
-                                            </p>
-                                            <h2 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">
-                                                CERS Workflow
-                                            </h2>
-                                        </div>
-                                        <span className="rounded-full bg-[#FCD116] px-3 py-1 text-xs font-bold text-[#1f2937]">
-                                            CHED
-                                        </span>
-                                    </div>
-
-                                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                                        {visualItems.map((item) => {
-                                            const Icon = item.icon;
-
-                                            return (
-                                                <div
-                                                    key={item.label}
-                                                    className="rounded-2xl border border-[#d9e5f5] bg-white p-4 shadow-sm transition hover:border-[#0038A8]/25 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-blue-400/30"
-                                                >
-                                                    <Icon className="h-6 w-6 text-[#0038A8]" />
-                                                    <p className="mt-4 text-sm font-semibold text-slate-800 dark:text-neutral-100">
-                                                        {item.label}
-                                                    </p>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                                    {['Secure', 'Organized', 'Accessible'].map(
-                                        (item) => (
-                                            <div
-                                                key={item}
-                                                className="flex items-center gap-2 rounded-xl border border-[#d9e5f5] bg-white px-3 py-3 text-sm font-medium text-slate-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
-                                            >
-                                                <CheckCircle2 className="h-4 w-4 text-[#CE1126]" />
-                                                {item}
-                                            </div>
-                                        ),
-                                    )}
-                                </div>
-                            </div>
+                            <WelcomeVirtualIdPreview />
                         </div>
                     </section>
 
