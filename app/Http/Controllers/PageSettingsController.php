@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Municipality;
 use App\Models\Organization;
 use App\Models\ParticipantType;
+use App\Models\Province;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,6 +30,17 @@ class PageSettingsController extends Controller
                 ->withCount('users')
                 ->orderBy('name')
                 ->get(),
+            'provinces' => Province::query()
+                ->select(['id', 'name', 'code', 'region_name', 'region_code', 'is_active', 'created_at'])
+                ->withCount('users')
+                ->orderBy('name')
+                ->get(),
+            'municipalities' => Municipality::query()
+                ->select(['id', 'province_id', 'name', 'code', 'type', 'is_active', 'created_at'])
+                ->with('province:id,name,code')
+                ->withCount('users')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
@@ -36,10 +49,11 @@ class PageSettingsController extends Controller
         $modelClass = $this->modelClass($table);
         $validated = $this->validatedData($request, $table);
 
-        $modelClass::query()->create([
-            ...$validated,
-            'created_by_user_id' => $request->user()?->id,
-        ]);
+        if ($this->tracksCreator($table)) {
+            $validated['created_by_user_id'] = $request->user()?->id;
+        }
+
+        $modelClass::query()->create($validated);
 
         Inertia::flash('toast', [
             'type' => 'success',
@@ -101,6 +115,8 @@ class PageSettingsController extends Controller
         return match ($table) {
             'participant-types' => ParticipantType::class,
             'organizations' => Organization::class,
+            'provinces' => Province::class,
+            'municipalities' => Municipality::class,
             default => abort(404),
         };
     }
@@ -136,6 +152,37 @@ class PageSettingsController extends Controller
                 'type' => ['required', 'string', 'max:100'],
                 'is_active' => ['boolean'],
             ]),
+            'provinces' => $request->validate([
+                'name' => ['required', 'string', 'max:255'],
+                'code' => [
+                    'required',
+                    'string',
+                    'max:10',
+                    Rule::unique('provinces', 'code')->ignore($id),
+                ],
+                'region_name' => ['required', 'string', 'max:255'],
+                'region_code' => ['required', 'string', 'max:10'],
+                'is_active' => ['boolean'],
+            ]),
+            'municipalities' => $request->validate([
+                'province_id' => ['required', 'integer', Rule::exists('provinces', 'id')],
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('municipalities', 'name')
+                        ->where('province_id', $request->integer('province_id'))
+                        ->ignore($id),
+                ],
+                'code' => [
+                    'required',
+                    'string',
+                    'max:10',
+                    Rule::unique('municipalities', 'code')->ignore($id),
+                ],
+                'type' => ['required', 'string', 'max:20'],
+                'is_active' => ['boolean'],
+            ]),
             default => abort(404),
         };
     }
@@ -145,7 +192,14 @@ class PageSettingsController extends Controller
         return match ($table) {
             'participant-types' => 'participant_types',
             'organizations' => 'organizations',
+            'provinces' => 'provinces',
+            'municipalities' => 'municipalities',
             default => abort(404),
         };
+    }
+
+    private function tracksCreator(string $table): bool
+    {
+        return in_array($table, ['participant-types', 'organizations'], true);
     }
 }

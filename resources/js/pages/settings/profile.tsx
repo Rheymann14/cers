@@ -7,9 +7,11 @@ import 'react-image-crop/dist/ReactCrop.css';
 import { toast } from 'sonner';
 
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
+import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -106,6 +108,8 @@ export default function Profile({
     const cropImageRef = useRef<HTMLImageElement | null>(null);
     const nameInputRef = useRef<HTMLInputElement | null>(null);
     const emailInputRef = useRef<HTMLInputElement | null>(null);
+    const passwordInputRef = useRef<HTMLInputElement | null>(null);
+    const currentPasswordInputRef = useRef<HTMLInputElement | null>(null);
 
     function updateProfilePhoto(
         avatar: string | null,
@@ -421,6 +425,100 @@ export default function Profile({
                 </Form>
             </div>
 
+            <div className="space-y-6">
+                <Heading
+                    variant="small"
+                    title="Change password"
+                    description="Update the password used to sign in to your account"
+                />
+
+                <Form
+                    {...SecurityController.update.form()}
+                    options={{
+                        preserveScroll: true,
+                    }}
+                    resetOnError={[
+                        'password',
+                        'password_confirmation',
+                        'current_password',
+                    ]}
+                    resetOnSuccess
+                    onError={(errors) => {
+                        if (errors.password) {
+                            passwordInputRef.current?.focus();
+                        }
+
+                        if (errors.current_password) {
+                            currentPasswordInputRef.current?.focus();
+                        }
+                    }}
+                    className="space-y-6"
+                >
+                    {({ errors, processing }) => (
+                        <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="current_password">
+                                    Current password
+                                </Label>
+
+                                <PasswordInput
+                                    id="current_password"
+                                    ref={currentPasswordInputRef}
+                                    name="current_password"
+                                    className="mt-1 block w-full"
+                                    autoComplete="current-password"
+                                    placeholder="Current password"
+                                />
+
+                                <InputError message={errors.current_password} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="password">New password</Label>
+
+                                <PasswordInput
+                                    id="password"
+                                    ref={passwordInputRef}
+                                    name="password"
+                                    className="mt-1 block w-full"
+                                    autoComplete="new-password"
+                                    placeholder="New password"
+                                />
+
+                                <InputError message={errors.password} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="password_confirmation">
+                                    Confirm password
+                                </Label>
+
+                                <PasswordInput
+                                    id="password_confirmation"
+                                    name="password_confirmation"
+                                    className="mt-1 block w-full"
+                                    autoComplete="new-password"
+                                    placeholder="Confirm password"
+                                />
+
+                                <InputError
+                                    message={errors.password_confirmation}
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <Button
+                                    disabled={processing}
+                                    data-test="update-password-button"
+                                >
+                                    Save password
+                                </Button>
+                            </div>
+                        </>
+                    )}
+                </Form>
+            </div>
+
             <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
                 <DialogContent className="sm:max-w-xl">
                     <DialogHeader>
@@ -485,8 +583,6 @@ export default function Profile({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
-          
         </>
     );
 }

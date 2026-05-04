@@ -4,9 +4,13 @@ import { useMemo, useState } from 'react';
 import {
     AlertTriangle,
     Building2,
+    Check,
     ChevronLeft,
     ChevronRight,
+    ChevronsUpDown,
     GraduationCap,
+    Map,
+    MapPin,
     MoreHorizontal,
     Pencil,
     Plus,
@@ -18,6 +22,14 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
 import {
     Dialog,
     DialogContent,
@@ -36,6 +48,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
+import {
     Table,
     TableBody,
     TableCell,
@@ -44,42 +61,73 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import InputError from '@/components/input-error';
+import { cn } from '@/lib/utils';
 import { pageSettings } from '@/routes';
 import type { LucideIcon } from 'lucide-react';
 
 type BaseSetting = {
     id: number;
     name: string;
-    slug: string;
     is_active: boolean;
-    users_count: number;
     created_at: string | null;
+    users_count: number;
+};
+
+type CreatedSetting = BaseSetting & {
+    slug: string;
     creator: {
         id: number;
         name: string;
     } | null;
 };
 
-type ParticipantType = BaseSetting;
+type ParticipantType = CreatedSetting;
 
-type Organization = BaseSetting & {
+type Organization = CreatedSetting & {
     type: string;
 };
 
-type SettingsKey = 'participant-types' | 'organizations';
+type Province = BaseSetting & {
+    code: string;
+    region_name: string;
+    region_code: string;
+};
 
-type SettingsRecord = ParticipantType | Organization;
+type Municipality = BaseSetting & {
+    province_id: number;
+    code: string;
+    type: string;
+    province: {
+        id: number;
+        name: string;
+        code: string;
+    } | null;
+};
+
+type SettingsKey =
+    | 'participant-types'
+    | 'organizations'
+    | 'provinces'
+    | 'municipalities';
+
+type SettingsRecord = ParticipantType | Organization | Province | Municipality;
 
 type SettingsForm = {
     name: string;
     slug: string;
     type: string;
+    code: string;
+    region_name: string;
+    region_code: string;
+    province_id: string;
     is_active: boolean;
 };
 
 type Props = {
     participantTypes: ParticipantType[];
     organizations: Organization[];
+    provinces: Province[];
+    municipalities: Municipality[];
 };
 
 const pageSizeOptions = [5, 10, 25];
@@ -88,8 +136,31 @@ const defaultForm: SettingsForm = {
     name: '',
     slug: '',
     type: 'school',
+    code: '',
+    region_name: '',
+    region_code: '',
+    province_id: '',
     is_active: true,
 };
+
+const settingsSections = [
+    {
+        id: 'participant-types-table',
+        label: 'Participant Types',
+    },
+    {
+        id: 'organizations-table',
+        label: 'School or Organization Management',
+    },
+    {
+        id: 'provinces-table',
+        label: 'Province Management',
+    },
+    {
+        id: 'municipalities-table',
+        label: 'Municipality Management',
+    },
+];
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
@@ -112,9 +183,17 @@ const preventDialogOutsideClose: NonNullable<
     event.preventDefault();
 };
 
+function scrollToSettingsSection(sectionId: string) {
+    document
+        .getElementById(sectionId)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 export default function PageSettings({
     participantTypes,
     organizations,
+    provinces,
+    municipalities,
 }: Props) {
     return (
         <>
@@ -131,7 +210,23 @@ export default function PageSettings({
                     </p>
                 </div>
 
+                <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-2 text-card-foreground shadow-sm">
+                    {settingsSections.map((section) => (
+                        <Button
+                            key={section.id}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 justify-center text-xs"
+                            onClick={() => scrollToSettingsSection(section.id)}
+                        >
+                            {section.label}
+                        </Button>
+                    ))}
+                </div>
+
                 <SettingsTable
+                    sectionId="participant-types-table"
                     tableKey="participant-types"
                     title="Participant Types"
                     description="Manage the participant categories shown during event registration."
@@ -148,7 +243,11 @@ export default function PageSettings({
                                 </p>
                             ),
                         },
-                        { label: 'Slug', render: (item) => item.slug },
+                        {
+                            label: 'Slug',
+                            render: (item) =>
+                                'slug' in item ? item.slug : '-',
+                        },
                         {
                             label: 'Status',
                             render: (item) => (
@@ -165,12 +264,16 @@ export default function PageSettings({
                         },
                         {
                             label: 'Added By',
-                            render: (item) => item.creator?.name ?? 'System',
+                            render: (item) =>
+                                'creator' in item
+                                    ? (item.creator?.name ?? 'System')
+                                    : '-',
                         },
                     ]}
                 />
 
                 <SettingsTable
+                    sectionId="organizations-table"
                     tableKey="organizations"
                     title="School or Organization Management"
                     description="Keep the schools and partner organizations used in participant profiles."
@@ -187,7 +290,11 @@ export default function PageSettings({
                                 </p>
                             ),
                         },
-                        { label: 'Slug', render: (item) => item.slug },
+                        {
+                            label: 'Slug',
+                            render: (item) =>
+                                'slug' in item ? item.slug : '-',
+                        },
                         {
                             label: 'Type',
                             render: (item) =>
@@ -209,7 +316,113 @@ export default function PageSettings({
                         },
                         {
                             label: 'Added By',
-                            render: (item) => item.creator?.name ?? 'System',
+                            render: (item) =>
+                                'creator' in item
+                                    ? (item.creator?.name ?? 'System')
+                                    : '-',
+                        },
+                    ]}
+                />
+
+                <SettingsTable
+                    sectionId="provinces-table"
+                    tableKey="provinces"
+                    title="Province Management"
+                    description="Maintain provinces available in participant address selections."
+                    icon={Map}
+                    searchPlaceholder="Search provinces..."
+                    emptyText="No provinces found."
+                    items={provinces}
+                    columns={[
+                        {
+                            label: 'Province',
+                            render: (item) => (
+                                <p className="font-medium text-foreground">
+                                    {item.name}
+                                </p>
+                            ),
+                        },
+                        {
+                            label: 'Code',
+                            render: (item) =>
+                                'code' in item ? item.code : '-',
+                        },
+                        {
+                            label: 'Region',
+                            render: (item) =>
+                                'region_name' in item ? item.region_name : '-',
+                        },
+                        {
+                            label: 'Region Code',
+                            render: (item) =>
+                                'region_code' in item ? item.region_code : '-',
+                        },
+                        {
+                            label: 'Status',
+                            render: (item) => (
+                                <StatusBadge active={item.is_active} />
+                            ),
+                        },
+                        {
+                            label: 'Participants',
+                            render: (item) => item.users_count.toLocaleString(),
+                        },
+                        {
+                            label: 'Date Created',
+                            render: (item) => formatDate(item.created_at),
+                        },
+                    ]}
+                />
+
+                <SettingsTable
+                    sectionId="municipalities-table"
+                    tableKey="municipalities"
+                    title="Municipality Management"
+                    description="Maintain cities and municipalities available under each province."
+                    icon={MapPin}
+                    searchPlaceholder="Search municipalities..."
+                    emptyText="No municipalities found."
+                    items={municipalities}
+                    provinceOptions={provinces}
+                    columns={[
+                        {
+                            label: 'Municipality',
+                            render: (item) => (
+                                <p className="font-medium text-foreground">
+                                    {item.name}
+                                </p>
+                            ),
+                        },
+                        {
+                            label: 'Province',
+                            render: (item) =>
+                                'province' in item
+                                    ? (item.province?.name ?? '-')
+                                    : '-',
+                        },
+                        {
+                            label: 'Code',
+                            render: (item) =>
+                                'code' in item ? item.code : '-',
+                        },
+                        {
+                            label: 'Type',
+                            render: (item) =>
+                                'type' in item ? item.type : '-',
+                        },
+                        {
+                            label: 'Status',
+                            render: (item) => (
+                                <StatusBadge active={item.is_active} />
+                            ),
+                        },
+                        {
+                            label: 'Participants',
+                            render: (item) => item.users_count.toLocaleString(),
+                        },
+                        {
+                            label: 'Date Created',
+                            render: (item) => formatDate(item.created_at),
                         },
                     ]}
                 />
@@ -219,6 +432,7 @@ export default function PageSettings({
 }
 
 function SettingsTable({
+    sectionId,
     tableKey,
     title,
     description,
@@ -226,8 +440,10 @@ function SettingsTable({
     searchPlaceholder,
     emptyText,
     items,
+    provinceOptions = [],
     columns,
 }: {
+    sectionId: string;
     tableKey: SettingsKey;
     title: string;
     description: string;
@@ -235,6 +451,7 @@ function SettingsTable({
     searchPlaceholder: string;
     emptyText: string;
     items: SettingsRecord[];
+    provinceOptions?: Province[];
     columns: {
         label: string;
         render: (item: SettingsRecord) => ReactNode;
@@ -249,6 +466,7 @@ function SettingsTable({
     );
     const [statusItem, setStatusItem] = useState<SettingsRecord | null>(null);
     const [dialogMode, setDialogMode] = useState<'add' | 'edit' | null>(null);
+    const [provincePopoverOpen, setProvincePopoverOpen] = useState(false);
     const {
         data,
         setData,
@@ -268,11 +486,7 @@ function SettingsTable({
         }
 
         return items.filter((item) =>
-            Object.values(item).some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(query),
-            ),
+            searchableText(item).toLowerCase().includes(query),
         );
     }, [items, search]);
 
@@ -280,6 +494,9 @@ function SettingsTable({
     const currentPage = Math.min(page, totalPages);
     const startIndex = (currentPage - 1) * pageSize;
     const pageItems = filteredItems.slice(startIndex, startIndex + pageSize);
+    const selectedProvince = provinceOptions.find(
+        (province) => String(province.id) === data.province_id,
+    );
 
     function updateSearch(value: string) {
         setSearch(value);
@@ -292,9 +509,9 @@ function SettingsTable({
     }
 
     function openAddDialog() {
-        reset();
         clearErrors();
         setEditingItem(null);
+        setData(defaultSettingsForm(tableKey, provinceOptions));
         setDialogMode('add');
     }
 
@@ -303,14 +520,19 @@ function SettingsTable({
         setEditingItem(item);
         setData({
             name: item.name,
-            slug: item.slug,
+            slug: 'slug' in item ? item.slug : '',
             type: 'type' in item ? item.type : 'school',
+            code: 'code' in item ? item.code : '',
+            region_name: 'region_name' in item ? item.region_name : '',
+            region_code: 'region_code' in item ? item.region_code : '',
+            province_id: 'province_id' in item ? String(item.province_id) : '',
             is_active: item.is_active,
         });
         setDialogMode('edit');
     }
 
     function closeFormDialog() {
+        setProvincePopoverOpen(false);
         setDialogMode(null);
         setEditingItem(null);
         reset();
@@ -362,7 +584,10 @@ function SettingsTable({
     const formTitle = dialogMode === 'edit' ? `Edit ${title}` : `Add ${title}`;
 
     return (
-        <section className="overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm">
+        <section
+            id={sectionId}
+            className="scroll-mt-4 overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm"
+        >
             <div className="flex flex-col gap-3 border-b p-3 sm:p-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
@@ -427,7 +652,7 @@ function SettingsTable({
                                         {item.name}
                                     </h3>
                                     <p className="truncate text-xs text-muted-foreground">
-                                        {item.slug}
+                                        {recordSubtitle(item)}
                                     </p>
                                 </div>
                                 <ActionButtons
@@ -439,8 +664,21 @@ function SettingsTable({
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
                                 <StatusBadge active={item.is_active} />
+                                {'code' in item && (
+                                    <Badge variant="outline">{item.code}</Badge>
+                                )}
                                 {'type' in item && (
                                     <Badge variant="outline">{item.type}</Badge>
+                                )}
+                                {'region_name' in item && (
+                                    <Badge variant="outline">
+                                        {item.region_name}
+                                    </Badge>
+                                )}
+                                {'province' in item && item.province && (
+                                    <Badge variant="outline">
+                                        {item.province.name}
+                                    </Badge>
                                 )}
                                 <Badge variant="outline">
                                     {item.users_count.toLocaleString()} users
@@ -448,9 +686,12 @@ function SettingsTable({
                                 <Badge variant="outline">
                                     {formatDate(item.created_at)}
                                 </Badge>
-                                <Badge variant="outline">
-                                    Added by {item.creator?.name ?? 'System'}
-                                </Badge>
+                                {'creator' in item && (
+                                    <Badge variant="outline">
+                                        Added by{' '}
+                                        {item.creator?.name ?? 'System'}
+                                    </Badge>
+                                )}
                             </div>
                         </article>
                     ))
@@ -493,7 +734,7 @@ function SettingsTable({
                                 {columns.map((column) => (
                                     <TableCell
                                         key={column.label}
-                                        className="truncate px-2 py-2"
+                                        className="px-2 py-2 align-top leading-5 break-words whitespace-normal"
                                     >
                                         {column.render(item)}
                                     </TableCell>
@@ -609,19 +850,187 @@ function SettingsTable({
                                 />
                                 <InputError message={errors.name} />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor={`${tableKey}-slug`}>Slug</Label>
-                                <Input
-                                    id={`${tableKey}-slug`}
-                                    value={data.slug}
-                                    onChange={(event) =>
-                                        setData('slug', event.target.value)
-                                    }
-                                    aria-invalid={!!errors.slug}
-                                />
-                                <InputError message={errors.slug} />
-                            </div>
+
+                            {usesSlug(tableKey) ? (
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${tableKey}-slug`}>
+                                        Slug
+                                    </Label>
+                                    <Input
+                                        id={`${tableKey}-slug`}
+                                        value={data.slug}
+                                        onChange={(event) =>
+                                            setData('slug', event.target.value)
+                                        }
+                                        aria-invalid={!!errors.slug}
+                                    />
+                                    <InputError message={errors.slug} />
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${tableKey}-code`}>
+                                        Code
+                                    </Label>
+                                    <Input
+                                        id={`${tableKey}-code`}
+                                        value={data.code}
+                                        onChange={(event) =>
+                                            setData('code', event.target.value)
+                                        }
+                                        aria-invalid={!!errors.code}
+                                    />
+                                    <InputError message={errors.code} />
+                                </div>
+                            )}
                         </div>
+
+                        {tableKey === 'provinces' && (
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${tableKey}-region-name`}>
+                                        Region name
+                                    </Label>
+                                    <Input
+                                        id={`${tableKey}-region-name`}
+                                        value={data.region_name}
+                                        onChange={(event) =>
+                                            setData(
+                                                'region_name',
+                                                event.target.value,
+                                            )
+                                        }
+                                        aria-invalid={!!errors.region_name}
+                                    />
+                                    <InputError message={errors.region_name} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${tableKey}-region-code`}>
+                                        Region code
+                                    </Label>
+                                    <Input
+                                        id={`${tableKey}-region-code`}
+                                        value={data.region_code}
+                                        onChange={(event) =>
+                                            setData(
+                                                'region_code',
+                                                event.target.value,
+                                            )
+                                        }
+                                        aria-invalid={!!errors.region_code}
+                                    />
+                                    <InputError message={errors.region_code} />
+                                </div>
+                            </div>
+                        )}
+
+                        {tableKey === 'municipalities' && (
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label id={`${tableKey}-province-label`}>
+                                        Province
+                                    </Label>
+                                    <Popover
+                                        open={provincePopoverOpen}
+                                        onOpenChange={setProvincePopoverOpen}
+                                    >
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                id={`${tableKey}-province`}
+                                                type="button"
+                                                variant="outline"
+                                                role="combobox"
+                                                aria-labelledby={`${tableKey}-province-label`}
+                                                aria-expanded={
+                                                    provincePopoverOpen
+                                                }
+                                                aria-invalid={
+                                                    !!errors.province_id
+                                                }
+                                                className={cn(
+                                                    'h-9 w-full justify-between font-normal',
+                                                    !selectedProvince &&
+                                                        'text-muted-foreground',
+                                                )}
+                                            >
+                                                <span className="truncate">
+                                                    {selectedProvince?.name ??
+                                                        'Select province'}
+                                                </span>
+                                                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                            align="start"
+                                            className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                                        >
+                                            <Command>
+                                                <CommandInput placeholder="Search province..." />
+                                                <CommandList>
+                                                    <CommandEmpty>
+                                                        No provinces found.
+                                                    </CommandEmpty>
+                                                    <CommandGroup>
+                                                        {provinceOptions.map(
+                                                            (province) => (
+                                                                <CommandItem
+                                                                    key={
+                                                                        province.id
+                                                                    }
+                                                                    value={`${province.name} ${province.code} ${province.region_name} ${province.region_code}`}
+                                                                    onSelect={() => {
+                                                                        setData(
+                                                                            'province_id',
+                                                                            String(
+                                                                                province.id,
+                                                                            ),
+                                                                        );
+                                                                        setProvincePopoverOpen(
+                                                                            false,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Check
+                                                                        className={cn(
+                                                                            'mr-2 size-4',
+                                                                            data.province_id ===
+                                                                                String(
+                                                                                    province.id,
+                                                                                )
+                                                                                ? 'opacity-100'
+                                                                                : 'opacity-0',
+                                                                        )}
+                                                                    />
+                                                                    <span className="truncate">
+                                                                        {
+                                                                            province.name
+                                                                        }
+                                                                    </span>
+                                                                </CommandItem>
+                                                            ),
+                                                        )}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                    <InputError message={errors.province_id} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${tableKey}-type`}>
+                                        Municipality type
+                                    </Label>
+                                    <Input
+                                        id={`${tableKey}-type`}
+                                        value={data.type}
+                                        onChange={(event) =>
+                                            setData('type', event.target.value)
+                                        }
+                                        aria-invalid={!!errors.type}
+                                    />
+                                    <InputError message={errors.type} />
+                                </div>
+                            </div>
+                        )}
 
                         {tableKey === 'organizations' && (
                             <div className="space-y-2">
@@ -843,6 +1252,71 @@ function StatusBadge({ active }: { active: boolean }) {
             Inactive
         </Badge>
     );
+}
+
+function defaultSettingsForm(
+    tableKey: SettingsKey,
+    provinceOptions: Province[],
+): SettingsForm {
+    return {
+        ...defaultForm,
+        type: tableKey === 'municipalities' ? 'Mun' : 'school',
+        province_id:
+            tableKey === 'municipalities' && provinceOptions[0]
+                ? String(provinceOptions[0].id)
+                : '',
+    };
+}
+
+function usesSlug(tableKey: SettingsKey) {
+    return tableKey === 'participant-types' || tableKey === 'organizations';
+}
+
+function recordSubtitle(item: SettingsRecord) {
+    if ('slug' in item) {
+        return item.slug;
+    }
+
+    if ('province' in item) {
+        return item.province?.name ?? item.code;
+    }
+
+    if ('region_name' in item) {
+        return item.region_name;
+    }
+
+    return '-';
+}
+
+function searchableText(item: SettingsRecord) {
+    const values: string[] = [
+        item.name,
+        item.created_at ?? '',
+        item.is_active ? 'active' : 'inactive',
+        String(item.users_count),
+    ];
+
+    if ('slug' in item) {
+        values.push(item.slug, item.creator?.name ?? 'System');
+    }
+
+    if ('type' in item) {
+        values.push(item.type);
+    }
+
+    if ('code' in item) {
+        values.push(item.code);
+    }
+
+    if ('region_name' in item) {
+        values.push(item.region_name, item.region_code);
+    }
+
+    if ('province' in item) {
+        values.push(item.province?.name ?? '', item.province?.code ?? '');
+    }
+
+    return values.join(' ');
 }
 
 function formatDate(value: string | null) {

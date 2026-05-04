@@ -23,4 +23,9 @@ class Province extends Model
     {
         return $this->hasMany(Municipality::class);
     }
+
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
+    }
 }

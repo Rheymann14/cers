@@ -639,14 +639,17 @@ export default function EventsManagement({ events }: Props) {
                         )}
                     </div>
 
-                    <Table className="hidden table-fixed text-xs md:table">
+                    <Table className="hidden min-w-[88rem] table-fixed text-xs md:table">
                         <TableHeader>
                             <TableRow className="bg-muted/45 hover:bg-muted/45">
                                 <TableHead className="h-9 w-12 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
                                     Seq
                                 </TableHead>
-                                <TableHead className="h-9 w-[18rem] px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                <TableHead className="h-9 w-[16rem] px-2 text-[11px] font-semibold text-muted-foreground uppercase">
                                     Event
+                                </TableHead>
+                                <TableHead className="h-9 w-[16rem] px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                    Event Venue
                                 </TableHead>
                                 <TableHead className="h-9 w-44 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
                                     Schedule
@@ -686,15 +689,26 @@ export default function EventsManagement({ events }: Props) {
                                                 <p className="line-clamp-2 text-muted-foreground">
                                                     {event.description ?? '-'}
                                                 </p>
-                                                {event.venue_name && (
-                                                    <p className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-muted-foreground">
-                                                        <MapPin className="size-3 shrink-0" />
-                                                        <span className="truncate">
-                                                            {event.venue_name}
-                                                        </span>
-                                                    </p>
-                                                )}
                                             </div>
+                                        </TableCell>
+                                        <TableCell className="px-2 py-2 whitespace-normal">
+                                            {event.venue_name ||
+                                            event.venue_address ? (
+                                                <div className="min-w-0 leading-5">
+                                                    <p className="truncate font-medium">
+                                                        {event.venue_name ??
+                                                            '-'}
+                                                    </p>
+                                                    <p className="line-clamp-2 text-muted-foreground">
+                                                        {event.venue_address ??
+                                                            '-'}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted-foreground">
+                                                    -
+                                                </span>
+                                            )}
                                         </TableCell>
                                         <TableCell className="px-2 py-2 leading-5 text-muted-foreground">
                                             <p>
@@ -815,7 +829,7 @@ export default function EventsManagement({ events }: Props) {
                             ) : (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={8}
+                                        colSpan={9}
                                         className="h-24 text-center text-muted-foreground"
                                     >
                                         No events found.
