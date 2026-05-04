@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Event;
 use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\User;
@@ -52,6 +53,10 @@ class ParticipantsController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label']),
+            'events' => Event::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['slug as value', 'name as label']),
         ]);
     }
 
@@ -76,11 +81,11 @@ class ParticipantsController extends Controller
                 Rule::exists('participant_types', 'slug')->where('is_active', true),
             ],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
-            'event_name' => ['nullable', 'string', Rule::in([
-                'ched-regional-orientation',
-                'higher-education-summit',
-                'faculty-development-workshop',
-            ])],
+            'event_name' => [
+                'nullable',
+                'string',
+                Rule::exists('events', 'slug')->where('is_active', true),
+            ],
         ]);
 
         $name = trim(collect([
@@ -98,6 +103,12 @@ class ParticipantsController extends Controller
                 ],
             )
             : null;
+        $event = isset($validated['event_name'])
+            ? Event::query()
+                ->where('slug', $validated['event_name'])
+                ->where('is_active', true)
+                ->first()
+            : null;
 
         User::query()->create([
             'name' => $name,
@@ -112,7 +123,8 @@ class ParticipantsController extends Controller
             'organization' => $validated['organization'] ?? null,
             'participant_type' => $validated['participant_type'],
             'sex' => $validated['sex'],
-            'event_name' => $validated['event_name'] ?? null,
+            'event_id' => $event?->id,
+            'event_name' => $event?->slug,
             'is_active' => true,
             'registration_consent_accepted_at' => now(),
             'password' => 'cers2026',
@@ -152,11 +164,11 @@ class ParticipantsController extends Controller
                 Rule::exists('participant_types', 'slug')->where('is_active', true),
             ],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
-            'event_name' => ['required', 'string', Rule::in([
-                'ched-regional-orientation',
-                'higher-education-summit',
-                'faculty-development-workshop',
-            ])],
+            'event_name' => [
+                'required',
+                'string',
+                Rule::exists('events', 'slug'),
+            ],
         ]);
 
         $validated['name'] = trim(collect([
@@ -173,6 +185,11 @@ class ParticipantsController extends Controller
             ],
         );
         $validated['organization_id'] = $organization->id;
+        $event = Event::query()
+            ->where('slug', $validated['event_name'])
+            ->firstOrFail();
+        $validated['event_id'] = $event->id;
+        $validated['event_name'] = $event->slug;
 
         $participant->update($validated);
 

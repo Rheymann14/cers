@@ -95,21 +95,6 @@ const visualItems = [
     { label: 'Reports', icon: BarChart3 },
 ];
 
-const eventOptions = [
-    {
-        value: 'ched-regional-orientation',
-        label: 'CHED Regional Orientation',
-    },
-    {
-        value: 'higher-education-summit',
-        label: 'Higher Education Summit',
-    },
-    {
-        value: 'faculty-development-workshop',
-        label: 'Faculty Development Workshop',
-    },
-];
-
 type LookupOption = {
     value: string;
     label: string;
@@ -118,6 +103,7 @@ type LookupOption = {
 type WelcomeProps = {
     organizations: LookupOption[];
     participantTypes: LookupOption[];
+    events: LookupOption[];
 };
 
 const otherOrganizationValue = '__other__';
@@ -218,6 +204,7 @@ function getSectionPath(sectionId: string) {
 export default function Welcome({
     organizations,
     participantTypes,
+    events,
 }: WelcomeProps) {
     const { auth } = usePage().props;
     const { resolvedAppearance, updateAppearance } = useAppearance();
@@ -255,19 +242,16 @@ export default function Welcome({
     const activeScrollTargetRef = useRef<string | null>(null);
     const activeScrollTimeoutRef = useRef<number | null>(null);
     const selectedEventLabel =
-        eventOptions.find((event) => event.value === selectedEvent)?.label ??
-        '';
+        events.find((event) => event.value === selectedEvent)?.label ?? '';
     const selectedOrganizationLabel =
         selectedOrganization === otherOrganizationValue
             ? 'Others'
             : (organizations.find(
-                  (organization) =>
-                      organization.value === selectedOrganization,
+                  (organization) => organization.value === selectedOrganization,
               )?.label ?? '');
     const selectedParticipantTypeLabel =
-        participantTypes.find(
-            (type) => type.value === selectedParticipantType,
-        )?.label ?? '';
+        participantTypes.find((type) => type.value === selectedParticipantType)
+            ?.label ?? '';
 
     function scrollToSection(
         event: React.MouseEvent<HTMLAnchorElement>,
@@ -1203,7 +1187,7 @@ export default function Welcome({
                                                                     found.
                                                                 </CommandEmpty>
                                                                 <CommandGroup>
-                                                                    {eventOptions.map(
+                                                                    {events.map(
                                                                         (
                                                                             event,
                                                                         ) => (

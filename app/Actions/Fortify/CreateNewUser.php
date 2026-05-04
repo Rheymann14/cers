@@ -4,6 +4,7 @@ namespace App\Actions\Fortify;
 
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
+use App\Models\Event;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
@@ -42,7 +43,11 @@ class CreateNewUser implements CreatesNewUsers
                 Rule::exists('participant_types', 'slug')->where('is_active', true),
             ],
             'sex' => ['required', 'string', 'in:male,female'],
-            'event_name' => ['required', 'string', 'in:ched-regional-orientation,higher-education-summit,faculty-development-workshop'],
+            'event_name' => [
+                'required',
+                'string',
+                Rule::exists('events', 'slug')->where('is_active', true),
+            ],
             'consent' => ['accepted'],
             'password' => $this->passwordRules(),
         ])->validate();
@@ -62,6 +67,10 @@ class CreateNewUser implements CreatesNewUsers
                 'is_active' => true,
             ],
         );
+        $event = Event::query()
+            ->where('slug', $input['event_name'])
+            ->where('is_active', true)
+            ->firstOrFail();
 
         return User::create([
             'name' => $name,
@@ -77,7 +86,8 @@ class CreateNewUser implements CreatesNewUsers
             'position' => $input['position'] ?? null,
             'participant_type' => $input['participant_type'],
             'sex' => $input['sex'],
-            'event_name' => $input['event_name'],
+            'event_id' => $event->id,
+            'event_name' => $event->slug,
             'is_active' => true,
             'registration_consent_accepted_at' => now(),
             'password' => $input['password'],

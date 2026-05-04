@@ -13,6 +13,7 @@ import {
     MoreHorizontal,
     Pencil,
     Plus,
+    QrCode,
     RotateCcw,
     Search,
     Save,
@@ -22,6 +23,7 @@ import {
     UserX,
     X,
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import type { ComponentProps, FormEvent } from 'react';
 import type { ChangeEvent } from 'react';
 import { useMemo, useRef, useState } from 'react';
@@ -70,6 +72,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     Table,
     TableBody,
@@ -107,6 +110,7 @@ type Props = {
     deletedParticipants: Participant[];
     organizations: Option[];
     participantTypes: Option[];
+    events: Option[];
 };
 
 type SortKey =
@@ -160,21 +164,6 @@ const pageSizeOptions = [5, 10, 25];
 const sexOptions = [
     { value: 'male', label: 'Male' },
     { value: 'female', label: 'Female' },
-];
-
-const eventOptions: Option[] = [
-    {
-        value: 'ched-regional-orientation',
-        label: 'CHED Regional Orientation',
-    },
-    {
-        value: 'higher-education-summit',
-        label: 'Higher Education Summit',
-    },
-    {
-        value: 'faculty-development-workshop',
-        label: 'Faculty Development Workshop',
-    },
 ];
 
 const emptyParticipantFormData: ParticipantFormData = {
@@ -281,6 +270,28 @@ function getOptionLabel(options: Option[], value: string | null): string {
     return options.find((option) => option.value === value)?.label ?? '-';
 }
 
+function getInitials(name: string) {
+    return (
+        name
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0])
+            .join('')
+            .toUpperCase() || 'C'
+    );
+}
+
+function getParticipantCardInitials(participant: Participant) {
+    const initials = [participant.given_name, participant.surname]
+        .map((value) => value?.trim()[0])
+        .filter(Boolean)
+        .join('')
+        .toUpperCase();
+
+    return initials || getInitials(participant.name);
+}
+
 function getParticipantTypeBadgeClassName(
     value: string | null,
     options: Option[],
@@ -305,6 +316,37 @@ function getParticipantTypeBadgeClassName(
     return participantTypeBadgeClassNames[
         colorIndex % participantTypeBadgeClassNames.length
     ];
+}
+
+function hashString(value: string) {
+    let hash = 2166136261;
+
+    for (let index = 0; index < value.length; index += 1) {
+        hash ^= value.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+
+    return (hash >>> 0).toString(36).toUpperCase();
+}
+
+function createQrToken({
+    email,
+    fullName,
+    organization,
+    participantId,
+}: {
+    email: string;
+    fullName: string;
+    organization: string;
+    participantId: string;
+}) {
+    const fingerprint = hashString(
+        ['CERS-VIRTUAL-ID', participantId, fullName, email, organization]
+            .map((value) => value.trim().toLowerCase())
+            .join('|'),
+    );
+
+    return `CERS:VID:1:${fingerprint}`;
 }
 
 const preventDialogOutsideClose: NonNullable<
@@ -528,11 +570,213 @@ function ParticipantAvatarThumbnail({
     );
 }
 
+function ParticipantIdButton({
+    participant,
+    onOpen,
+}: {
+    participant: Participant;
+    onOpen: (participant: Participant) => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={() => onOpen(participant)}
+            className="rounded-sm font-medium text-[#0038A8] underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:text-blue-300"
+        >
+            {participant.participant_id ?? '-'}
+        </button>
+    );
+}
+
+function VirtualIdCard({ participant }: { participant: Participant }) {
+    const displayName = participant.name || 'Participant';
+    const displayId = participant.participant_id || 'Not assigned';
+    const organization = participant.organization ?? '';
+    const qrValue = createQrToken({
+        email: participant.email,
+        fullName: displayName,
+        organization,
+        participantId: participant.participant_id ?? '',
+    });
+
+    return (
+        <section className="flex justify-center">
+            <div className="grid aspect-[27/17] w-full max-w-[420px] grid-cols-[1fr_38%] gap-2 overflow-hidden rounded-lg border bg-[radial-gradient(circle_at_12%_15%,rgba(251,191,36,0.28),transparent_26%),radial-gradient(circle_at_82%_12%,rgba(14,165,233,0.2),transparent_26%),linear-gradient(135deg,#f8fbff_0%,#e8f6ff_48%,#fff7ed_100%)] p-3 shadow-xs">
+                <div className="grid min-w-0 content-between gap-2">
+                    <div className="flex items-start gap-3">
+                        <div className="flex items-center gap-3">
+                            <img
+                                src="/ched_logo.png"
+                                alt="CHED"
+                                className="size-8 rounded-full bg-white object-contain p-1 shadow-sm sm:size-9"
+                            />
+                            <div>
+                                <p className="text-sm leading-tight font-semibold text-slate-900 sm:text-base">
+                                    CERS
+                                </p>
+                                <p className="text-[10px] text-slate-600 sm:text-xs">
+                                    Participant Identification
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-[52px_1fr] items-center gap-2 sm:grid-cols-[60px_1fr]">
+                        <div className="flex size-13 items-center justify-center overflow-hidden rounded-md border border-white/80 bg-white text-base font-semibold text-sky-900 shadow-sm sm:size-15">
+                            {participant.avatar ? (
+                                <img
+                                    src={participant.avatar}
+                                    alt=""
+                                    className="size-full object-cover"
+                                />
+                            ) : (
+                                getParticipantCardInitials(participant)
+                            )}
+                        </div>
+
+                        <div className="min-w-0">
+                            <h2 className="line-clamp-2 text-xs leading-[1.1] font-semibold text-slate-950 sm:text-sm">
+                                {displayName}
+                            </h2>
+                            <p className="mt-0.5 line-clamp-2 text-[9px] leading-tight font-medium break-words text-slate-700 sm:text-[10px]">
+                                {organization || 'Organization not assigned'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <div className="min-w-0">
+                            <p className="text-[9px] font-medium tracking-wide text-slate-500 uppercase sm:text-[10px]">
+                                Participant ID
+                            </p>
+                            <div className="mt-1 inline-flex max-w-full rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold tracking-wide text-slate-950 shadow-sm sm:text-xs">
+                                <span className="truncate">{displayId}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid min-w-0 content-center justify-items-center gap-2 rounded-lg border border-white/80 bg-white/90 p-2 text-center shadow-sm sm:p-3">
+                    <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-800 sm:text-xs">
+                        <QrCode className="size-3" />
+                        QR Code
+                    </div>
+                    <div className="rounded-md bg-white p-1.5 shadow-inner">
+                        <QRCodeSVG
+                            value={qrValue}
+                            size={176}
+                            level="M"
+                            marginSize={1}
+                            className="size-16 sm:size-24"
+                        />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="line-clamp-2 text-[9px] font-semibold break-words text-slate-900 sm:text-[10px]">
+                            {displayId}
+                        </p>
+                        <p className="mt-0.5 text-[8px] text-slate-500 sm:text-[9px]">
+                            CERS scanner verification only.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function MobileParticipantsSkeleton() {
+    return (
+        <div className="divide-y md:hidden">
+            {Array.from({ length: 4 }).map((_, index) => (
+                <article key={index} className="p-3 sm:p-4">
+                    <div className="flex items-start gap-3">
+                        <Skeleton className="size-10 rounded-full" />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="grid flex-1 gap-2">
+                                    <Skeleton className="h-3 w-12" />
+                                    <Skeleton className="h-4 w-3/5" />
+                                    <Skeleton className="h-3 w-4/5" />
+                                </div>
+                                <Skeleton className="size-8" />
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <Skeleton className="h-6 w-20 rounded-full" />
+                                <Skeleton className="h-6 w-14 rounded-full" />
+                                <Skeleton className="h-6 w-24 rounded-full" />
+                                <Skeleton className="h-6 w-16 rounded-full" />
+                            </div>
+                            <div className="mt-3 grid gap-2">
+                                <Skeleton className="h-3 w-12" />
+                                <Skeleton className="h-4 w-2/3" />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Skeleton className="h-10" />
+                                    <Skeleton className="h-10" />
+                                </div>
+                                <Skeleton className="h-10" />
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            ))}
+        </div>
+    );
+}
+
+function ParticipantsTableSkeleton() {
+    return (
+        <TableBody>
+            {Array.from({ length: 8 }).map((_, index) => (
+                <TableRow key={index} className="odd:bg-muted/[0.18]">
+                    <TableCell className="px-2 py-2">
+                        <Skeleton className="h-4 w-6" />
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                            <Skeleton className="size-8 rounded-full" />
+                            <div className="grid flex-1 gap-2">
+                                <Skeleton className="h-4 w-28" />
+                                <Skeleton className="h-3 w-36" />
+                                <Skeleton className="h-5 w-16 rounded-full" />
+                            </div>
+                        </div>
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                        <div className="grid gap-2">
+                            <Skeleton className="h-4 w-36" />
+                            <Skeleton className="h-3 w-24" />
+                        </div>
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                        <Skeleton className="h-4 w-full max-w-32" />
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                        <Skeleton className="h-6 w-16 rounded-full" />
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                        <Skeleton className="h-4 w-12" />
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                        <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                        <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-right">
+                        <Skeleton className="ml-auto size-8" />
+                    </TableCell>
+                </TableRow>
+            ))}
+        </TableBody>
+    );
+}
+
 export default function Participants({
     participants,
     deletedParticipants,
     organizations,
     participantTypes,
+    events,
 }: Props) {
     const getInitials = useInitials();
     const [search, setSearch] = useState('');
@@ -561,6 +805,8 @@ export default function Participants({
     const [deletedDialogOpen, setDeletedDialogOpen] = useState(false);
     const [viewingImageParticipant, setViewingImageParticipant] =
         useState<Participant | null>(null);
+    const [viewingIdParticipant, setViewingIdParticipant] =
+        useState<Participant | null>(null);
     const {
         data,
         setData,
@@ -584,7 +830,15 @@ export default function Participants({
         {},
     );
     const { patch: restoreParticipant, processing: restoring } = useForm({});
-    const { patch: patchParticipantStatus } = useForm({});
+    const { patch: patchParticipantStatus, processing: updatingStatus } =
+        useForm({});
+    const tableLoading =
+        addingParticipant ||
+        processing ||
+        deleting ||
+        resettingPassword ||
+        restoring ||
+        updatingStatus;
 
     const filteredParticipants = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
@@ -1036,142 +1290,156 @@ export default function Participants({
                         </div>
                     </div>
 
-                    <div className="divide-y md:hidden">
-                        {pageParticipants.length > 0 ? (
-                            pageParticipants.map((participant, index) => (
-                                <article
-                                    key={participant.id}
-                                    className="p-3 sm:p-4"
-                                >
-                                    <div className="flex items-start gap-3">
-                                        <ParticipantAvatarThumbnail
-                                            participant={participant}
-                                            getInitials={getInitials}
-                                            sizeClassName="size-10"
-                                            fallbackClassName="bg-[#eef5ff] text-xs font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
-                                            onViewImage={
-                                                setViewingImageParticipant
-                                            }
-                                        />
+                    {tableLoading ? (
+                        <MobileParticipantsSkeleton />
+                    ) : (
+                        <div className="divide-y md:hidden">
+                            {pageParticipants.length > 0 ? (
+                                pageParticipants.map((participant, index) => (
+                                    <article
+                                        key={participant.id}
+                                        className="p-3 sm:p-4"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <ParticipantAvatarThumbnail
+                                                participant={participant}
+                                                getInitials={getInitials}
+                                                sizeClassName="size-10"
+                                                fallbackClassName="bg-[#eef5ff] text-xs font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
+                                                onViewImage={
+                                                    setViewingImageParticipant
+                                                }
+                                            />
 
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="min-w-0">
-                                                    <p className="mb-0.5 text-[11px] font-semibold text-muted-foreground">
-                                                        Seq{' '}
-                                                        {startIndex + index + 1}
-                                                    </p>
-                                                    <h2 className="truncate text-sm font-semibold text-foreground">
-                                                        {participant.name}
-                                                    </h2>
-                                                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                                                        {participant.email}
-                                                    </p>
-                                                </div>
-                                                <ParticipantActions
-                                                    participant={participant}
-                                                    onEdit={openEditDialog}
-                                                    onDelete={
-                                                        setDeletingParticipant
-                                                    }
-                                                    onStatus={submitStatus}
-                                                    onResetPassword={
-                                                        setResettingPasswordParticipant
-                                                    }
-                                                />
-                                            </div>
-
-                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                <Badge
-                                                    variant="outline"
-                                                    className={cn(
-                                                        'max-w-full',
-                                                        getParticipantTypeBadgeClassName(
-                                                            participant.participant_type,
-                                                            participantTypes,
-                                                        ),
-                                                    )}
-                                                >
-                                                    {getOptionLabel(
-                                                        participantTypes,
-                                                        participant.participant_type,
-                                                    )}
-                                                </Badge>
-                                                <Badge
-                                                    variant="outline"
-                                                    className="max-w-full"
-                                                >
-                                                    {formatLabel(
-                                                        participant.sex,
-                                                    )}
-                                                </Badge>
-                                                <Badge
-                                                    variant="outline"
-                                                    className="max-w-full"
-                                                >
-                                                    {formatDate(
-                                                        participant.created_at,
-                                                    )}
-                                                </Badge>
-                                                <UserStatusBadge
-                                                    active={
-                                                        participant.is_active
-                                                    }
-                                                />
-                                            </div>
-
-                                            <dl className="mt-3 grid gap-2 text-xs">
-                                                <div className="min-w-0">
-                                                    <dt className="font-medium text-muted-foreground">
-                                                        Event
-                                                    </dt>
-                                                    <dd className="mt-0.5 text-foreground">
-                                                        {getOptionLabel(
-                                                            eventOptions,
-                                                            participant.event_name,
-                                                        )}
-                                                    </dd>
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-3">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-start justify-between gap-2">
                                                     <div className="min-w-0">
-                                                        <dt className="font-medium text-muted-foreground">
-                                                            Phone
-                                                        </dt>
-                                                        <dd className="mt-0.5 truncate text-foreground">
-                                                            {participant.phone ??
-                                                                '-'}
-                                                        </dd>
+                                                        <p className="mb-0.5 text-[11px] font-semibold text-muted-foreground">
+                                                            Seq{' '}
+                                                            {startIndex +
+                                                                index +
+                                                                1}
+                                                        </p>
+                                                        <h2 className="truncate text-sm font-semibold text-foreground">
+                                                            {participant.name}
+                                                        </h2>
+                                                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                                            {participant.email}
+                                                        </p>
                                                     </div>
+                                                    <ParticipantActions
+                                                        participant={
+                                                            participant
+                                                        }
+                                                        onEdit={openEditDialog}
+                                                        onDelete={
+                                                            setDeletingParticipant
+                                                        }
+                                                        onStatus={submitStatus}
+                                                        onResetPassword={
+                                                            setResettingPasswordParticipant
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={cn(
+                                                            'max-w-full',
+                                                            getParticipantTypeBadgeClassName(
+                                                                participant.participant_type,
+                                                                participantTypes,
+                                                            ),
+                                                        )}
+                                                    >
+                                                        {getOptionLabel(
+                                                            participantTypes,
+                                                            participant.participant_type,
+                                                        )}
+                                                    </Badge>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="max-w-full"
+                                                    >
+                                                        {formatLabel(
+                                                            participant.sex,
+                                                        )}
+                                                    </Badge>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="max-w-full"
+                                                    >
+                                                        {formatDate(
+                                                            participant.created_at,
+                                                        )}
+                                                    </Badge>
+                                                    <UserStatusBadge
+                                                        active={
+                                                            participant.is_active
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <dl className="mt-3 grid gap-2 text-xs">
                                                     <div className="min-w-0">
                                                         <dt className="font-medium text-muted-foreground">
-                                                            Participant ID
+                                                            Event
                                                         </dt>
                                                         <dd className="mt-0.5 text-foreground">
-                                                            {participant.participant_id ??
+                                                            {getOptionLabel(
+                                                                events,
+                                                                participant.event_name,
+                                                            )}
+                                                        </dd>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div className="min-w-0">
+                                                            <dt className="font-medium text-muted-foreground">
+                                                                Phone
+                                                            </dt>
+                                                            <dd className="mt-0.5 truncate text-foreground">
+                                                                {participant.phone ??
+                                                                    '-'}
+                                                            </dd>
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <dt className="font-medium text-muted-foreground">
+                                                                Participant ID
+                                                            </dt>
+                                                            <dd className="mt-0.5 text-foreground">
+                                                                <ParticipantIdButton
+                                                                    participant={
+                                                                        participant
+                                                                    }
+                                                                    onOpen={
+                                                                        setViewingIdParticipant
+                                                                    }
+                                                                />
+                                                            </dd>
+                                                        </div>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <dt className="font-medium text-muted-foreground">
+                                                            Organization
+                                                        </dt>
+                                                        <dd className="mt-0.5 line-clamp-2 text-foreground">
+                                                            {participant.organization ??
                                                                 '-'}
                                                         </dd>
                                                     </div>
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <dt className="font-medium text-muted-foreground">
-                                                        Organization
-                                                    </dt>
-                                                    <dd className="mt-0.5 line-clamp-2 text-foreground">
-                                                        {participant.organization ??
-                                                            '-'}
-                                                    </dd>
-                                                </div>
-                                            </dl>
+                                                </dl>
+                                            </div>
                                         </div>
-                                    </div>
-                                </article>
-                            ))
-                        ) : (
-                            <div className="p-10 text-center text-sm text-muted-foreground">
-                                No participants found.
-                            </div>
-                        )}
-                    </div>
+                                    </article>
+                                ))
+                            ) : (
+                                <div className="p-10 text-center text-sm text-muted-foreground">
+                                    No participants found.
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     <Table className="hidden table-fixed text-xs md:table">
                         <TableHeader>
@@ -1218,117 +1486,143 @@ export default function Participants({
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
-                        <TableBody>
-                            {pageParticipants.length > 0 ? (
-                                pageParticipants.map((participant, index) => (
-                                    <TableRow
-                                        key={participant.id}
-                                        className="odd:bg-muted/[0.18]"
-                                    >
-                                        <TableCell className="px-2 py-2 font-medium text-muted-foreground">
-                                            {startIndex + index + 1}
-                                        </TableCell>
-                                        <TableCell className="px-2 py-2">
-                                            <div className="flex min-w-0 items-center gap-2">
-                                                <ParticipantAvatarThumbnail
-                                                    participant={participant}
-                                                    getInitials={getInitials}
-                                                    sizeClassName="size-8"
-                                                    fallbackClassName="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
-                                                    onViewImage={
-                                                        setViewingImageParticipant
-                                                    }
-                                                />
-                                                <div className="min-w-0">
-                                                    <ParticipantName
-                                                        name={participant.name}
-                                                    />
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Participant ID{' '}
-                                                        {participant.participant_id ??
-                                                            '-'}
-                                                    </p>
-                                                    <div className="mt-1">
-                                                        <UserStatusBadge
-                                                            active={
-                                                                participant.is_active
+                        {tableLoading ? (
+                            <ParticipantsTableSkeleton />
+                        ) : (
+                            <TableBody>
+                                {pageParticipants.length > 0 ? (
+                                    pageParticipants.map(
+                                        (participant, index) => (
+                                            <TableRow
+                                                key={participant.id}
+                                                className="odd:bg-muted/[0.18]"
+                                            >
+                                                <TableCell className="px-2 py-2 font-medium text-muted-foreground">
+                                                    {startIndex + index + 1}
+                                                </TableCell>
+                                                <TableCell className="px-2 py-2">
+                                                    <div className="flex min-w-0 items-center gap-2">
+                                                        <ParticipantAvatarThumbnail
+                                                            participant={
+                                                                participant
+                                                            }
+                                                            getInitials={
+                                                                getInitials
+                                                            }
+                                                            sizeClassName="size-8"
+                                                            fallbackClassName="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
+                                                            onViewImage={
+                                                                setViewingImageParticipant
                                                             }
                                                         />
+                                                        <div className="min-w-0">
+                                                            <ParticipantName
+                                                                name={
+                                                                    participant.name
+                                                                }
+                                                            />
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Participant ID{' '}
+                                                                <ParticipantIdButton
+                                                                    participant={
+                                                                        participant
+                                                                    }
+                                                                    onOpen={
+                                                                        setViewingIdParticipant
+                                                                    }
+                                                                />
+                                                            </p>
+                                                            <div className="mt-1">
+                                                                <UserStatusBadge
+                                                                    active={
+                                                                        participant.is_active
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="px-2 py-2">
-                                            <div className="min-w-0 leading-5">
-                                                <p className="truncate font-medium text-foreground">
-                                                    {participant.email}
-                                                </p>
-                                                <p className="truncate text-muted-foreground">
-                                                    {participant.phone ?? '-'}
-                                                </p>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="px-2 py-2 leading-5 whitespace-normal">
-                                            <span className="line-clamp-2">
-                                                {participant.organization ??
-                                                    '-'}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="px-2 py-2">
-                                            <span
-                                                className={cn(
-                                                    'inline-flex rounded-full border px-2 py-1 text-[11px] font-medium',
-                                                    getParticipantTypeBadgeClassName(
-                                                        participant.participant_type,
-                                                        participantTypes,
-                                                    ),
-                                                )}
-                                            >
-                                                {getOptionLabel(
-                                                    participantTypes,
-                                                    participant.participant_type,
-                                                )}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="px-2 py-2 text-muted-foreground">
-                                            {formatLabel(participant.sex)}
-                                        </TableCell>
-                                        <TableCell className="px-2 py-2 leading-5 whitespace-normal">
-                                            <span className="line-clamp-2">
-                                                {formatLabel(
-                                                    participant.event_name,
-                                                )}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="px-2 py-2 text-muted-foreground">
-                                            {formatDate(participant.created_at)}
-                                        </TableCell>
-                                        <TableCell className="px-2 py-2 text-right">
-                                            <ParticipantActions
-                                                participant={participant}
-                                                onEdit={openEditDialog}
-                                                onDelete={
-                                                    setDeletingParticipant
-                                                }
-                                                onStatus={submitStatus}
-                                                onResetPassword={
-                                                    setResettingPasswordParticipant
-                                                }
-                                            />
+                                                </TableCell>
+                                                <TableCell className="px-2 py-2">
+                                                    <div className="min-w-0 leading-5">
+                                                        <p className="truncate font-medium text-foreground">
+                                                            {participant.email}
+                                                        </p>
+                                                        <p className="truncate text-muted-foreground">
+                                                            {participant.phone ??
+                                                                '-'}
+                                                        </p>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="px-2 py-2 leading-5 whitespace-normal">
+                                                    <span className="line-clamp-2">
+                                                        {participant.organization ??
+                                                            '-'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="px-2 py-2">
+                                                    <span
+                                                        className={cn(
+                                                            'inline-flex rounded-full border px-2 py-1 text-[11px] font-medium',
+                                                            getParticipantTypeBadgeClassName(
+                                                                participant.participant_type,
+                                                                participantTypes,
+                                                            ),
+                                                        )}
+                                                    >
+                                                        {getOptionLabel(
+                                                            participantTypes,
+                                                            participant.participant_type,
+                                                        )}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="px-2 py-2 text-muted-foreground">
+                                                    {formatLabel(
+                                                        participant.sex,
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="px-2 py-2 leading-5 whitespace-normal">
+                                                    <span className="line-clamp-2">
+                                                        {getOptionLabel(
+                                                            events,
+                                                            participant.event_name,
+                                                        )}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="px-2 py-2 text-muted-foreground">
+                                                    {formatDate(
+                                                        participant.created_at,
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="px-2 py-2 text-right">
+                                                    <ParticipantActions
+                                                        participant={
+                                                            participant
+                                                        }
+                                                        onEdit={openEditDialog}
+                                                        onDelete={
+                                                            setDeletingParticipant
+                                                        }
+                                                        onStatus={submitStatus}
+                                                        onResetPassword={
+                                                            setResettingPasswordParticipant
+                                                        }
+                                                    />
+                                                </TableCell>
+                                            </TableRow>
+                                        ),
+                                    )
+                                ) : (
+                                    <TableRow>
+                                        <TableCell
+                                            colSpan={columns.length + 2}
+                                            className="h-32 text-center text-muted-foreground"
+                                        >
+                                            No participants found.
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell
-                                        colSpan={columns.length + 2}
-                                        className="h-32 text-center text-muted-foreground"
-                                    >
-                                        No participants found.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
+                                )}
+                            </TableBody>
+                        )}
                     </Table>
 
                     <div className="flex flex-col gap-3 border-t p-3 text-sm text-muted-foreground sm:p-4 md:flex-row md:items-center md:justify-between">
@@ -1696,7 +1990,7 @@ export default function Participants({
                                         id="add_event_name"
                                         label="Event"
                                         value={addData.event_name}
-                                        options={eventOptions}
+                                        options={events}
                                         placeholder="Search and select event"
                                         searchPlaceholder="Search event..."
                                         emptyMessage="No event found."
@@ -2006,7 +2300,7 @@ export default function Participants({
                             id="event_name"
                             label="Event"
                             value={data.event_name}
-                            options={eventOptions}
+                            options={events}
                             placeholder="Search and select event"
                             searchPlaceholder="Search event..."
                             emptyMessage="No event found."
@@ -2219,6 +2513,34 @@ export default function Participants({
                             </div>
                         )}
                     </div>
+                </DialogContent>
+            </Dialog>
+            <Dialog
+                open={viewingIdParticipant !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setViewingIdParticipant(null);
+                    }
+                }}
+            >
+                <DialogContent
+                    className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-lg"
+                    onPointerDownOutside={preventDialogOutsideClose}
+                >
+                    <DialogHeader className="gap-1">
+                        <DialogTitle className="inline-flex items-center gap-2 text-base">
+                            <QrCode className="size-4 text-muted-foreground" />
+                            Participant virtual ID
+                        </DialogTitle>
+                        <DialogDescription className="text-xs leading-5">
+                            Virtual identification card for scanner
+                            verification.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {viewingIdParticipant && (
+                        <VirtualIdCard participant={viewingIdParticipant} />
+                    )}
                 </DialogContent>
             </Dialog>
             <Dialog

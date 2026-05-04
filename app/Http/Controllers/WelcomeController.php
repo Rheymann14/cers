@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Event;
 use App\Models\Organization;
 use App\Models\ParticipantType;
 use Inertia\Inertia;
@@ -20,6 +21,10 @@ class WelcomeController extends Controller
                 ->where('is_active', true)
                 ->whereNotIn('slug', ['admin', 'administrator'])
                 ->whereNotIn('name', ['Admin', 'Administrator'])
+                ->orderBy('name')
+                ->get(['slug as value', 'name as label']),
+            'events' => Event::query()
+                ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label']),
         ]);

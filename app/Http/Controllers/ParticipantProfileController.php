@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Event;
 use App\Models\Organization;
 use App\Models\ParticipantType;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +23,10 @@ class ParticipantProfileController extends Controller
                 ->orderBy('name')
                 ->get(['name as value', 'name as label']),
             'participantTypes' => ParticipantType::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['slug as value', 'name as label']),
+            'events' => Event::query()
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label']),
@@ -47,11 +52,11 @@ class ParticipantProfileController extends Controller
             ],
             'position' => ['nullable', 'string', 'max:255'],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
-            'event_name' => ['required', 'string', Rule::in([
-                'ched-regional-orientation',
-                'higher-education-summit',
-                'faculty-development-workshop',
-            ])],
+            'event_name' => [
+                'required',
+                'string',
+                Rule::exists('events', 'slug'),
+            ],
         ]);
 
         $avatar = $validated['avatar'] ?? null;
@@ -71,6 +76,11 @@ class ParticipantProfileController extends Controller
             ->firstOrFail();
 
         $validated['organization_id'] = $organization->id;
+        $event = Event::query()
+            ->where('slug', $validated['event_name'])
+            ->firstOrFail();
+        $validated['event_id'] = $event->id;
+        $validated['event_name'] = $event->slug;
 
         $user->fill($validated);
 

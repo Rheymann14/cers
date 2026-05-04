@@ -1,5 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
-import { LayoutDashboard, Settings, UserRound, Users } from 'lucide-react';
+import {
+    CalendarDays,
+    LayoutDashboard,
+    Settings,
+    UserRound,
+    Users,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -26,6 +32,11 @@ const mainNavItems: NavItem[] = [
         title: 'Participants',
         href: participants(),
         icon: Users,
+    },
+    {
+        title: 'Events',
+        href: '/events-management',
+        icon: CalendarDays,
     },
 ];
 

@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -28,6 +29,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'participant_type',
     'sex',
     'event_name',
+    'event_id',
     'is_active',
     'registration_consent_accepted_at',
     'password',
@@ -49,6 +51,11 @@ class User extends Authenticatable
     public function setParticipantTypeAttribute(?string $value): void
     {
         $this->attributes['participant_type'] = $this->normalizeParticipantType($value);
+    }
+
+    public function event(): BelongsTo
+    {
+        return $this->belongsTo(Event::class);
     }
 
     private function normalizeParticipantType(?string $value): ?string

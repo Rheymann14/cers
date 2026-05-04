@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    CalendarDays,
     LayoutDashboard,
     Menu,
     Settings,
@@ -55,6 +56,11 @@ const mainNavItems: NavItem[] = [
         title: 'Participants',
         href: participants(),
         icon: Users,
+    },
+    {
+        title: 'Events',
+        href: '/events-management',
+        icon: CalendarDays,
     },
 ];
 

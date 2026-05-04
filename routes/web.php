@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventRegistrationController;
+use App\Http\Controllers\EventsManagementController;
 use App\Http\Controllers\PageSettingsController;
 use App\Http\Controllers\ParticipantProfileController;
 use App\Http\Controllers\ParticipantsController;
@@ -26,6 +27,17 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
 
 Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('events-management', EventsManagementController::class)->name('events-management');
+    Route::post('events-management', [EventsManagementController::class, 'store'])
+        ->name('events-management.store');
+    Route::patch('events-management/{event}', [EventsManagementController::class, 'update'])
+        ->name('events-management.update');
+    Route::patch('events-management/{event}/status', [EventsManagementController::class, 'toggleStatus'])
+        ->name('events-management.status');
+    Route::delete('events-management/{event}', [EventsManagementController::class, 'destroy'])
+        ->name('events-management.destroy');
+    Route::delete('events-management/materials/{material}', [EventsManagementController::class, 'destroyMaterial'])
+        ->name('events-management.materials.destroy');
     Route::get('participants', ParticipantsController::class)->name('participants');
     Route::post('participants', [ParticipantsController::class, 'store'])
         ->name('participants.store');
