@@ -23,6 +23,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'email',
     'avatar',
     'phone',
+    'province_id',
+    'municipality_id',
     'organization_id',
     'organization',
     'position',
@@ -56,6 +58,16 @@ class User extends Authenticatable
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function province(): BelongsTo
+    {
+        return $this->belongsTo(Province::class);
+    }
+
+    public function municipality(): BelongsTo
+    {
+        return $this->belongsTo(Municipality::class);
     }
 
     private function normalizeParticipantType(?string $value): ?string

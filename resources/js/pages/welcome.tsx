@@ -1,18 +1,15 @@
 import { Form, Head, Link, usePage } from '@inertiajs/react';
 import {
-    CalendarPlus,
     Check,
     CheckCircle2,
     ChevronsUpDown,
     ClipboardCheck,
     ArrowDown,
-    FileText,
     ImagePlus,
     Moon,
     QrCode,
     Trash2,
     Sun,
-    Users,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -54,39 +51,9 @@ import { normalizeContactNumber } from '@/lib/phone';
 import { cn } from '@/lib/utils';
 import { login, participants } from '@/routes';
 
-const navigationLinks = [
-    { label: 'Home', href: '/home', sectionId: 'home' },
-    { label: 'Features', href: '/features', sectionId: 'features' },
-];
+const navigationLinks = [{ label: 'Home', href: '/home', sectionId: 'home' }];
 
 const defaultActiveSection = 'home';
-
-const features = [
-    {
-        title: 'Online Registration',
-        description:
-            'Allows participants to register for CHED events through a simple and guided form.',
-        icon: CalendarPlus,
-    },
-    {
-        title: 'QR-Based Attendance',
-        description:
-            'Supports faster attendance checking and participant verification during events.',
-        icon: QrCode,
-    },
-    {
-        title: 'Participant Management',
-        description:
-            'Helps organizers manage participant records, status, and event details in one place.',
-        icon: Users,
-    },
-    {
-        title: 'Event Reports',
-        description:
-            'Provides organized event data that can support documentation and reporting.',
-        icon: FileText,
-    },
-];
 
 type LookupOption = {
     value: string;
@@ -98,8 +65,13 @@ type EventOption = LookupOption & {
     ends_at: string | null;
 };
 
+type ProvinceOption = LookupOption & {
+    municipalities: LookupOption[];
+};
+
 type WelcomeProps = {
     organizations: LookupOption[];
+    provinces: ProvinceOption[];
     participantTypes: LookupOption[];
     events: EventOption[];
 };
@@ -325,10 +297,6 @@ function getInitialActiveSection() {
         return 'registration';
     }
 
-    if (window.location.pathname === '/features') {
-        return 'features';
-    }
-
     return defaultActiveSection;
 }
 
@@ -403,10 +371,6 @@ function EventStatusBadge({ event }: { event: EventOption }) {
 }
 
 function getSectionPath(sectionId: string) {
-    if (sectionId === 'features') {
-        return '/features';
-    }
-
     if (sectionId === 'registration') {
         return '/registration';
     }
@@ -416,6 +380,7 @@ function getSectionPath(sectionId: string) {
 
 export default function Welcome({
     organizations,
+    provinces,
     participantTypes,
     events,
 }: WelcomeProps) {
@@ -432,6 +397,11 @@ export default function Welcome({
     const [organizationPopoverOpen, setOrganizationPopoverOpen] =
         useState(false);
     const [selectedOrganization, setSelectedOrganization] = useState('');
+    const [provincePopoverOpen, setProvincePopoverOpen] = useState(false);
+    const [selectedProvince, setSelectedProvince] = useState('');
+    const [municipalityPopoverOpen, setMunicipalityPopoverOpen] =
+        useState(false);
+    const [selectedMunicipality, setSelectedMunicipality] = useState('');
     const [participantTypePopoverOpen, setParticipantTypePopoverOpen] =
         useState(false);
     const [selectedParticipantType, setSelectedParticipantType] = useState('');
@@ -463,6 +433,15 @@ export default function Welcome({
             : (organizations.find(
                   (organization) => organization.value === selectedOrganization,
               )?.label ?? '');
+    const selectedProvinceOption =
+        provinces.find((province) => province.value === selectedProvince) ??
+        null;
+    const selectedProvinceLabel = selectedProvinceOption?.label ?? '';
+    const municipalityOptions = selectedProvinceOption?.municipalities ?? [];
+    const selectedMunicipalityLabel =
+        municipalityOptions.find(
+            (municipality) => municipality.value === selectedMunicipality,
+        )?.label ?? '';
     const selectedParticipantTypeLabel =
         participantTypes.find((type) => type.value === selectedParticipantType)
             ?.label ?? '';
@@ -505,7 +484,6 @@ export default function Welcome({
             }
 
             const registrationSection = document.getElementById('registration');
-            const featureSection = document.getElementById('features');
             let nextSection = 'home';
 
             if (
@@ -513,13 +491,6 @@ export default function Welcome({
                 registrationSection.getBoundingClientRect().top <= 160
             ) {
                 nextSection = 'registration';
-            }
-
-            if (
-                featureSection &&
-                featureSection.getBoundingClientRect().top <= 160
-            ) {
-                nextSection = 'features';
             }
 
             setActiveSection(nextSection);
@@ -651,7 +622,7 @@ export default function Welcome({
 
     return (
         <>
-            <Head title="CHED Event Registration System">
+            <Head title="CHED Events Registration System">
                 <link rel="preconnect" href="https://fonts.bunny.net" />
                 <link
                     href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700"
@@ -697,7 +668,7 @@ export default function Welcome({
                                     CERS
                                 </span>
                                 <span className="block text-xs text-slate-600 sm:text-sm dark:text-neutral-400">
-                                    CHED Event Registration System
+                                    CHED Events Registration System
                                 </span>
                             </span>
                         </a>
@@ -774,7 +745,7 @@ export default function Welcome({
                                 </div>
 
                                 <h1 className="max-w-4xl text-4xl leading-tight font-bold text-slate-950 sm:text-5xl lg:text-6xl dark:text-white">
-                                    CHED Event Registration System
+                                    CHED Events Registration System
                                 </h1>
 
                                 <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg dark:text-neutral-300">
@@ -944,6 +915,219 @@ export default function Welcome({
                                                     />
                                                     <InputError
                                                         message={errors.phone}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div className="grid gap-2">
+                                                    <p
+                                                        id="province_label"
+                                                        className="text-sm font-medium"
+                                                    >
+                                                        Province{' '}
+                                                        <RequiredMark />
+                                                    </p>
+                                                    <input
+                                                        type="hidden"
+                                                        name="province"
+                                                        value={selectedProvince}
+                                                        readOnly
+                                                    />
+                                                    <Popover
+                                                        open={
+                                                            provincePopoverOpen
+                                                        }
+                                                        onOpenChange={
+                                                            setProvincePopoverOpen
+                                                        }
+                                                    >
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                role="combobox"
+                                                                aria-labelledby="province_label"
+                                                                aria-expanded={
+                                                                    provincePopoverOpen
+                                                                }
+                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
+                                                            >
+                                                                <span className="truncate">
+                                                                    {selectedProvinceLabel ||
+                                                                        'Search and select province'}
+                                                                </span>
+                                                                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent
+                                                            align="start"
+                                                            className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                                                        >
+                                                            <Command>
+                                                                <CommandInput placeholder="Search province..." />
+                                                                <CommandList>
+                                                                    <CommandEmpty>
+                                                                        No
+                                                                        province
+                                                                        found.
+                                                                    </CommandEmpty>
+                                                                    <CommandGroup>
+                                                                        {provinces.map(
+                                                                            (
+                                                                                province,
+                                                                            ) => (
+                                                                                <CommandItem
+                                                                                    key={
+                                                                                        province.value
+                                                                                    }
+                                                                                    value={
+                                                                                        province.label
+                                                                                    }
+                                                                                    onSelect={() => {
+                                                                                        setSelectedProvince(
+                                                                                            province.value,
+                                                                                        );
+                                                                                        setSelectedMunicipality(
+                                                                                            '',
+                                                                                        );
+                                                                                        setProvincePopoverOpen(
+                                                                                            false,
+                                                                                        );
+                                                                                    }}
+                                                                                >
+                                                                                    <Check
+                                                                                        className={cn(
+                                                                                            'mr-2 size-4',
+                                                                                            selectedProvince ===
+                                                                                                province.value
+                                                                                                ? 'opacity-100'
+                                                                                                : 'opacity-0',
+                                                                                        )}
+                                                                                    />
+                                                                                    {
+                                                                                        province.label
+                                                                                    }
+                                                                                </CommandItem>
+                                                                            ),
+                                                                        )}
+                                                                    </CommandGroup>
+                                                                </CommandList>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <InputError
+                                                        message={
+                                                            errors.province
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="grid gap-2">
+                                                    <p
+                                                        id="municipality_label"
+                                                        className="text-sm font-medium"
+                                                    >
+                                                        Municipality or city{' '}
+                                                        <RequiredMark />
+                                                    </p>
+                                                    <input
+                                                        type="hidden"
+                                                        name="municipality"
+                                                        value={
+                                                            selectedMunicipality
+                                                        }
+                                                        readOnly
+                                                    />
+                                                    <Popover
+                                                        open={
+                                                            municipalityPopoverOpen
+                                                        }
+                                                        onOpenChange={
+                                                            setMunicipalityPopoverOpen
+                                                        }
+                                                    >
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                role="combobox"
+                                                                aria-labelledby="municipality_label"
+                                                                aria-expanded={
+                                                                    municipalityPopoverOpen
+                                                                }
+                                                                disabled={
+                                                                    !selectedProvince
+                                                                }
+                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
+                                                            >
+                                                                <span className="truncate">
+                                                                    {selectedMunicipalityLabel ||
+                                                                        (selectedProvince
+                                                                            ? 'Search and select municipality or city'
+                                                                            : 'Select province first')}
+                                                                </span>
+                                                                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent
+                                                            align="start"
+                                                            className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                                                        >
+                                                            <Command>
+                                                                <CommandInput placeholder="Search municipality or city..." />
+                                                                <CommandList>
+                                                                    <CommandEmpty>
+                                                                        No
+                                                                        municipality
+                                                                        or city
+                                                                        found.
+                                                                    </CommandEmpty>
+                                                                    <CommandGroup>
+                                                                        {municipalityOptions.map(
+                                                                            (
+                                                                                municipality,
+                                                                            ) => (
+                                                                                <CommandItem
+                                                                                    key={
+                                                                                        municipality.value
+                                                                                    }
+                                                                                    value={
+                                                                                        municipality.label
+                                                                                    }
+                                                                                    onSelect={() => {
+                                                                                        setSelectedMunicipality(
+                                                                                            municipality.value,
+                                                                                        );
+                                                                                        setMunicipalityPopoverOpen(
+                                                                                            false,
+                                                                                        );
+                                                                                    }}
+                                                                                >
+                                                                                    <Check
+                                                                                        className={cn(
+                                                                                            'mr-2 size-4',
+                                                                                            selectedMunicipality ===
+                                                                                                municipality.value
+                                                                                                ? 'opacity-100'
+                                                                                                : 'opacity-0',
+                                                                                        )}
+                                                                                    />
+                                                                                    {
+                                                                                        municipality.label
+                                                                                    }
+                                                                                </CommandItem>
+                                                                            ),
+                                                                        )}
+                                                                    </CommandGroup>
+                                                                </CommandList>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <InputError
+                                                        message={
+                                                            errors.municipality
+                                                        }
                                                     />
                                                 </div>
                                             </div>
@@ -1506,45 +1690,6 @@ export default function Welcome({
                             </Form>
                         </div>
                     </section>
-
-                    <section
-                        id="features"
-                        className="bg-white/85 py-16 backdrop-blur-[2px] sm:py-20 dark:bg-neutral-950/80"
-                    >
-                        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                            <div className="max-w-2xl">
-                                <p className="text-sm font-semibold tracking-wide text-[#CE1126] uppercase">
-                                    Features
-                                </p>
-                                <h2 className="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl dark:text-white">
-                                    CHED Event Registration System
-                                </h2>
-                            </div>
-
-                            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                                {features.map((feature) => {
-                                    const Icon = feature.icon;
-
-                                    return (
-                                        <article
-                                            key={feature.title}
-                                            className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-[#0038A8]/30 hover:shadow-md motion-safe:animate-in motion-safe:duration-500 motion-safe:fade-in motion-safe:slide-in-from-bottom-2 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/20 dark:hover:border-blue-400/30"
-                                        >
-                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef5ff] text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300">
-                                                <Icon className="h-6 w-6" />
-                                            </div>
-                                            <h3 className="mt-5 text-lg font-semibold text-slate-950 dark:text-white">
-                                                {feature.title}
-                                            </h3>
-                                            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-neutral-400">
-                                                {feature.description}
-                                            </p>
-                                        </article>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </section>
                 </main>
 
                 <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
@@ -1618,7 +1763,7 @@ export default function Welcome({
                             All rights reserved.
                         </p>
                         <p className="font-medium text-slate-700 dark:text-neutral-300">
-                            CHED Event Registration System
+                            CHED Events Registration System
                         </p>
                     </div>
                 </footer>

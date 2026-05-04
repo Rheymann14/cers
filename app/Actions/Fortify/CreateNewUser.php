@@ -5,7 +5,9 @@ namespace App\Actions\Fortify;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\Event;
+use App\Models\Municipality;
 use App\Models\Organization;
+use App\Models\Province;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -24,13 +26,23 @@ class CreateNewUser implements CreatesNewUsers
      */
     public function create(array $input): User
     {
-        Validator::make($input, [
+        $validator = Validator::make($input, [
             'given_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'surname' => ['required', 'string', 'max:255'],
             'email' => $this->emailRules(),
             'avatar' => ['nullable', 'string'],
             'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
+            'province' => [
+                'required',
+                'string',
+                Rule::exists('provinces', 'code')->where('is_active', true),
+            ],
+            'municipality' => [
+                'required',
+                'string',
+                Rule::exists('municipalities', 'code')->where('is_active', true),
+            ],
             'organization' => [
                 'required',
                 'string',
@@ -54,7 +66,34 @@ class CreateNewUser implements CreatesNewUsers
             ],
             'consent' => ['accepted'],
             'password' => $this->passwordRules(),
-        ])->validate();
+        ]);
+
+        $validator->after(function ($validator) use ($input): void {
+            if (empty($input['province']) || empty($input['municipality'])) {
+                return;
+            }
+
+            $province = Province::query()
+                ->where('code', $input['province'])
+                ->where('is_active', true)
+                ->first();
+
+            if (! $province) {
+                return;
+            }
+
+            $municipalityBelongsToProvince = Municipality::query()
+                ->where('code', $input['municipality'])
+                ->where('province_id', $province->id)
+                ->where('is_active', true)
+                ->exists();
+
+            if (! $municipalityBelongsToProvince) {
+                $validator->errors()->add('municipality', 'The selected municipality must belong to the selected province.');
+            }
+        });
+
+        $validator->validate();
 
         $avatar = $this->storeAvatar($input['avatar'] ?? null);
 
@@ -71,6 +110,15 @@ class CreateNewUser implements CreatesNewUsers
                 'is_active' => true,
             ],
         );
+        $province = Province::query()
+            ->where('code', $input['province'])
+            ->where('is_active', true)
+            ->firstOrFail();
+        $municipality = Municipality::query()
+            ->where('code', $input['municipality'])
+            ->where('province_id', $province->id)
+            ->where('is_active', true)
+            ->firstOrFail();
         $event = Event::query()
             ->where('slug', $input['event_name'])
             ->where('is_active', true)
@@ -88,6 +136,8 @@ class CreateNewUser implements CreatesNewUsers
             'email' => $input['email'],
             'avatar' => $avatar,
             'phone' => $input['phone'],
+            'province_id' => $province->id,
+            'municipality_id' => $municipality->id,
             'organization_id' => $organization->id,
             'organization' => $input['organization'],
             'position' => $input['position'] ?? null,

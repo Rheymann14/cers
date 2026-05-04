@@ -11,7 +11,7 @@ export default function AppLogo() {
                     CERS
                 </span>
                 <span className="truncate text-xs leading-tight text-muted-foreground">
-                    CHED Event Registration System
+                    CHED Events Registration System
                 </span>
             </div>
         </>
