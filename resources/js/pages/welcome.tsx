@@ -162,7 +162,7 @@ function WelcomeVirtualIdPreview() {
         <div className="rounded-2xl border border-[#d9e5f5] bg-white p-3 shadow-md shadow-slate-200/70 motion-safe:animate-in motion-safe:duration-700 motion-safe:fade-in motion-safe:slide-in-from-bottom-4 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30">
             <div className="rounded-2xl border border-[#d9e5f5] bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
                 <div className="flex items-center gap-3">
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0038A8] shadow-sm dark:bg-neutral-900">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0038A8] shadow-sm dark:bg-neutral-900 dark:text-blue-300">
                         <QrCode className="size-6" />
                     </div>
                     <div className="min-w-0">
@@ -175,7 +175,7 @@ function WelcomeVirtualIdPreview() {
                     </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 rounded-2xl border border-white/80 bg-[radial-gradient(circle_at_9%_8%,rgba(252,209,22,0.22),transparent_30%),radial-gradient(circle_at_88%_8%,rgba(0,56,168,0.14),transparent_32%),linear-gradient(135deg,#ffffff_0%,#f1f8ff_52%,#fff8e7_100%)] p-3 shadow-sm sm:grid-cols-[1fr_36%] dark:border-neutral-800 dark:bg-neutral-900">
+                <div className="mt-4 grid gap-3 rounded-2xl border border-white/80 bg-[radial-gradient(circle_at_9%_8%,rgba(252,209,22,0.22),transparent_30%),radial-gradient(circle_at_88%_8%,rgba(0,56,168,0.14),transparent_32%),linear-gradient(135deg,#ffffff_0%,#f1f8ff_52%,#fff8e7_100%)] p-3 shadow-sm sm:grid-cols-[1fr_36%] dark:border-neutral-800 dark:bg-[radial-gradient(circle_at_9%_8%,rgba(252,209,22,0.13),transparent_30%),radial-gradient(circle_at_88%_8%,rgba(59,130,246,0.22),transparent_32%),linear-gradient(135deg,#0a0a0a_0%,#111827_58%,#1f2937_100%)]">
                     <div className="grid min-w-0 content-between gap-4">
                         <div className="flex items-center gap-2">
                             <img
@@ -194,7 +194,7 @@ function WelcomeVirtualIdPreview() {
                         </div>
 
                         <div className="grid grid-cols-[56px_1fr] items-center gap-3">
-                            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-white bg-white text-base font-bold text-[#0038A8] shadow-sm">
+                            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-white bg-white text-base font-bold text-[#0038A8] shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-blue-300">
                                 JD
                             </div>
                             <div className="min-w-0">
