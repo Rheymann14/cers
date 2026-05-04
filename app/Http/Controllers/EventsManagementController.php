@@ -23,6 +23,8 @@ class EventsManagementController extends Controller
                     'name',
                     'slug',
                     'description',
+                    'venue_name',
+                    'venue_address',
                     'starts_at',
                     'ends_at',
                     'image_path',
@@ -121,6 +123,23 @@ class EventsManagementController extends Controller
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => 'Event status updated.',
+        ]);
+
+        return back();
+    }
+
+    public function updateVenue(Request $request, Event $event): RedirectResponse
+    {
+        $validated = $request->validate([
+            'venue_name' => ['required', 'string', 'max:255'],
+            'venue_address' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $event->update($validated);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => 'Event venue updated.',
         ]);
 
         return back();

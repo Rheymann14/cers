@@ -41,6 +41,8 @@ Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
         ->name('events-management.update');
     Route::patch('events-management/{event}/status', [EventsManagementController::class, 'toggleStatus'])
         ->name('events-management.status');
+    Route::patch('events-management/{event}/venue', [EventsManagementController::class, 'updateVenue'])
+        ->name('events-management.venue');
     Route::delete('events-management/{event}', [EventsManagementController::class, 'destroy'])
         ->name('events-management.destroy');
     Route::delete('events-management/materials/{material}', [EventsManagementController::class, 'destroyMaterial'])

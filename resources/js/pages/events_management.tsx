@@ -7,6 +7,7 @@ import {
     ExternalLink,
     FileText,
     ImagePlus,
+    MapPin,
     MoreHorizontal,
     Pencil,
     Plus,
@@ -73,6 +74,8 @@ type ManagedEvent = {
     id: number;
     name: string;
     description: string | null;
+    venue_name: string | null;
+    venue_address: string | null;
     starts_at: string | null;
     ends_at: string | null;
     image_url: string | null;
@@ -100,6 +103,11 @@ type EventForm = {
     is_active: boolean;
 };
 
+type EventVenueForm = {
+    venue_name: string;
+    venue_address: string;
+};
+
 type Props = {
     events: ManagedEvent[];
 };
@@ -117,6 +125,11 @@ const defaultForm: EventForm = {
     remove_image: false,
     remove_pdf: false,
     is_active: true,
+};
+
+const defaultVenueForm: EventVenueForm = {
+    venue_name: '',
+    venue_address: '',
 };
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -219,6 +232,19 @@ function getEventDateStatus(event: ManagedEvent) {
     return 'ongoing';
 }
 
+function getVenueMapSrc(venue: EventVenueForm | ManagedEvent) {
+    const query = [venue.venue_name, venue.venue_address]
+        .filter(Boolean)
+        .join(', ')
+        .trim();
+
+    if (!query) {
+        return '';
+    }
+
+    return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
+}
+
 function TruncatedFileName({ name }: { name: string }) {
     return (
         <Tooltip>
@@ -258,6 +284,7 @@ export default function EventsManagement({ events }: Props) {
         null,
     );
     const [statusEvent, setStatusEvent] = useState<ManagedEvent | null>(null);
+    const [venueEvent, setVenueEvent] = useState<ManagedEvent | null>(null);
     const [dialogMode, setDialogMode] = useState<'add' | 'edit' | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState('');
     const {
@@ -270,8 +297,18 @@ export default function EventsManagement({ events }: Props) {
         clearErrors,
         transform,
     } = useForm<EventForm>(defaultForm);
+    const {
+        data: venueData,
+        setData: setVenueData,
+        patch: patchVenue,
+        processing: venueProcessing,
+        errors: venueErrors,
+        reset: resetVenue,
+        clearErrors: clearVenueErrors,
+    } = useForm<EventVenueForm>(defaultVenueForm);
     const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
     const [viewingPdfUrl, setViewingPdfUrl] = useState<string | null>(null);
+    const venueMapSrc = getVenueMapSrc(venueData);
 
     const filteredEvents = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -284,6 +321,8 @@ export default function EventsManagement({ events }: Props) {
             [
                 event.name,
                 event.description,
+                event.venue_name,
+                event.venue_address,
                 ...event.materials.map((material) => material.original_name),
                 event.is_active ? 'active' : 'inactive',
                 event.creator?.name,
@@ -349,6 +388,25 @@ export default function EventsManagement({ events }: Props) {
         clearErrors();
     }
 
+    function openVenueDialog(event: ManagedEvent) {
+        clearVenueErrors();
+        setVenueEvent(event);
+        setVenueData({
+            venue_name: event.venue_name ?? '',
+            venue_address: event.venue_address ?? '',
+        });
+    }
+
+    function closeVenueDialog() {
+        if (venueProcessing) {
+            return;
+        }
+
+        setVenueEvent(null);
+        resetVenue();
+        clearVenueErrors();
+    }
+
     function submitForm(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
@@ -391,6 +449,19 @@ export default function EventsManagement({ events }: Props) {
                 onSuccess: () => setStatusEvent(null),
             },
         );
+    }
+
+    function submitVenue(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        if (!venueEvent) {
+            return;
+        }
+
+        patchVenue(`/events-management/${venueEvent.id}/venue`, {
+            preserveScroll: true,
+            onSuccess: closeVenueDialog,
+        });
     }
 
     function submitDelete() {
@@ -528,6 +599,7 @@ export default function EventsManagement({ events }: Props) {
                                         <ActionButtons
                                             event={event}
                                             onEdit={openEditDialog}
+                                            onVenue={openVenueDialog}
                                             onStatus={setStatusEvent}
                                             onDelete={setDeletingEvent}
                                         />
@@ -614,6 +686,14 @@ export default function EventsManagement({ events }: Props) {
                                                 <p className="line-clamp-2 text-muted-foreground">
                                                     {event.description ?? '-'}
                                                 </p>
+                                                {event.venue_name && (
+                                                    <p className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-muted-foreground">
+                                                        <MapPin className="size-3 shrink-0" />
+                                                        <span className="truncate">
+                                                            {event.venue_name}
+                                                        </span>
+                                                    </p>
+                                                )}
                                             </div>
                                         </TableCell>
                                         <TableCell className="px-2 py-2 leading-5 text-muted-foreground">
@@ -724,6 +804,7 @@ export default function EventsManagement({ events }: Props) {
                                                 <ActionButtons
                                                     event={event}
                                                     onEdit={openEditDialog}
+                                                    onVenue={openVenueDialog}
                                                     onStatus={setStatusEvent}
                                                     onDelete={setDeletingEvent}
                                                 />
@@ -1182,6 +1263,111 @@ export default function EventsManagement({ events }: Props) {
             </Dialog>
 
             <Dialog
+                open={venueEvent !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeVenueDialog();
+                    }
+                }}
+            >
+                <DialogContent
+                    className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-3xl"
+                    onPointerDownOutside={preventDialogOutsideClose}
+                >
+                    <DialogHeader className="gap-1">
+                        <DialogTitle className="inline-flex items-center gap-2 text-base">
+                            <MapPin className="size-4 text-muted-foreground" />
+                            Add Venue
+                        </DialogTitle>
+                        <DialogDescription className="text-xs leading-5">
+                            Set the venue for{' '}
+                            <span className="font-medium text-foreground">
+                                {venueEvent?.name}
+                            </span>
+                            .
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={submitVenue} className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="event-venue-name">
+                                    Venue Name
+                                </Label>
+                                <Input
+                                    id="event-venue-name"
+                                    value={venueData.venue_name}
+                                    onChange={(event) =>
+                                        setVenueData(
+                                            'venue_name',
+                                            event.target.value,
+                                        )
+                                    }
+                                    aria-invalid={!!venueErrors.venue_name}
+                                />
+                                <InputError message={venueErrors.venue_name} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="event-venue-address">
+                                    Address
+                                </Label>
+                                <Input
+                                    id="event-venue-address"
+                                    value={venueData.venue_address}
+                                    onChange={(event) =>
+                                        setVenueData(
+                                            'venue_address',
+                                            event.target.value,
+                                        )
+                                    }
+                                    aria-invalid={!!venueErrors.venue_address}
+                                />
+                                <InputError
+                                    message={venueErrors.venue_address}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="overflow-hidden rounded-md border bg-muted/30">
+                            {venueMapSrc ? (
+                                <iframe
+                                    src={venueMapSrc}
+                                    title="Venue map preview"
+                                    className="h-72 w-full"
+                                    loading="lazy"
+                                />
+                            ) : (
+                                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                                    Enter a venue name or address to preview the
+                                    map.
+                                </div>
+                            )}
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={closeVenueDialog}
+                                disabled={venueProcessing}
+                            >
+                                <X className="size-3.5" />
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                size="sm"
+                                disabled={venueProcessing}
+                            >
+                                Save venue
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
                 open={statusEvent !== null}
                 onOpenChange={(open) => {
                     if (!open) {
@@ -1349,11 +1535,13 @@ export default function EventsManagement({ events }: Props) {
 function ActionButtons({
     event,
     onEdit,
+    onVenue,
     onStatus,
     onDelete,
 }: {
     event: ManagedEvent;
     onEdit: (event: ManagedEvent) => void;
+    onVenue: (event: ManagedEvent) => void;
     onStatus: (event: ManagedEvent) => void;
     onDelete: (event: ManagedEvent) => void;
 }) {
@@ -1374,6 +1562,10 @@ function ActionButtons({
                 <DropdownMenuItem onSelect={() => onEdit(event)}>
                     <Pencil className="size-4" />
                     Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onVenue(event)}>
+                    <MapPin className="size-4" />
+                    Add venue
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onStatus(event)}>
                     {event.is_active ? (
