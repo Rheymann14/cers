@@ -14,10 +14,17 @@ import {
     Sun,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import type { RefObject } from 'react';
-import { createPortal } from 'react-dom';
 import Confetti from 'react-confetti';
+import { createPortal } from 'react-dom';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
@@ -71,13 +78,9 @@ type EventOption = LookupOption & {
     ends_at: string | null;
 };
 
-type ProvinceOption = LookupOption & {
-    municipalities: LookupOption[];
-};
-
 type WelcomeProps = {
     organizations: LookupOption[];
-    provinces: ProvinceOption[];
+    provinces: LookupOption[];
     participantTypes: LookupOption[];
     events: EventOption[];
 };
@@ -99,6 +102,7 @@ type WelcomePageProps = {
 };
 
 const otherOrganizationValue = '__other__';
+const otherParticipantTypeValue = '__other__';
 
 const fieldClass =
     'h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
@@ -185,9 +189,11 @@ function WelcomeVirtualIdPreview() {
                     <div className="grid min-w-0 content-between gap-4">
                         <div className="flex items-center gap-2">
                             <img
-                                src="/ched_logo.png"
+                                src="/ched_logo-128.png"
                                 alt="CHED"
                                 className="size-8 rounded-full bg-white object-contain p-1 shadow-sm"
+                                loading="lazy"
+                                decoding="async"
                             />
                             <div>
                                 <p className="text-base leading-tight font-bold text-slate-950 dark:text-white">
@@ -290,12 +296,16 @@ function RegistrationConfetti({
         return null;
     }
 
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return null;
+    }
+
     return createPortal(
         <Confetti
             width={width}
             height={height}
             recycle={false}
-            numberOfPieces={360}
+            numberOfPieces={180}
             gravity={0.24}
             style={{
                 position: 'fixed',
@@ -333,9 +343,11 @@ function RegistrationSuccessVirtualId({
                 <div className="grid min-w-0 content-between gap-2">
                     <div className="flex items-center gap-3">
                         <img
-                            src="/ched_logo.png"
+                            src="/ched_logo-128.png"
                             alt="CHED"
                             className="size-7 rounded-full bg-white object-contain p-1 shadow-sm"
+                            loading="lazy"
+                            decoding="async"
                         />
                         <div>
                             <p className="text-xs leading-tight font-semibold text-slate-900">
@@ -594,12 +606,7 @@ function scrollToFirstRegistrationError(errors: Record<string, unknown>) {
     });
 }
 
-export default function Welcome({
-    organizations,
-    provinces,
-    participantTypes,
-    events,
-}: WelcomeProps) {
+export default function Welcome() {
     const {
         auth,
         errors: pageErrors = {},
@@ -613,6 +620,17 @@ export default function Welcome({
     const [isNavbarScrolled, setIsNavbarScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState(getInitialActiveSection);
     const [eventPopoverOpen, setEventPopoverOpen] = useState(false);
+    const [lookupsLoading, setLookupsLoading] = useState(true);
+    const [municipalitiesLoading, setMunicipalitiesLoading] = useState(false);
+    const [organizations, setOrganizations] = useState<LookupOption[]>([]);
+    const [provinces, setProvinces] = useState<LookupOption[]>([]);
+    const [participantTypes, setParticipantTypes] = useState<LookupOption[]>(
+        [],
+    );
+    const [events, setEvents] = useState<EventOption[]>([]);
+    const [municipalityOptions, setMunicipalityOptions] = useState<
+        LookupOption[]
+    >([]);
     const [selectedEvent, setSelectedEvent] = useState('');
     const [organizationPopoverOpen, setOrganizationPopoverOpen] =
         useState(false);
@@ -649,30 +667,184 @@ export default function Welcome({
     const activeScrollTargetRef = useRef<string | null>(null);
     const activeScrollTimeoutRef = useRef<number | null>(null);
     const previousEmailErrorRef = useRef<string | null>(null);
-    const organizationLabels = organizations.map((organization) =>
-        normalizeLookupLabel(organization.label),
+    const activeSectionRef = useRef(activeSection);
+    const isNavbarScrolledRef = useRef(isNavbarScrolled);
+    const organizationLabels = useMemo(
+        () =>
+            organizations.map((organization) =>
+                normalizeLookupLabel(organization.label),
+            ),
+        [organizations],
     );
-    const selectedEventOption =
-        events.find((event) => event.value === selectedEvent) ?? null;
+    const participantTypeLabels = useMemo(
+        () =>
+            participantTypes.flatMap((type) => [
+                normalizeLookupLabel(type.label),
+                normalizeLookupLabel(type.value),
+            ]),
+        [participantTypes],
+    );
+    const selectedEventOption = useMemo(
+        () => events.find((event) => event.value === selectedEvent) ?? null,
+        [events, selectedEvent],
+    );
     const selectedEventLabel = selectedEventOption?.label ?? '';
-    const selectedOrganizationLabel =
-        selectedOrganization === otherOrganizationValue
-            ? 'Others'
-            : (organizations.find(
-                  (organization) => organization.value === selectedOrganization,
-              )?.label ?? '');
-    const selectedProvinceOption =
-        provinces.find((province) => province.value === selectedProvince) ??
-        null;
+    const selectedOrganizationLabel = useMemo(
+        () =>
+            selectedOrganization === otherOrganizationValue
+                ? 'Others'
+                : (organizations.find(
+                      (organization) =>
+                          organization.value === selectedOrganization,
+                  )?.label ?? ''),
+        [organizations, selectedOrganization],
+    );
+    const selectedProvinceOption = useMemo(
+        () =>
+            provinces.find((province) => province.value === selectedProvince) ??
+            null,
+        [provinces, selectedProvince],
+    );
     const selectedProvinceLabel = selectedProvinceOption?.label ?? '';
-    const municipalityOptions = selectedProvinceOption?.municipalities ?? [];
-    const selectedMunicipalityLabel =
-        municipalityOptions.find(
-            (municipality) => municipality.value === selectedMunicipality,
-        )?.label ?? '';
-    const selectedParticipantTypeLabel =
-        participantTypes.find((type) => type.value === selectedParticipantType)
-            ?.label ?? '';
+    const selectedMunicipalityLabel = useMemo(
+        () =>
+            municipalityOptions.find(
+                (municipality) => municipality.value === selectedMunicipality,
+            )?.label ?? '',
+        [municipalityOptions, selectedMunicipality],
+    );
+    const selectedParticipantTypeLabel = useMemo(
+        () =>
+            selectedParticipantType === otherParticipantTypeValue
+                ? 'Others'
+                : (participantTypes.find(
+                      (type) => type.value === selectedParticipantType,
+                  )?.label ?? ''),
+        [participantTypes, selectedParticipantType],
+    );
+
+    const setActiveSectionIfChanged = useCallback((nextSection: string) => {
+        if (activeSectionRef.current === nextSection) {
+            return;
+        }
+
+        activeSectionRef.current = nextSection;
+        setActiveSection(nextSection);
+    }, []);
+
+    const setNavbarScrolledIfChanged = useCallback((nextScrolled: boolean) => {
+        if (isNavbarScrolledRef.current === nextScrolled) {
+            return;
+        }
+
+        isNavbarScrolledRef.current = nextScrolled;
+        setIsNavbarScrolled(nextScrolled);
+    }, []);
+
+    useEffect(() => {
+        const controller = new AbortController();
+
+        async function loadLookups() {
+            try {
+                const response = await fetch('/welcome-lookups', {
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                    signal: controller.signal,
+                });
+
+                if (!response.ok) {
+                    throw new Error('Unable to load registration options.');
+                }
+
+                const data = (await response.json()) as WelcomeProps;
+
+                setOrganizations(data.organizations);
+                setProvinces(data.provinces);
+                setParticipantTypes(data.participantTypes);
+                setEvents(data.events);
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    return;
+                }
+
+                toast.error(
+                    'Registration options could not be loaded. Please refresh the page.',
+                    {
+                        duration: 7000,
+                        closeButton: true,
+                    },
+                );
+            } finally {
+                if (!controller.signal.aborted) {
+                    setLookupsLoading(false);
+                }
+            }
+        }
+
+        loadLookups();
+
+        return () => controller.abort();
+    }, []);
+
+    useEffect(() => {
+        if (!selectedProvince) {
+            setMunicipalityOptions([]);
+            setSelectedMunicipality('');
+
+            return;
+        }
+
+        const controller = new AbortController();
+
+        async function loadMunicipalities() {
+            setMunicipalitiesLoading(true);
+
+            try {
+                const searchParams = new URLSearchParams({
+                    province: selectedProvince,
+                });
+                const response = await fetch(
+                    `/welcome-lookups/municipalities?${searchParams.toString()}`,
+                    {
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                        signal: controller.signal,
+                    },
+                );
+
+                if (!response.ok) {
+                    throw new Error('Unable to load municipalities.');
+                }
+
+                const data = (await response.json()) as LookupOption[];
+
+                setMunicipalityOptions(data);
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    return;
+                }
+
+                setMunicipalityOptions([]);
+                toast.error(
+                    'Municipalities could not be loaded. Please select the province again.',
+                    {
+                        duration: 7000,
+                        closeButton: true,
+                    },
+                );
+            } finally {
+                if (!controller.signal.aborted) {
+                    setMunicipalitiesLoading(false);
+                }
+            }
+        }
+
+        loadMunicipalities();
+
+        return () => controller.abort();
+    }, [selectedProvince]);
 
     function scrollToSection(
         event: React.MouseEvent<HTMLAnchorElement>,
@@ -680,7 +852,7 @@ export default function Welcome({
         path?: string,
     ) {
         event.preventDefault();
-        setActiveSection(sectionId);
+        setActiveSectionIfChanged(sectionId);
 
         if (path && window.location.pathname !== path) {
             window.history.pushState({}, '', path);
@@ -702,11 +874,15 @@ export default function Welcome({
     }
 
     useEffect(() => {
-        const handleScroll = () => {
-            setIsNavbarScrolled(window.scrollY > 12);
+        let scrollAnimationFrame = 0;
+
+        const updateScrollState = () => {
+            scrollAnimationFrame = 0;
+
+            setNavbarScrolledIfChanged(window.scrollY > 12);
 
             if (activeScrollTargetRef.current) {
-                setActiveSection(activeScrollTargetRef.current);
+                setActiveSectionIfChanged(activeScrollTargetRef.current);
 
                 return;
             }
@@ -721,7 +897,7 @@ export default function Welcome({
                 nextSection = 'registration';
             }
 
-            setActiveSection(nextSection);
+            setActiveSectionIfChanged(nextSection);
 
             const nextPath = getSectionPath(nextSection);
 
@@ -730,21 +906,38 @@ export default function Welcome({
             }
         };
 
-        handleScroll();
+        const handleScroll = () => {
+            if (scrollAnimationFrame) {
+                return;
+            }
+
+            scrollAnimationFrame =
+                window.requestAnimationFrame(updateScrollState);
+        };
+
+        updateScrollState();
         window.addEventListener('scroll', handleScroll, { passive: true });
 
         return () => {
             window.removeEventListener('scroll', handleScroll);
 
+            if (scrollAnimationFrame) {
+                window.cancelAnimationFrame(scrollAnimationFrame);
+            }
+
             if (activeScrollTimeoutRef.current) {
                 window.clearTimeout(activeScrollTimeoutRef.current);
             }
         };
-    }, []);
+    }, [setActiveSectionIfChanged, setNavbarScrolledIfChanged]);
 
     useEffect(() => {
         if (registrationSuccess) {
-            setRegistrationSuccessDialogOpen(true);
+            const animationFrame = window.requestAnimationFrame(() => {
+                setRegistrationSuccessDialogOpen(true);
+            });
+
+            return () => window.cancelAnimationFrame(animationFrame);
         }
     }, [registrationSuccess]);
 
@@ -766,18 +959,52 @@ export default function Welcome({
     }, [pageErrors.email]);
 
     useEffect(() => {
+        if (!registrationSuccess || !registrationSuccessDialogOpen) {
+            return;
+        }
+
+        let resizeAnimationFrame = 0;
+
         function updateConfettiSize() {
-            setConfettiSize({
-                width: window.innerWidth,
-                height: window.innerHeight,
+            resizeAnimationFrame = 0;
+
+            setConfettiSize((currentSize) => {
+                const nextSize = {
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                };
+
+                if (
+                    currentSize.width === nextSize.width &&
+                    currentSize.height === nextSize.height
+                ) {
+                    return currentSize;
+                }
+
+                return nextSize;
             });
         }
 
-        updateConfettiSize();
-        window.addEventListener('resize', updateConfettiSize);
+        function handleResize() {
+            if (resizeAnimationFrame) {
+                return;
+            }
 
-        return () => window.removeEventListener('resize', updateConfettiSize);
-    }, []);
+            resizeAnimationFrame =
+                window.requestAnimationFrame(updateConfettiSize);
+        }
+
+        updateConfettiSize();
+        window.addEventListener('resize', handleResize);
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+
+            if (resizeAnimationFrame) {
+                window.cancelAnimationFrame(resizeAnimationFrame);
+            }
+        };
+    }, [registrationSuccess, registrationSuccessDialogOpen]);
 
     useLayoutEffect(() => {
         const initialSection = getInitialActiveSection();
@@ -926,10 +1153,34 @@ export default function Welcome({
         }
     }
 
+    function handleOtherParticipantTypeBlur(
+        event: React.FocusEvent<HTMLInputElement>,
+    ) {
+        if (
+            participantTypeLabels.includes(
+                normalizeLookupLabel(event.currentTarget.value),
+            )
+        ) {
+            toast.error(
+                'This participant type already exists. Please search for it in the dropdown.',
+                {
+                    duration: 7000,
+                    closeButton: true,
+                },
+            );
+        }
+    }
+
     return (
         <>
             <Head title="CHED Events Registration System">
                 <link rel="preconnect" href="https://fonts.bunny.net" />
+                <link
+                    rel="preload"
+                    as="image"
+                    href="/ched_logo-128.png"
+                    type="image/png"
+                />
                 <link
                     href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700"
                     rel="stylesheet"
@@ -965,9 +1216,11 @@ export default function Welcome({
                             className="flex items-center gap-3"
                         >
                             <img
-                                src="/ched_logo.png"
+                                src="/ched_logo-128.png"
                                 alt="Commission on Higher Education logo"
                                 className="h-12 w-12 object-contain"
+                                decoding="async"
+                                fetchPriority="high"
                             />
                             <span>
                                 <span className="block text-sm font-semibold tracking-wide text-slate-950 dark:text-white">
@@ -979,7 +1232,7 @@ export default function Welcome({
                             </span>
                         </a>
 
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between lg:gap-8">
+                        <div className="flex items-center justify-between gap-4 lg:gap-8">
                             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-medium text-slate-600 dark:text-neutral-300">
                                 {navigationLinks.map((link) => (
                                     <a
@@ -1004,7 +1257,7 @@ export default function Welcome({
                                 ))}
                             </div>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex shrink-0 items-center gap-3">
                                 <button
                                     type="button"
                                     aria-label={`Switch to ${nextAppearance} mode`}
@@ -1031,22 +1284,26 @@ export default function Welcome({
                     <section className="relative overflow-hidden">
                         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(252,209,22,0.20),transparent_32%),radial-gradient(circle_at_top_right,rgba(0,56,168,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.82)_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(252,209,22,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(37,99,235,0.16),transparent_30%),linear-gradient(180deg,rgba(10,10,10,0)_0%,rgba(10,10,10,0.72)_100%)]" />
                         <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-24">
-                            <div className="motion-safe:animate-in motion-safe:duration-500 motion-safe:fade-in motion-safe:slide-in-from-bottom-3">
+                            <div>
                                 <div className="mb-6 inline-flex items-center gap-4">
                                     <img
-                                        src="/ched_logo.png"
+                                        src="/ched_logo-128.png"
                                         alt="CHED logo"
                                         className="size-16 object-contain"
+                                        decoding="async"
+                                        fetchPriority="high"
                                     />
                                     <img
                                         src="/unifast.webp"
                                         alt="UniFAST logo"
                                         className="size-16 object-contain"
+                                        decoding="async"
                                     />
                                     <img
-                                        src="/achieve.png"
+                                        src="/achieve-160.png"
                                         alt="ACHIEVE logo"
                                         className="-m-2 size-20 object-contain"
+                                        decoding="async"
                                     />
                                 </div>
 
@@ -1099,6 +1356,15 @@ export default function Welcome({
                             >
                                 {({ processing, errors }) => (
                                     <div className="grid gap-8">
+                                        <input
+                                            type="text"
+                                            name="website"
+                                            tabIndex={-1}
+                                            autoComplete="off"
+                                            aria-hidden="true"
+                                            className="hidden"
+                                        />
+
                                         <div className="border-b border-[#d9e5f5] pb-6 dark:border-neutral-800">
                                             <p className="text-sm font-semibold tracking-wide text-[#CE1126] uppercase">
                                                 Event Registration
@@ -1285,9 +1551,9 @@ export default function Welcome({
                                                                 <CommandInput placeholder="Search province..." />
                                                                 <CommandList>
                                                                     <CommandEmpty>
-                                                                        No
-                                                                        province
-                                                                        found.
+                                                                        {lookupsLoading
+                                                                            ? 'Loading provinces...'
+                                                                            : 'No province found.'}
                                                                     </CommandEmpty>
                                                                     <CommandGroup>
                                                                         {provinces.map(
@@ -1412,10 +1678,9 @@ export default function Welcome({
                                                                 <CommandInput placeholder="Search municipality or city..." />
                                                                 <CommandList>
                                                                     <CommandEmpty>
-                                                                        No
-                                                                        municipality
-                                                                        or city
-                                                                        found.
+                                                                        {municipalitiesLoading
+                                                                            ? 'Loading municipalities...'
+                                                                            : 'No municipality or city found.'}
                                                                     </CommandEmpty>
                                                                     <CommandGroup>
                                                                         {municipalityOptions.map(
@@ -1536,11 +1801,9 @@ export default function Welcome({
                                                                 <CommandInput placeholder="Search school or organization..." />
                                                                 <CommandList>
                                                                     <CommandEmpty>
-                                                                        No
-                                                                        school
-                                                                        or
-                                                                        organization
-                                                                        found.
+                                                                        {lookupsLoading
+                                                                            ? 'Loading organizations...'
+                                                                            : 'No school or organization found.'}
                                                                     </CommandEmpty>
                                                                     <CommandGroup>
                                                                         <CommandItem
@@ -1729,14 +1992,17 @@ export default function Welcome({
                                                         Participant type{' '}
                                                         <RequiredMark />
                                                     </p>
-                                                    <input
-                                                        type="hidden"
-                                                        name="participant_type"
-                                                        value={
-                                                            selectedParticipantType
-                                                        }
-                                                        readOnly
-                                                    />
+                                                    {selectedParticipantType !==
+                                                        otherParticipantTypeValue && (
+                                                        <input
+                                                            type="hidden"
+                                                            name="participant_type"
+                                                            value={
+                                                                selectedParticipantType
+                                                            }
+                                                            readOnly
+                                                        />
+                                                    )}
                                                     <Popover
                                                         open={
                                                             participantTypePopoverOpen
@@ -1778,10 +2044,42 @@ export default function Welcome({
                                                                 <CommandInput placeholder="Search participant type..." />
                                                                 <CommandList>
                                                                     <CommandEmpty>
-                                                                        No type
-                                                                        found.
+                                                                        {lookupsLoading
+                                                                            ? 'Loading participant types...'
+                                                                            : 'No type found.'}
                                                                     </CommandEmpty>
                                                                     <CommandGroup>
+                                                                        <CommandItem
+                                                                            value="Others"
+                                                                            className={
+                                                                                commandItemClass
+                                                                            }
+                                                                            onSelect={() => {
+                                                                                setSelectedParticipantType(
+                                                                                    otherParticipantTypeValue,
+                                                                                );
+                                                                                setParticipantTypePopoverOpen(
+                                                                                    false,
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Check
+                                                                                className={cn(
+                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                    selectedParticipantType ===
+                                                                                        otherParticipantTypeValue
+                                                                                        ? 'opacity-100'
+                                                                                        : 'opacity-0',
+                                                                                )}
+                                                                            />
+                                                                            <span
+                                                                                className={
+                                                                                    commandItemTextClass
+                                                                                }
+                                                                            >
+                                                                                Others
+                                                                            </span>
+                                                                        </CommandItem>
                                                                         {participantTypes.map(
                                                                             (
                                                                                 type,
@@ -1831,6 +2129,21 @@ export default function Welcome({
                                                             </Command>
                                                         </PopoverContent>
                                                     </Popover>
+                                                    {selectedParticipantType ===
+                                                        otherParticipantTypeValue && (
+                                                        <Input
+                                                            type="text"
+                                                            required
+                                                            name="participant_type"
+                                                            placeholder="Enter participant type"
+                                                            onBlur={
+                                                                handleOtherParticipantTypeBlur
+                                                            }
+                                                            className={
+                                                                fieldClass
+                                                            }
+                                                        />
+                                                    )}
                                                     <InputError
                                                         message={
                                                             errors.participant_type
@@ -1942,8 +2255,9 @@ export default function Welcome({
                                                             <CommandInput placeholder="Search event..." />
                                                             <CommandList>
                                                                 <CommandEmpty>
-                                                                    No event
-                                                                    found.
+                                                                    {lookupsLoading
+                                                                        ? 'Loading events...'
+                                                                        : 'No event found.'}
                                                                 </CommandEmpty>
                                                                 <CommandGroup>
                                                                     {events.map(

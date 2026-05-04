@@ -169,7 +169,7 @@ class EventsManagementController extends Controller
             'materials' => ['nullable', 'array'],
             'materials.*.name' => ['required_with:materials', 'string', 'max:255'],
             'materials.*.type' => ['nullable', 'string', 'max:255'],
-            'materials.*.size' => ['nullable', 'integer'],
+            'materials.*.size' => ['nullable', 'integer', 'max:26214400'],
             'materials.*.data' => ['required_with:materials', 'string'],
             'remove_image' => ['nullable', 'boolean'],
             'remove_pdf' => ['nullable', 'boolean'],
@@ -236,9 +236,31 @@ class EventsManagementController extends Controller
                 continue;
             }
 
+            $mimeType = (string) ($material['type'] ?? $matches[1]);
+            $allowedMimeTypes = [
+                'pdf' => ['application/pdf'],
+                'doc' => ['application/msword'],
+                'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+                'ppt' => ['application/vnd.ms-powerpoint'],
+                'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+                'zip' => ['application/zip', 'application/x-zip-compressed'],
+                'png' => ['image/png'],
+                'jpg' => ['image/jpeg'],
+                'jpeg' => ['image/jpeg'],
+                'webp' => ['image/webp'],
+            ];
+
+            if (! in_array($mimeType, $allowedMimeTypes[$extension], true)) {
+                continue;
+            }
+
             $contents = base64_decode($matches[2], true);
 
             if ($contents === false) {
+                continue;
+            }
+
+            if (strlen($contents) > 25 * 1024 * 1024) {
                 continue;
             }
 
@@ -248,7 +270,7 @@ class EventsManagementController extends Controller
             $event->materials()->create([
                 'original_name' => $originalName,
                 'path' => $path,
-                'mime_type' => $material['type'] ?? $matches[1],
+                'mime_type' => $mimeType,
                 'size' => $material['size'] ?? strlen($contents),
                 'created_by_user_id' => $request->user()?->id,
             ]);

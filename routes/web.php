@@ -7,15 +7,22 @@ use App\Http\Controllers\PageSettingsController;
 use App\Http\Controllers\ParticipantProfileController;
 use App\Http\Controllers\ParticipantsController;
 use App\Http\Controllers\WelcomeController;
+use App\Http\Controllers\WelcomeLookupController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', WelcomeController::class)->name('home');
 Route::get('/home', WelcomeController::class);
 Route::get('/registration', WelcomeController::class)->name('registration');
 Route::get('/features', WelcomeController::class);
+Route::get('/welcome-lookups', [WelcomeLookupController::class, 'index'])
+    ->middleware('throttle:60,1')
+    ->name('welcome.lookups');
+Route::get('/welcome-lookups/municipalities', [WelcomeLookupController::class, 'municipalities'])
+    ->middleware('throttle:120,1')
+    ->name('welcome.lookups.municipalities');
 
 Route::post('event-registration', [EventRegistrationController::class, 'store'])
-    ->middleware(['guest'])
+    ->middleware(['guest', 'throttle:10,1'])
     ->name('event-registration.store');
 
 Route::middleware(['auth', 'active', 'verified'])->group(function () {

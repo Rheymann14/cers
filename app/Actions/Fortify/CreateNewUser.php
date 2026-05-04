@@ -7,6 +7,7 @@ use App\Concerns\ProfileValidationRules;
 use App\Models\Event;
 use App\Models\Municipality;
 use App\Models\Organization;
+use App\Models\ParticipantType;
 use App\Models\Province;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
@@ -34,6 +35,7 @@ class CreateNewUser implements CreatesNewUsers
                 'surname' => ['required', 'string', 'max:255'],
                 'email' => $this->emailRules(),
                 'avatar' => ['nullable', 'string'],
+                'website' => ['prohibited'],
                 'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
                 'province' => [
                     'required',
@@ -54,7 +56,7 @@ class CreateNewUser implements CreatesNewUsers
                 'participant_type' => [
                     'required',
                     'string',
-                    Rule::exists('participant_types', 'slug')->where('is_active', true),
+                    'max:255',
                 ],
                 'sex' => ['required', 'string', 'in:male,female'],
                 'event_name' => [
@@ -99,6 +101,34 @@ class CreateNewUser implements CreatesNewUsers
             }
         });
 
+        $validator->after(function ($validator) use ($input): void {
+            if (empty($input['participant_type'])) {
+                return;
+            }
+
+            $participantTypeSlug = Str::slug($input['participant_type']);
+
+            if ($participantTypeSlug === '') {
+                $validator->errors()->add('participant_type', 'Enter a valid participant type.');
+
+                return;
+            }
+
+            if (in_array($participantTypeSlug, ['admin', 'administrator'], true)) {
+                $validator->errors()->add('participant_type', 'The selected participant type is invalid.');
+
+                return;
+            }
+
+            $participantType = ParticipantType::query()
+                ->where('slug', $participantTypeSlug)
+                ->first();
+
+            if ($participantType && ! $participantType->is_active) {
+                $validator->errors()->add('participant_type', 'The selected participant type is invalid.');
+            }
+        });
+
         $validator->validate();
 
         $avatar = $this->storeAvatar($input['avatar'] ?? null);
@@ -132,6 +162,14 @@ class CreateNewUser implements CreatesNewUsers
             ->whereNotNull('ends_at')
             ->where('ends_at', '>=', now())
             ->firstOrFail();
+        $participantTypeSlug = Str::slug($input['participant_type']);
+        $participantType = ParticipantType::query()->firstOrCreate(
+            ['slug' => $participantTypeSlug],
+            [
+                'name' => $input['participant_type'],
+                'is_active' => true,
+            ],
+        );
 
         return User::create([
             'name' => $name,
@@ -147,7 +185,7 @@ class CreateNewUser implements CreatesNewUsers
             'organization_id' => $organization->id,
             'organization' => $input['organization'],
             'position' => $input['position'] ?? null,
-            'participant_type' => $input['participant_type'],
+            'participant_type' => $participantType->slug,
             'sex' => $input['sex'],
             'event_id' => $event->id,
             'event_name' => $event->slug,
@@ -177,6 +215,10 @@ class CreateNewUser implements CreatesNewUsers
         $contents = base64_decode(substr($avatar, strpos($avatar, ',') + 1), true);
 
         if ($contents === false) {
+            return null;
+        }
+
+        if (strlen($contents) > 2 * 1024 * 1024 || getimagesizefromstring($contents) === false) {
             return null;
         }
 

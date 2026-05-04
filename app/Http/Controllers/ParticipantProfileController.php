@@ -42,6 +42,7 @@ class ParticipantProfileController extends Controller
             'surname' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'avatar' => ['nullable', 'string'],
+            'website' => ['prohibited'],
             'remove_avatar' => ['nullable', 'boolean'],
             'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
             'organization' => [
@@ -109,6 +110,10 @@ class ParticipantProfileController extends Controller
         $contents = base64_decode(substr($avatar, strpos($avatar, ',') + 1), true);
 
         if ($contents === false) {
+            return null;
+        }
+
+        if (strlen($contents) > 2 * 1024 * 1024 || getimagesizefromstring($contents) === false) {
             return null;
         }
 
