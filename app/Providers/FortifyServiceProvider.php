@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
@@ -52,7 +53,17 @@ class FortifyServiceProvider extends ServiceProvider
                 ->where('email', $request->input(Fortify::username()))
                 ->first();
 
-            if (! $user || ! $user->is_active || ! Hash::check($request->password, $user->password)) {
+            if (! $user || ! Hash::check($request->password, $user->password)) {
+                return null;
+            }
+
+            if (! $user->isAdministrator()) {
+                throw ValidationException::withMessages([
+                    Fortify::username() => 'You do not have access',
+                ]);
+            }
+
+            if (! $user->is_active) {
                 return null;
             }
 

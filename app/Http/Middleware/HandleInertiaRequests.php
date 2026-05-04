@@ -42,6 +42,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
                 'isAdmin' => $request->user()?->isAdministrator() ?? false,
             ],
+            'registrationSuccess' => fn () => $request->session()->get('registration_success'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

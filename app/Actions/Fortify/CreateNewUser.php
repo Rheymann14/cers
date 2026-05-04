@@ -26,47 +26,53 @@ class CreateNewUser implements CreatesNewUsers
      */
     public function create(array $input): User
     {
-        $validator = Validator::make($input, [
-            'given_name' => ['required', 'string', 'max:255'],
-            'middle_name' => ['nullable', 'string', 'max:255'],
-            'surname' => ['required', 'string', 'max:255'],
-            'email' => $this->emailRules(),
-            'avatar' => ['nullable', 'string'],
-            'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
-            'province' => [
-                'required',
-                'string',
-                Rule::exists('provinces', 'code')->where('is_active', true),
+        $validator = Validator::make(
+            $input,
+            [
+                'given_name' => ['required', 'string', 'max:255'],
+                'middle_name' => ['nullable', 'string', 'max:255'],
+                'surname' => ['required', 'string', 'max:255'],
+                'email' => $this->emailRules(),
+                'avatar' => ['nullable', 'string'],
+                'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
+                'province' => [
+                    'required',
+                    'string',
+                    Rule::exists('provinces', 'code')->where('is_active', true),
+                ],
+                'municipality' => [
+                    'required',
+                    'string',
+                    Rule::exists('municipalities', 'code')->where('is_active', true),
+                ],
+                'organization' => [
+                    'required',
+                    'string',
+                    'max:255',
+                ],
+                'position' => ['nullable', 'string', 'max:255'],
+                'participant_type' => [
+                    'required',
+                    'string',
+                    Rule::exists('participant_types', 'slug')->where('is_active', true),
+                ],
+                'sex' => ['required', 'string', 'in:male,female'],
+                'event_name' => [
+                    'required',
+                    'string',
+                    Rule::exists('events', 'slug')->where(fn ($query) => $query
+                        ->where('is_active', true)
+                        ->whereNotNull('starts_at')
+                        ->whereNotNull('ends_at')
+                        ->where('ends_at', '>=', now())),
+                ],
+                'consent' => ['accepted'],
+                'password' => $this->passwordRules(),
             ],
-            'municipality' => [
-                'required',
-                'string',
-                Rule::exists('municipalities', 'code')->where('is_active', true),
+            [
+                'email.unique' => 'This account is already registered.',
             ],
-            'organization' => [
-                'required',
-                'string',
-                'max:255',
-            ],
-            'position' => ['nullable', 'string', 'max:255'],
-            'participant_type' => [
-                'required',
-                'string',
-                Rule::exists('participant_types', 'slug')->where('is_active', true),
-            ],
-            'sex' => ['required', 'string', 'in:male,female'],
-            'event_name' => [
-                'required',
-                'string',
-                Rule::exists('events', 'slug')->where(fn ($query) => $query
-                    ->where('is_active', true)
-                    ->whereNotNull('starts_at')
-                    ->whereNotNull('ends_at')
-                    ->where('ends_at', '>=', now())),
-            ],
-            'consent' => ['accepted'],
-            'password' => $this->passwordRules(),
-        ]);
+        );
 
         $validator->after(function ($validator) use ($input): void {
             if (empty($input['province']) || empty($input['municipality'])) {

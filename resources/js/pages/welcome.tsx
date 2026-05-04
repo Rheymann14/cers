@@ -1,10 +1,12 @@
 import { Form, Head, Link, usePage } from '@inertiajs/react';
+import { toPng } from 'html-to-image';
 import {
     Check,
     CheckCircle2,
     ChevronsUpDown,
     ClipboardCheck,
     ArrowDown,
+    Download,
     ImagePlus,
     Moon,
     QrCode,
@@ -13,9 +15,13 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { RefObject } from 'react';
+import { createPortal } from 'react-dom';
+import Confetti from 'react-confetti';
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import { toast } from 'sonner';
 
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
@@ -76,10 +82,38 @@ type WelcomeProps = {
     events: EventOption[];
 };
 
+type RegistrationSuccess = {
+    participant_id: string | null;
+    name: string;
+    email: string;
+    organization: string | null;
+    avatar: string | null;
+};
+
+type WelcomePageProps = {
+    auth: {
+        user: unknown | null;
+    };
+    errors?: Record<string, string>;
+    registrationSuccess?: RegistrationSuccess | null;
+};
+
 const otherOrganizationValue = '__other__';
 
 const fieldClass =
     'h-11 rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 focus-visible:border-[#0038A8] focus-visible:ring-[#0038A8]/15 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:placeholder:text-neutral-500';
+
+const comboboxButtonClass =
+    'min-h-11 h-auto w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 py-2 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950';
+
+const comboboxValueClass =
+    'min-w-0 flex-1 whitespace-normal break-words text-left leading-snug';
+
+const commandItemClass =
+    'items-start py-2 whitespace-normal data-[selected=true]:bg-[#eef5ff] dark:data-[selected=true]:bg-blue-950/40';
+
+const commandItemTextClass =
+    'min-w-0 flex-1 whitespace-normal break-words leading-snug';
 
 const sampleVirtualId = {
     email: 'juan.delacruz@example.com',
@@ -234,6 +268,159 @@ function WelcomeVirtualIdPreview() {
     );
 }
 
+function getRegistrationInitials(registration: RegistrationSuccess) {
+    return (
+        registration.name
+            .split(' ')
+            .map((part) => part[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase() || 'ID'
+    );
+}
+
+function RegistrationConfetti({
+    width,
+    height,
+}: {
+    width: number;
+    height: number;
+}) {
+    if (typeof document === 'undefined') {
+        return null;
+    }
+
+    return createPortal(
+        <Confetti
+            width={width}
+            height={height}
+            recycle={false}
+            numberOfPieces={360}
+            gravity={0.24}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 2147483647,
+                pointerEvents: 'none',
+            }}
+        />,
+        document.body,
+    );
+}
+
+function RegistrationSuccessVirtualId({
+    registration,
+    cardRef,
+}: {
+    registration: RegistrationSuccess;
+    cardRef: RefObject<HTMLDivElement | null>;
+}) {
+    const displayId = registration.participant_id || 'Not assigned';
+    const organization = registration.organization ?? '';
+    const qrValue = createQrToken({
+        email: registration.email,
+        fullName: registration.name,
+        organization,
+        participantId: registration.participant_id ?? '',
+    });
+
+    return (
+        <section className="grid justify-items-center gap-4">
+            <div
+                ref={cardRef}
+                className="grid aspect-[85.6/54] w-full max-w-[430px] grid-cols-[1fr_36%] gap-2 overflow-hidden rounded-lg border bg-[radial-gradient(circle_at_12%_15%,rgba(251,191,36,0.28),transparent_26%),radial-gradient(circle_at_82%_12%,rgba(14,165,233,0.2),transparent_26%),linear-gradient(135deg,#f8fbff_0%,#e8f6ff_48%,#fff7ed_100%)] p-3 shadow-sm"
+            >
+                <div className="grid min-w-0 content-between gap-2">
+                    <div className="flex items-center gap-3">
+                        <img
+                            src="/ched_logo.png"
+                            alt="CHED"
+                            className="size-7 rounded-full bg-white object-contain p-1 shadow-sm"
+                        />
+                        <div>
+                            <p className="text-xs leading-tight font-semibold text-slate-900">
+                                CERS
+                            </p>
+                            <p className="text-[9px] text-slate-600">
+                                Participant Identification
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-[60px_1fr] items-center gap-2">
+                        <div className="flex size-14 items-center justify-center overflow-hidden rounded-md border border-white/80 bg-white text-base font-semibold text-sky-900 shadow-sm">
+                            {registration.avatar ? (
+                                <img
+                                    src={registration.avatar}
+                                    alt=""
+                                    className="size-full object-cover"
+                                />
+                            ) : (
+                                getRegistrationInitials(registration)
+                            )}
+                        </div>
+
+                        <div className="min-w-0">
+                            <h2 className="line-clamp-2 text-[11px] leading-[1.1] font-semibold text-slate-950 sm:text-xs">
+                                {registration.name}
+                            </h2>
+                            <p className="mt-0.5 line-clamp-2 text-[8px] leading-tight font-medium break-words text-slate-700 sm:text-[9px]">
+                                {organization || 'Organization not assigned'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="min-w-0">
+                        <p className="text-[8px] font-medium tracking-wide text-slate-500 uppercase sm:text-[9px]">
+                            Participant ID
+                        </p>
+                        <div className="mt-1 inline-flex max-w-full rounded-full bg-white px-2.5 py-1 text-[9px] font-semibold tracking-wide text-slate-950 shadow-sm sm:text-[10px]">
+                            <span className="truncate">{displayId}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid min-w-0 content-center justify-items-center gap-1.5 rounded-lg border border-white/80 bg-white/90 p-2 text-center shadow-sm">
+                    <div className="flex items-center gap-1 text-[9px] font-semibold text-slate-800 sm:text-[10px]">
+                        <QrCode className="size-2.5" />
+                        QR Code
+                    </div>
+                    <div className="rounded-md bg-white p-1 shadow-inner">
+                        <QRCodeSVG
+                            value={qrValue}
+                            size={176}
+                            level="M"
+                            marginSize={1}
+                            className="size-14 sm:size-20"
+                        />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="line-clamp-2 text-[8px] font-semibold break-words text-slate-900 sm:text-[9px]">
+                            {displayId}
+                        </p>
+                        <p className="mt-0.5 text-[7px] text-slate-500 sm:text-[8px]">
+                            CERS scanner verification only.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="w-full max-w-[430px] rounded-xl border border-[#d9e5f5] bg-[#f8fbff] px-4 py-3 text-center text-sm font-semibold text-[#0038A8] dark:border-neutral-800 dark:bg-neutral-900 dark:text-blue-300">
+                Download your virtual ID and present it for attendance scanning.
+            </div>
+
+            <div className="text-center">
+                <p className="text-xs font-medium tracking-wide text-slate-500 uppercase dark:text-neutral-400">
+                    Participant ID #
+                </p>
+                <p className="mt-1 text-lg font-bold text-slate-950 dark:text-white">
+                    {displayId}
+                </p>
+            </div>
+        </section>
+    );
+}
+
 function getCenteredCircleCrop(width: number, height: number): Crop {
     return centerCrop(
         makeAspectCrop(
@@ -378,13 +565,46 @@ function getSectionPath(sectionId: string) {
     return '/home';
 }
 
+function normalizeLookupLabel(value: string) {
+    return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function scrollToFirstRegistrationError(errors: Record<string, unknown>) {
+    const firstField = Object.keys(errors)[0];
+
+    if (!firstField) {
+        return;
+    }
+
+    window.requestAnimationFrame(() => {
+        const field =
+            document.querySelector<HTMLElement>(
+                `[data-registration-field="${firstField}"]`,
+            ) ??
+            document.querySelector<HTMLElement>(
+                `[name="${CSS.escape(firstField)}"]:not([type="hidden"])`,
+            );
+
+        if (!field) {
+            return;
+        }
+
+        field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        field.focus({ preventScroll: true });
+    });
+}
+
 export default function Welcome({
     organizations,
     provinces,
     participantTypes,
     events,
 }: WelcomeProps) {
-    const { auth } = usePage().props;
+    const {
+        auth,
+        errors: pageErrors = {},
+        registrationSuccess,
+    } = usePage().props as WelcomePageProps;
     const { resolvedAppearance, updateAppearance } = useAppearance();
     const accessHref = auth.user ? participants() : login();
     const nextAppearance = resolvedAppearance === 'dark' ? 'light' : 'dark';
@@ -410,6 +630,9 @@ export default function Welcome({
     const [profilePhotoError, setProfilePhotoError] = useState('');
     const [cropImageSrc, setCropImageSrc] = useState('');
     const [cropDialogOpen, setCropDialogOpen] = useState(false);
+    const [registrationSuccessDialogOpen, setRegistrationSuccessDialogOpen] =
+        useState(Boolean(registrationSuccess));
+    const [confettiSize, setConfettiSize] = useState({ width: 0, height: 0 });
     const [cropMimeType, setCropMimeType] = useState<
         'image/png' | 'image/jpeg'
     >('image/jpeg');
@@ -422,8 +645,13 @@ export default function Welcome({
     });
     const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
     const cropImageRef = useRef<HTMLImageElement | null>(null);
+    const registrationVirtualIdRef = useRef<HTMLDivElement | null>(null);
     const activeScrollTargetRef = useRef<string | null>(null);
     const activeScrollTimeoutRef = useRef<number | null>(null);
+    const previousEmailErrorRef = useRef<string | null>(null);
+    const organizationLabels = organizations.map((organization) =>
+        normalizeLookupLabel(organization.label),
+    );
     const selectedEventOption =
         events.find((event) => event.value === selectedEvent) ?? null;
     const selectedEventLabel = selectedEventOption?.label ?? '';
@@ -512,6 +740,43 @@ export default function Welcome({
                 window.clearTimeout(activeScrollTimeoutRef.current);
             }
         };
+    }, []);
+
+    useEffect(() => {
+        if (registrationSuccess) {
+            setRegistrationSuccessDialogOpen(true);
+        }
+    }, [registrationSuccess]);
+
+    useEffect(() => {
+        const emailError = pageErrors.email ?? null;
+
+        if (
+            emailError &&
+            emailError !== previousEmailErrorRef.current &&
+            /registered|taken|already/i.test(emailError)
+        ) {
+            toast.error('Account is already registered', {
+                duration: 7000,
+                closeButton: true,
+            });
+        }
+
+        previousEmailErrorRef.current = emailError;
+    }, [pageErrors.email]);
+
+    useEffect(() => {
+        function updateConfettiSize() {
+            setConfettiSize({
+                width: window.innerWidth,
+                height: window.innerHeight,
+            });
+        }
+
+        updateConfettiSize();
+        window.addEventListener('resize', updateConfettiSize);
+
+        return () => window.removeEventListener('resize', updateConfettiSize);
     }, []);
 
     useLayoutEffect(() => {
@@ -618,6 +883,47 @@ export default function Welcome({
         setProfilePhotoDataUrl(croppedDataUrl);
         setProfilePhotoPreview(croppedDataUrl);
         setCropDialogOpen(false);
+    }
+
+    async function handleDownloadRegistrationVirtualId() {
+        if (!registrationVirtualIdRef.current || !registrationSuccess) {
+            return;
+        }
+
+        try {
+            const dataUrl = await toPng(registrationVirtualIdRef.current, {
+                cacheBust: true,
+                pixelRatio: 3,
+                backgroundColor: '#f8fbff',
+            });
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `${registrationSuccess.participant_id ?? 'cers-virtual-id'}.png`;
+            link.click();
+        } catch {
+            toast.error('Unable to download virtual ID', {
+                duration: 5000,
+                closeButton: true,
+            });
+        }
+    }
+
+    function handleOtherOrganizationBlur(
+        event: React.FocusEvent<HTMLInputElement>,
+    ) {
+        if (
+            organizationLabels.includes(
+                normalizeLookupLabel(event.currentTarget.value),
+            )
+        ) {
+            toast.error(
+                'This school or organization already exists. Please search for it in the dropdown.',
+                {
+                    duration: 7000,
+                    closeButton: true,
+                },
+            );
+        }
     }
 
     return (
@@ -728,11 +1034,6 @@ export default function Welcome({
                             <div className="motion-safe:animate-in motion-safe:duration-500 motion-safe:fade-in motion-safe:slide-in-from-bottom-3">
                                 <div className="mb-6 inline-flex items-center gap-4">
                                     <img
-                                        src="/achieve.png"
-                                        alt="ACHIEVE logo"
-                                        className="-m-2 size-20 object-contain"
-                                    />
-                                    <img
                                         src="/ched_logo.png"
                                         alt="CHED logo"
                                         className="size-16 object-contain"
@@ -741,6 +1042,11 @@ export default function Welcome({
                                         src="/unifast.webp"
                                         alt="UniFAST logo"
                                         className="size-16 object-contain"
+                                    />
+                                    <img
+                                        src="/achieve.png"
+                                        alt="ACHIEVE logo"
+                                        className="-m-2 size-20 object-contain"
                                     />
                                 </div>
 
@@ -784,6 +1090,10 @@ export default function Welcome({
                                     'password',
                                     'password_confirmation',
                                 ]}
+                                options={{ preserveScroll: true }}
+                                onError={(errors) =>
+                                    scrollToFirstRegistrationError(errors)
+                                }
                                 disableWhileProcessing
                                 className="rounded-2xl border border-[#d9e5f5] bg-white p-6 shadow-md shadow-slate-200/70 sm:p-8 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30"
                             >
@@ -947,13 +1257,20 @@ export default function Welcome({
                                                                 type="button"
                                                                 variant="outline"
                                                                 role="combobox"
+                                                                data-registration-field="province"
                                                                 aria-labelledby="province_label"
                                                                 aria-expanded={
                                                                     provincePopoverOpen
                                                                 }
-                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
+                                                                className={
+                                                                    comboboxButtonClass
+                                                                }
                                                             >
-                                                                <span className="truncate">
+                                                                <span
+                                                                    className={
+                                                                        comboboxValueClass
+                                                                    }
+                                                                >
                                                                     {selectedProvinceLabel ||
                                                                         'Search and select province'}
                                                                 </span>
@@ -981,6 +1298,9 @@ export default function Welcome({
                                                                                     key={
                                                                                         province.value
                                                                                     }
+                                                                                    className={
+                                                                                        commandItemClass
+                                                                                    }
                                                                                     value={
                                                                                         province.label
                                                                                     }
@@ -998,16 +1318,22 @@ export default function Welcome({
                                                                                 >
                                                                                     <Check
                                                                                         className={cn(
-                                                                                            'mr-2 size-4',
+                                                                                            'mt-0.5 mr-2 size-4',
                                                                                             selectedProvince ===
                                                                                                 province.value
                                                                                                 ? 'opacity-100'
                                                                                                 : 'opacity-0',
                                                                                         )}
                                                                                     />
-                                                                                    {
-                                                                                        province.label
-                                                                                    }
+                                                                                    <span
+                                                                                        className={
+                                                                                            commandItemTextClass
+                                                                                        }
+                                                                                    >
+                                                                                        {
+                                                                                            province.label
+                                                                                        }
+                                                                                    </span>
                                                                                 </CommandItem>
                                                                             ),
                                                                         )}
@@ -1052,6 +1378,7 @@ export default function Welcome({
                                                                 type="button"
                                                                 variant="outline"
                                                                 role="combobox"
+                                                                data-registration-field="municipality"
                                                                 aria-labelledby="municipality_label"
                                                                 aria-expanded={
                                                                     municipalityPopoverOpen
@@ -1059,9 +1386,16 @@ export default function Welcome({
                                                                 disabled={
                                                                     !selectedProvince
                                                                 }
-                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
+                                                                className={cn(
+                                                                    comboboxButtonClass,
+                                                                    'disabled:cursor-not-allowed disabled:opacity-70',
+                                                                )}
                                                             >
-                                                                <span className="truncate">
+                                                                <span
+                                                                    className={
+                                                                        comboboxValueClass
+                                                                    }
+                                                                >
                                                                     {selectedMunicipalityLabel ||
                                                                         (selectedProvince
                                                                             ? 'Search and select municipality or city'
@@ -1092,6 +1426,9 @@ export default function Welcome({
                                                                                     key={
                                                                                         municipality.value
                                                                                     }
+                                                                                    className={
+                                                                                        commandItemClass
+                                                                                    }
                                                                                     value={
                                                                                         municipality.label
                                                                                     }
@@ -1106,16 +1443,22 @@ export default function Welcome({
                                                                                 >
                                                                                     <Check
                                                                                         className={cn(
-                                                                                            'mr-2 size-4',
+                                                                                            'mt-0.5 mr-2 size-4',
                                                                                             selectedMunicipality ===
                                                                                                 municipality.value
                                                                                                 ? 'opacity-100'
                                                                                                 : 'opacity-0',
                                                                                         )}
                                                                                     />
-                                                                                    {
-                                                                                        municipality.label
-                                                                                    }
+                                                                                    <span
+                                                                                        className={
+                                                                                            commandItemTextClass
+                                                                                        }
+                                                                                    >
+                                                                                        {
+                                                                                            municipality.label
+                                                                                        }
+                                                                                    </span>
                                                                                 </CommandItem>
                                                                             ),
                                                                         )}
@@ -1165,14 +1508,23 @@ export default function Welcome({
                                                                 type="button"
                                                                 variant="outline"
                                                                 role="combobox"
+                                                                data-registration-field="organization"
                                                                 aria-labelledby="organization_label"
                                                                 aria-expanded={
                                                                     organizationPopoverOpen
                                                                 }
-                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
+                                                                className={
+                                                                    comboboxButtonClass
+                                                                }
                                                             >
-                                                                {selectedOrganizationLabel ||
-                                                                    'Search and select school or organization'}
+                                                                <span
+                                                                    className={
+                                                                        comboboxValueClass
+                                                                    }
+                                                                >
+                                                                    {selectedOrganizationLabel ||
+                                                                        'Search and select school or organization'}
+                                                                </span>
                                                                 <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                                                             </Button>
                                                         </PopoverTrigger>
@@ -1191,6 +1543,37 @@ export default function Welcome({
                                                                         found.
                                                                     </CommandEmpty>
                                                                     <CommandGroup>
+                                                                        <CommandItem
+                                                                            value="Others"
+                                                                            className={
+                                                                                commandItemClass
+                                                                            }
+                                                                            onSelect={() => {
+                                                                                setSelectedOrganization(
+                                                                                    otherOrganizationValue,
+                                                                                );
+                                                                                setOrganizationPopoverOpen(
+                                                                                    false,
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Check
+                                                                                className={cn(
+                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                    selectedOrganization ===
+                                                                                        otherOrganizationValue
+                                                                                        ? 'opacity-100'
+                                                                                        : 'opacity-0',
+                                                                                )}
+                                                                            />
+                                                                            <span
+                                                                                className={
+                                                                                    commandItemTextClass
+                                                                                }
+                                                                            >
+                                                                                Others
+                                                                            </span>
+                                                                        </CommandItem>
                                                                         {organizations.map(
                                                                             (
                                                                                 organization,
@@ -1198,6 +1581,9 @@ export default function Welcome({
                                                                                 <CommandItem
                                                                                     key={
                                                                                         organization.value
+                                                                                    }
+                                                                                    className={
+                                                                                        commandItemClass
                                                                                     }
                                                                                     value={
                                                                                         organization.label
@@ -1213,41 +1599,25 @@ export default function Welcome({
                                                                                 >
                                                                                     <Check
                                                                                         className={cn(
-                                                                                            'mr-2 size-4',
+                                                                                            'mt-0.5 mr-2 size-4',
                                                                                             selectedOrganization ===
                                                                                                 organization.value
                                                                                                 ? 'opacity-100'
                                                                                                 : 'opacity-0',
                                                                                         )}
                                                                                     />
-                                                                                    {
-                                                                                        organization.label
-                                                                                    }
+                                                                                    <span
+                                                                                        className={
+                                                                                            commandItemTextClass
+                                                                                        }
+                                                                                    >
+                                                                                        {
+                                                                                            organization.label
+                                                                                        }
+                                                                                    </span>
                                                                                 </CommandItem>
                                                                             ),
                                                                         )}
-                                                                        <CommandItem
-                                                                            value="Others"
-                                                                            onSelect={() => {
-                                                                                setSelectedOrganization(
-                                                                                    otherOrganizationValue,
-                                                                                );
-                                                                                setOrganizationPopoverOpen(
-                                                                                    false,
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <Check
-                                                                                className={cn(
-                                                                                    'mr-2 size-4',
-                                                                                    selectedOrganization ===
-                                                                                        otherOrganizationValue
-                                                                                        ? 'opacity-100'
-                                                                                        : 'opacity-0',
-                                                                                )}
-                                                                            />
-                                                                            Others
-                                                                        </CommandItem>
                                                                     </CommandGroup>
                                                                 </CommandList>
                                                             </Command>
@@ -1261,6 +1631,9 @@ export default function Welcome({
                                                             autoComplete="organization"
                                                             name="organization"
                                                             placeholder="Enter school or organization"
+                                                            onBlur={
+                                                                handleOtherOrganizationBlur
+                                                            }
                                                             className={
                                                                 fieldClass
                                                             }
@@ -1315,6 +1688,7 @@ export default function Welcome({
                                                             <input
                                                                 id="profile_photo_upload"
                                                                 type="file"
+                                                                data-registration-field="avatar"
                                                                 accept="image/png,image/jpeg"
                                                                 className="sr-only"
                                                                 onChange={
@@ -1376,14 +1750,23 @@ export default function Welcome({
                                                                 type="button"
                                                                 variant="outline"
                                                                 role="combobox"
+                                                                data-registration-field="participant_type"
                                                                 aria-labelledby="participant_type_label"
                                                                 aria-expanded={
                                                                     participantTypePopoverOpen
                                                                 }
-                                                                className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
+                                                                className={
+                                                                    comboboxButtonClass
+                                                                }
                                                             >
-                                                                {selectedParticipantTypeLabel ||
-                                                                    'Search and select type'}
+                                                                <span
+                                                                    className={
+                                                                        comboboxValueClass
+                                                                    }
+                                                                >
+                                                                    {selectedParticipantTypeLabel ||
+                                                                        'Search and select type'}
+                                                                </span>
                                                                 <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                                                             </Button>
                                                         </PopoverTrigger>
@@ -1407,6 +1790,9 @@ export default function Welcome({
                                                                                     key={
                                                                                         type.value
                                                                                     }
+                                                                                    className={
+                                                                                        commandItemClass
+                                                                                    }
                                                                                     value={
                                                                                         type.label
                                                                                     }
@@ -1421,16 +1807,22 @@ export default function Welcome({
                                                                                 >
                                                                                     <Check
                                                                                         className={cn(
-                                                                                            'mr-2 size-4',
+                                                                                            'mt-0.5 mr-2 size-4',
                                                                                             selectedParticipantType ===
                                                                                                 type.value
                                                                                                 ? 'opacity-100'
                                                                                                 : 'opacity-0',
                                                                                         )}
                                                                                     />
-                                                                                    {
-                                                                                        type.label
-                                                                                    }
+                                                                                    <span
+                                                                                        className={
+                                                                                            commandItemTextClass
+                                                                                        }
+                                                                                    >
+                                                                                        {
+                                                                                            type.label
+                                                                                        }
+                                                                                    </span>
                                                                                 </CommandItem>
                                                                             ),
                                                                         )}
@@ -1452,6 +1844,7 @@ export default function Welcome({
                                                     </p>
                                                     <RadioGroup
                                                         name="sex"
+                                                        data-registration-field="sex"
                                                         required
                                                         className="grid grid-cols-2 gap-3"
                                                     >
@@ -1512,14 +1905,21 @@ export default function Welcome({
                                                             type="button"
                                                             variant="outline"
                                                             role="combobox"
+                                                            data-registration-field="event_name"
                                                             aria-labelledby="event_name_label"
                                                             aria-expanded={
                                                                 eventPopoverOpen
                                                             }
-                                                            className="h-11 w-full justify-between rounded-xl border-[#d9e5f5] bg-[#f8fbff] px-4 font-normal text-slate-700 hover:bg-[#f8fbff] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-950"
+                                                            className={
+                                                                comboboxButtonClass
+                                                            }
                                                         >
-                                                            <span className="flex min-w-0 items-center gap-2">
-                                                                <span className="truncate">
+                                                            <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-left">
+                                                                <span
+                                                                    className={
+                                                                        comboboxValueClass
+                                                                    }
+                                                                >
                                                                     {selectedEventLabel ||
                                                                         'Search and select event'}
                                                                 </span>
@@ -1554,6 +1954,9 @@ export default function Welcome({
                                                                                 key={
                                                                                     event.value
                                                                                 }
+                                                                                className={
+                                                                                    commandItemClass
+                                                                                }
                                                                                 value={
                                                                                     event.label
                                                                                 }
@@ -1568,14 +1971,18 @@ export default function Welcome({
                                                                             >
                                                                                 <Check
                                                                                     className={cn(
-                                                                                        'mr-2 size-4',
+                                                                                        'mt-0.5 mr-2 size-4',
                                                                                         selectedEvent ===
                                                                                             event.value
                                                                                             ? 'opacity-100'
                                                                                             : 'opacity-0',
                                                                                     )}
                                                                                 />
-                                                                                <span className="min-w-0 flex-1 truncate">
+                                                                                <span
+                                                                                    className={
+                                                                                        commandItemTextClass
+                                                                                    }
+                                                                                >
                                                                                     {
                                                                                         event.label
                                                                                     }
@@ -1690,7 +2097,101 @@ export default function Welcome({
                             </Form>
                         </div>
                     </section>
+
+                    <section className="relative overflow-hidden bg-[#0038A8] py-16 text-white sm:py-20">
+                        <div
+                            aria-hidden="true"
+                            className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(252,209,22,0.26),transparent_30%),radial-gradient(circle_at_84%_18%,rgba(255,255,255,0.16),transparent_28%),linear-gradient(135deg,#0038A8_0%,#0649bd_52%,#001f60_100%)]"
+                        />
+                        <div
+                            aria-hidden="true"
+                            className="absolute inset-x-0 top-0 h-px bg-white/25"
+                        />
+
+                        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1fr_auto] lg:px-8">
+                            <div className="max-w-3xl">
+                                <h2 className="text-3xl leading-tight font-bold sm:text-4xl lg:text-5xl">
+                                    Secure your spot
+                                </h2>
+                                <p className="mt-4 max-w-2xl text-base leading-8 text-blue-50 sm:text-lg">
+                                    Complete your participant profile, generate
+                                    your virtual ID.
+                                </p>
+                            </div>
+
+                            <div className="w-full sm:max-w-md lg:max-w-lg">
+                                <a
+                                    href="#registration"
+                                    onClick={scrollToRegistration}
+                                    className="inline-flex h-14 w-full items-center justify-center rounded-xl bg-[#CE1126] px-8 text-base font-bold text-white shadow-xl shadow-black/20 transition hover:bg-[#b90f22] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                                >
+                                    Register Now
+                                </a>
+                            </div>
+                        </div>
+                    </section>
                 </main>
+
+                <Dialog
+                    open={Boolean(
+                        registrationSuccess && registrationSuccessDialogOpen,
+                    )}
+                    onOpenChange={setRegistrationSuccessDialogOpen}
+                >
+                    <DialogContent
+                        className="overflow-hidden sm:max-w-xl"
+                        onInteractOutside={(event) => event.preventDefault()}
+                    >
+                        <div
+                            aria-hidden="true"
+                            className="absolute inset-x-0 top-0 h-2 bg-[linear-gradient(90deg,#0038A8,#FCD116,#CE1126)]"
+                        />
+                        <DialogHeader className="pt-2 text-center sm:text-center">
+                            <DialogTitle className="text-2xl font-bold text-slate-950 dark:text-white">
+                                Successful registration
+                            </DialogTitle>
+                            <DialogDescription className="text-base">
+                                Your virtual ID has been generated by the
+                                system.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        {registrationSuccess ? (
+                            <RegistrationSuccessVirtualId
+                                registration={registrationSuccess}
+                                cardRef={registrationVirtualIdRef}
+                            />
+                        ) : null}
+
+                        <DialogFooter className="grid gap-2 sm:grid-cols-2 sm:justify-stretch">
+                            <Button
+                                type="button"
+                                className="w-full rounded-xl bg-[#0038A8] font-semibold text-white shadow-sm shadow-[#0038A8]/20 hover:bg-[#002f8f]"
+                                onClick={handleDownloadRegistrationVirtualId}
+                            >
+                                <Download className="size-4" />
+                                Download your virtual ID
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full rounded-xl"
+                                onClick={() =>
+                                    setRegistrationSuccessDialogOpen(false)
+                                }
+                            >
+                                Done
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {registrationSuccess && registrationSuccessDialogOpen ? (
+                    <RegistrationConfetti
+                        width={confettiSize.width}
+                        height={confettiSize.height}
+                    />
+                ) : null}
 
                 <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
                     <DialogContent className="sm:max-w-xl">
