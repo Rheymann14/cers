@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use App\Models\Event;
 
 class EventRegistrationController extends Controller
 {
@@ -18,6 +19,9 @@ class EventRegistrationController extends Controller
         BrevoEmailService $brevoEmailService,
     ): RedirectResponse {
         $user = $creator->create($request->all());
+        $eventName = Event::query()
+    ->where('slug', $user->event_name)
+    ->value('name') ?? $user->event_name;
 
         event(new Registered($user));
 
@@ -31,7 +35,7 @@ class EventRegistrationController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'organization' => $user->organization,
-                'event_name' => $user->event_name,
+                'event_name' => $eventName,
                 'qr_token' => $user->qr_token,
             ]);
         } catch (\Throwable $e) {
