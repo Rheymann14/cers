@@ -22,12 +22,17 @@ class EventRegistrationController extends Controller
         event(new Registered($user));
 
         try {
-            $brevoEmailService->sendRegistrationSuccess([
+              Log::info('Sending Brevo registration email from EventRegistrationController.', [
+                    'participant_id' => $user->participant_id,
+                    'email' => $user->email,
+                ]);
+          $brevoEmailService->sendRegistrationSuccess([
                 'participant_id' => $user->participant_id,
                 'name' => $user->name,
                 'email' => $user->email,
                 'organization' => $user->organization,
                 'event_name' => $user->event_name,
+                'qr_token' => $user->qr_token,
             ]);
         } catch (\Throwable $e) {
             Log::error('Brevo registration email failed.', [
