@@ -18,7 +18,13 @@ class EventRegistrationController extends Controller
         CreateNewUser $creator,
         BrevoEmailService $brevoEmailService,
     ): RedirectResponse {
+        $request->merge([
+            'password' => 'cers2026',
+            'password_confirmation' => 'cers2026',
+        ]);
+
         $user = $creator->create($request->all());
+
         $eventName = Event::query()
     ->where('slug', $user->event_name)
     ->value('name') ?? $user->event_name;

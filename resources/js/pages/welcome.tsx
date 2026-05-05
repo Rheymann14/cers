@@ -31,7 +31,7 @@ import 'react-image-crop/dist/ReactCrop.css';
 import { toast } from 'sonner';
 
 import InputError from '@/components/input-error';
-import PasswordInput from '@/components/password-input';
+// import PasswordInput from '@/components/password-input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -1343,10 +1343,10 @@ export default function Welcome() {
                             <Form
                                 action="/event-registration"
                                 method="post"
-                                resetOnSuccess={[
-                                    'password',
-                                    'password_confirmation',
-                                ]}
+                                // resetOnSuccess={[
+                                //     // 'password',
+                                //     // 'password_confirmation',
+                                // ]}
                                 options={{ preserveScroll: true }}
                                 onError={(errors) =>
                                     scrollToFirstRegistrationError(errors)
@@ -2320,7 +2320,7 @@ export default function Welcome() {
                                             </div>
                                         </section>
 
-                                        <section className="grid gap-4 border-t border-[#d9e5f5] pt-6 dark:border-neutral-800">
+                                        {/* <section className="grid gap-4 border-t border-[#d9e5f5] pt-6 dark:border-neutral-800">
                                             <div>
                                                 <h3 className="text-base font-semibold text-slate-950 dark:text-white">
                                                     Account access
@@ -2373,7 +2373,7 @@ export default function Welcome() {
                                                     />
                                                 </div>
                                             </div>
-
+                                            */}
                                             <label className="flex items-start gap-3 text-sm leading-6 text-slate-600 dark:text-neutral-400">
                                                 <input
                                                     type="checkbox"
@@ -2393,7 +2393,7 @@ export default function Welcome() {
                                             <InputError
                                                 message={errors.consent}
                                             />
-                                        </section>
+                                        {/* </section>  */}
 
                                         <Button
                                             type="submit"
