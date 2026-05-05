@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     CalendarDays,
     LayoutDashboard,
+    QrCode,
     Settings,
     UserRound,
     Users,
@@ -19,7 +20,12 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard, pageSettings, participants } from '@/routes';
+import {
+    attendanceQrScanner,
+    dashboard,
+    pageSettings,
+    participants,
+} from '@/routes';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -37,6 +43,11 @@ const mainNavItems: NavItem[] = [
         title: 'Events',
         href: '/events-management',
         icon: CalendarDays,
+    },
+    {
+        title: 'QR Scanner',
+        href: attendanceQrScanner(),
+        icon: QrCode,
     },
 ];
 

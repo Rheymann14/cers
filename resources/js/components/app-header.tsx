@@ -3,6 +3,7 @@ import {
     CalendarDays,
     LayoutDashboard,
     Menu,
+    QrCode,
     Settings,
     UserRound,
     Users,
@@ -39,7 +40,12 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
-import { dashboard, pageSettings, participants } from '@/routes';
+import {
+    attendanceQrScanner,
+    dashboard,
+    pageSettings,
+    participants,
+} from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {
@@ -61,6 +67,11 @@ const mainNavItems: NavItem[] = [
         title: 'Events',
         href: '/events-management',
         icon: CalendarDays,
+    },
+    {
+        title: 'QR Scanner',
+        href: attendanceQrScanner(),
+        icon: QrCode,
     },
 ];
 

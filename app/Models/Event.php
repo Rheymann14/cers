@@ -54,6 +54,11 @@ class Event extends Model
         return $this->hasMany(User::class);
     }
 
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(EventAttendance::class);
+    }
+
     public function materials(): HasMany
     {
         return $this->hasMany(EventMaterial::class);

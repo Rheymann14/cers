@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AttendanceQrScannerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventRegistrationController;
 use App\Http\Controllers\EventsManagementController;
@@ -35,6 +36,10 @@ Route::middleware(['auth', 'active', 'verified', 'participant'])->group(function
 Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('events-management', EventsManagementController::class)->name('events-management');
+    Route::get('attendance-qr-scanner', AttendanceQrScannerController::class)
+        ->name('attendance-qr-scanner');
+    Route::post('attendance-qr-scanner/check-in', [AttendanceQrScannerController::class, 'checkIn'])
+        ->name('attendance-qr-scanner.check-in');
     Route::post('events-management', [EventsManagementController::class, 'store'])
         ->name('events-management.store');
     Route::patch('events-management/{event}', [EventsManagementController::class, 'update'])
