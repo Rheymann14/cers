@@ -904,7 +904,7 @@ export default function EventsManagement({ events }: Props) {
                 }}
             >
                 <DialogContent
-                    className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-2xl"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-2xl"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -1253,7 +1253,7 @@ export default function EventsManagement({ events }: Props) {
                             Active
                         </label>
 
-                        <DialogFooter>
+                        <DialogFooter className="gap-2 sm:gap-2">
                             <Button
                                 type="button"
                                 variant="outline"
@@ -1285,7 +1285,7 @@ export default function EventsManagement({ events }: Props) {
                 }}
             >
                 <DialogContent
-                    className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-3xl"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-3xl"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -1347,18 +1347,18 @@ export default function EventsManagement({ events }: Props) {
                                 <iframe
                                     src={venueMapSrc}
                                     title="Venue map preview"
-                                    className="h-72 w-full"
+                                    className="h-[min(18rem,45dvh)] w-full"
                                     loading="lazy"
                                 />
                             ) : (
-                                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                                <div className="flex h-[min(18rem,45dvh)] items-center justify-center px-3 text-center text-sm text-muted-foreground">
                                     Enter a venue name or address to preview the
                                     map.
                                 </div>
                             )}
                         </div>
 
-                        <DialogFooter>
+                        <DialogFooter className="gap-2 sm:gap-2">
                             <Button
                                 type="button"
                                 variant="outline"
@@ -1390,7 +1390,7 @@ export default function EventsManagement({ events }: Props) {
                 }}
             >
                 <DialogContent
-                    className="gap-3 p-4 sm:max-w-sm"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-sm"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -1412,7 +1412,7 @@ export default function EventsManagement({ events }: Props) {
                             can be selected in new registrations.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter>
+                    <DialogFooter className="gap-2 sm:gap-2">
                         <Button
                             type="button"
                             variant="outline"
@@ -1442,7 +1442,7 @@ export default function EventsManagement({ events }: Props) {
                 }}
             >
                 <DialogContent
-                    className="gap-3 p-4 sm:max-w-sm"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-sm"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -1459,7 +1459,7 @@ export default function EventsManagement({ events }: Props) {
                             event will no longer be available.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter>
+                    <DialogFooter className="gap-2 sm:gap-2">
                         <Button
                             type="button"
                             variant="outline"
@@ -1491,7 +1491,7 @@ export default function EventsManagement({ events }: Props) {
                 }}
             >
                 <DialogContent
-                    className="max-h-[86vh] w-[92vw] max-w-4xl overflow-hidden border-0 bg-black p-0 shadow-2xl sm:max-w-4xl [&>button]:top-3 [&>button]:right-3 [&>button]:bg-white/15 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-white/25 [&>button]:focus:ring-white/60"
+                    className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-4xl overflow-hidden border-0 bg-black p-0 shadow-2xl sm:w-[92vw] sm:max-w-4xl [&>button]:top-3 [&>button]:right-3 [&>button]:bg-white/15 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-white/25 [&>button]:focus:ring-white/60"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="sr-only">
@@ -1501,11 +1501,11 @@ export default function EventsManagement({ events }: Props) {
                         </DialogDescription>
                     </DialogHeader>
                     {viewingImageUrl && (
-                        <div className="flex max-h-[86vh] min-h-80 w-full items-center justify-center p-4 sm:p-6">
+                        <div className="flex max-h-[92dvh] min-h-64 w-full items-center justify-center p-3 sm:min-h-80 sm:p-6">
                             <img
                                 src={viewingImageUrl}
                                 alt=""
-                                className="max-h-[78vh] max-w-full object-contain"
+                                className="max-h-[86dvh] max-w-full object-contain"
                             />
                         </div>
                     )}
@@ -1521,7 +1521,7 @@ export default function EventsManagement({ events }: Props) {
                 }}
             >
                 <DialogContent
-                    className="flex h-[92vh] max-h-[92vh] w-[94vw] max-w-6xl flex-col gap-3 p-4"
+                    className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-3 p-4 sm:h-[92dvh] sm:max-h-[92dvh] sm:w-[94vw]"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="shrink-0 gap-1">

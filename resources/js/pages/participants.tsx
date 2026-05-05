@@ -285,9 +285,11 @@ function getOptionLabel(options: Option[], value: string | null): string {
 }
 
 function getLocationLabel(participant: Participant): string {
-    return [participant.province?.name, participant.municipality?.name]
-        .filter(Boolean)
-        .join(' / ') || '-';
+    return (
+        [participant.province?.name, participant.municipality?.name]
+            .filter(Boolean)
+            .join(' / ') || '-'
+    );
 }
 
 function getInitials(name: string) {
@@ -606,7 +608,7 @@ function ParticipantIdButton({
         <button
             type="button"
             onClick={() => onOpen(participant)}
-            className="inline-block max-w-full rounded-sm break-all align-bottom font-medium text-[#0038A8] underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:text-blue-300"
+            className="inline-block max-w-full rounded-sm align-bottom font-medium break-all text-[#0038A8] underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:text-blue-300"
         >
             {participant.participant_id ?? '-'}
         </button>
@@ -908,7 +910,10 @@ export default function Participants({
 
                 setAddMunicipalityOptions(data);
             } catch (error) {
-                if (error instanceof DOMException && error.name === 'AbortError') {
+                if (
+                    error instanceof DOMException &&
+                    error.name === 'AbortError'
+                ) {
                     return;
                 }
 
@@ -961,7 +966,10 @@ export default function Participants({
 
                 setEditMunicipalityOptions(municipalities);
             } catch (error) {
-                if (error instanceof DOMException && error.name === 'AbortError') {
+                if (
+                    error instanceof DOMException &&
+                    error.name === 'AbortError'
+                ) {
                     return;
                 }
 
@@ -1880,7 +1888,7 @@ export default function Participants({
                 }}
             >
                 <DialogContent
-                    className="max-h-[calc(100vh-1rem)] gap-3 p-4 sm:max-w-2xl"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-2xl"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -2061,10 +2069,7 @@ export default function Participants({
                                             onValueChange={(value) => {
                                                 setAddMunicipalityOptions([]);
                                                 setAddData('province', value);
-                                                setAddData(
-                                                    'municipality',
-                                                    '',
-                                                );
+                                                setAddData('municipality', '');
                                             }}
                                         />
 
@@ -2239,7 +2244,7 @@ export default function Participants({
                             )}
                         </div>
 
-                        <DialogFooter className="grid grid-cols-2 gap-2 sm:flex">
+                        <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
                             <Button
                                 type="button"
                                 variant="outline"
@@ -2300,7 +2305,7 @@ export default function Participants({
                 onOpenChange={setAddCropDialogOpen}
             >
                 <DialogContent
-                    className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-xl"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-xl"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -2314,7 +2319,7 @@ export default function Participants({
                     </DialogHeader>
 
                     {addCropImageSrc && (
-                        <div className="max-h-[60vh] overflow-auto rounded-md border bg-muted/20 p-2">
+                        <div className="max-h-[55dvh] overflow-auto rounded-md border bg-muted/20 p-2">
                             <ReactCrop
                                 crop={addCrop}
                                 onChange={(_, percentCrop) =>
@@ -2331,7 +2336,7 @@ export default function Participants({
                                     ref={addCropImageRef}
                                     src={addCropImageSrc}
                                     alt="Crop profile"
-                                    className="max-h-[52vh] w-full object-contain"
+                                    className="max-h-[48dvh] w-full object-contain"
                                     onLoad={(event) => {
                                         const image = event.currentTarget;
 
@@ -2347,7 +2352,7 @@ export default function Participants({
                         </div>
                     )}
 
-                    <DialogFooter>
+                    <DialogFooter className="gap-2 sm:gap-2">
                         <Button
                             type="button"
                             variant="outline"
@@ -2377,7 +2382,7 @@ export default function Participants({
                 }}
             >
                 <DialogContent
-                    className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-xl"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-xl"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -2585,7 +2590,7 @@ export default function Participants({
                             }
                         />
 
-                        <DialogFooter>
+                        <DialogFooter className="gap-2 sm:gap-2">
                             <Button
                                 type="button"
                                 variant="outline"
@@ -2617,7 +2622,7 @@ export default function Participants({
                 }}
             >
                 <DialogContent
-                    className="gap-3 p-4 sm:max-w-sm"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-sm"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -2635,7 +2640,7 @@ export default function Participants({
                         </DialogDescription>
                     </DialogHeader>
 
-                    <DialogFooter>
+                    <DialogFooter className="gap-2 sm:gap-2">
                         <Button
                             type="button"
                             variant="outline"
@@ -2668,7 +2673,7 @@ export default function Participants({
                 }}
             >
                 <DialogContent
-                    className="gap-3 p-4 sm:max-w-sm"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-sm"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -2689,7 +2694,7 @@ export default function Participants({
                         </DialogDescription>
                     </DialogHeader>
 
-                    <DialogFooter>
+                    <DialogFooter className="gap-2 sm:gap-2">
                         <Button
                             type="button"
                             variant="outline"
@@ -2718,7 +2723,7 @@ export default function Participants({
                 onOpenChange={setDeletedDialogOpen}
             >
                 <DialogContent
-                    className="grid max-h-[min(calc(100vh-1rem),34rem)] gap-3 overflow-hidden p-4 sm:max-w-xl"
+                    className="grid max-h-[min(calc(100dvh-1rem),34rem)] gap-3 overflow-hidden p-4 sm:max-w-xl"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">
@@ -2731,7 +2736,7 @@ export default function Participants({
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="max-h-[24rem] space-y-2 overflow-y-auto pr-1">
+                    <div className="max-h-[min(24rem,calc(100dvh-8rem))] space-y-2 overflow-y-auto pr-1">
                         {deletedParticipants.length > 0 ? (
                             deletedParticipants.map((participant) => (
                                 <div
@@ -2799,7 +2804,7 @@ export default function Participants({
                 }}
             >
                 <DialogContent
-                    className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-lg"
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-lg"
                     onPointerDownOutside={preventDialogOutsideClose}
                 >
                     <DialogHeader className="gap-1">

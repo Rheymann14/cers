@@ -14,7 +14,6 @@ import jsQR from 'jsqr';
 import { QRCodeSVG } from 'qrcode.react';
 import type { FormEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -303,6 +302,11 @@ export default function AttendanceQrScanner({ events }: Props) {
         'idle' | 'starting' | 'scanning' | 'error'
     >('idle');
     const [scanError, setScanError] = useState('');
+    const [scanErrorTitle, setScanErrorTitle] = useState(
+        'Scan Validation Failed',
+    );
+    const [scanErrorDialogOpen, setScanErrorDialogOpen] = useState(false);
+    const [scanPaused, setScanPaused] = useState(false);
     const [manualParticipantId, setManualParticipantId] = useState('');
     const [checkingIn, setCheckingIn] = useState(false);
     const [checkInResult, setCheckInResult] = useState<CheckInResult | null>(
@@ -310,6 +314,7 @@ export default function AttendanceQrScanner({ events }: Props) {
     );
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
     const lastDetectedRef = useRef('');
     const checkingInRef = useRef(false);
 
@@ -321,7 +326,7 @@ export default function AttendanceQrScanner({ events }: Props) {
         ? getEventStatus(selectedEvent)
         : null;
     const scannerEnabled = Boolean(
-        selectedEvent && selectedEventStatus !== 'closed',
+        selectedEvent && selectedEventStatus !== 'closed' && !scanPaused,
     );
 
     const csrfToken = useMemo(
@@ -332,17 +337,99 @@ export default function AttendanceQrScanner({ events }: Props) {
         [],
     );
 
+    const playScanSound = useCallback((type: 'success' | 'error') => {
+        const AudioContextConstructor = window.AudioContext;
+
+        if (!AudioContextConstructor) {
+            return;
+        }
+
+        const context =
+            audioContextRef.current ?? new AudioContextConstructor();
+        audioContextRef.current = context;
+
+        void context
+            .resume()
+            .then(() => {
+                const now = context.currentTime;
+                const tones =
+                    type === 'success'
+                        ? [
+                              { frequency: 660, start: 0, duration: 0.08 },
+                              { frequency: 880, start: 0.09, duration: 0.12 },
+                          ]
+                        : [
+                              { frequency: 220, start: 0, duration: 0.12 },
+                              { frequency: 165, start: 0.13, duration: 0.16 },
+                          ];
+
+                tones.forEach(({ duration, frequency, start }) => {
+                    const oscillator = context.createOscillator();
+                    const gain = context.createGain();
+                    const startAt = now + start;
+                    const stopAt = startAt + duration;
+
+                    oscillator.type = type === 'success' ? 'sine' : 'square';
+                    oscillator.frequency.setValueAtTime(frequency, startAt);
+                    gain.gain.setValueAtTime(0.0001, startAt);
+                    gain.gain.exponentialRampToValueAtTime(
+                        0.12,
+                        startAt + 0.01,
+                    );
+                    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+
+                    oscillator.connect(gain);
+                    gain.connect(context.destination);
+                    oscillator.start(startAt);
+                    oscillator.stop(stopAt + 0.01);
+                });
+            })
+            .catch(() => {
+                // Browsers may block audio until a user gesture has occurred.
+            });
+    }, []);
+
+    const pauseScannerWithError = useCallback(
+        (message: string, title = 'Scan Validation Failed') => {
+            lastDetectedRef.current = '';
+            setScanError(message);
+            setScanErrorTitle(title);
+            setScanPaused(true);
+            setScanErrorDialogOpen(true);
+            playScanSound('error');
+        },
+        [playScanSound],
+    );
+
+    const restartScanner = useCallback(() => {
+        lastDetectedRef.current = '';
+        setScanError('');
+        setScanErrorTitle('Scan Validation Failed');
+        setScanErrorDialogOpen(false);
+        setScanPaused(false);
+    }, []);
+
+    const closeSuccessDialog = useCallback(() => {
+        setCheckInResult(null);
+        setManualParticipantId('');
+        restartScanner();
+    }, [restartScanner]);
+
     const submitCheckIn = useCallback(
         async (mode: 'qr' | 'manual', value: string) => {
             if (!selectedEventId) {
-                setScanError('Select an event before checking attendance.');
+                pauseScannerWithError(
+                    'Select an event before checking attendance.',
+                    'Scanner Not Ready',
+                );
 
                 return false;
             }
 
             if (selectedEventStatus === 'closed') {
-                setScanError(
+                pauseScannerWithError(
                     'Selected event is closed and cannot accept attendance check-ins.',
+                    'Event Closed',
                 );
 
                 return false;
@@ -378,20 +465,19 @@ export default function AttendanceQrScanner({ events }: Props) {
                 if (!response.ok) {
                     const message = extractJsonMessage(payload);
 
-                    setScanError(message);
-                    toast.error(message);
+                    pauseScannerWithError(message);
 
                     return false;
                 }
 
                 const result = payload as CheckInResult;
 
+                lastDetectedRef.current = '';
+                setScanPaused(true);
+                setScanError('');
+                setScanErrorDialogOpen(false);
                 setCheckInResult(result);
-                if (result.already_checked_in) {
-                    toast.info('Already checked in.');
-                } else {
-                    toast.success(result.message);
-                }
+                playScanSound('success');
 
                 return true;
             } finally {
@@ -399,7 +485,13 @@ export default function AttendanceQrScanner({ events }: Props) {
                 setCheckingIn(false);
             }
         },
-        [csrfToken, selectedEventId, selectedEventStatus],
+        [
+            csrfToken,
+            pauseScannerWithError,
+            playScanSound,
+            selectedEventId,
+            selectedEventStatus,
+        ],
     );
 
     useEffect(() => {
@@ -412,8 +504,9 @@ export default function AttendanceQrScanner({ events }: Props) {
 
         if (selectedEventStatus === 'closed') {
             setCameraState('error');
-            setScanError(
+            pauseScannerWithError(
                 'Selected event is closed and cannot accept attendance check-ins.',
+                'Event Closed',
             );
 
             return;
@@ -497,14 +590,13 @@ export default function AttendanceQrScanner({ events }: Props) {
                             const message =
                                 'Only CERS virtual ID QR codes can be scanned.';
 
-                            setScanError(message);
-                            toast.error(message);
+                            pauseScannerWithError(message);
                         } else {
                             await submitCheckIn('qr', rawValue);
                         }
                     }
                 } catch {
-                    setScanError(
+                    pauseScannerWithError(
                         'The camera image could not be scanned. Keep the QR code inside the frame or use Participant ID entry.',
                     );
                 }
@@ -538,7 +630,10 @@ export default function AttendanceQrScanner({ events }: Props) {
                 frame = window.requestAnimationFrame(scan);
             } catch (error) {
                 setCameraState('error');
-                setScanError(getCameraErrorMessage(error));
+                pauseScannerWithError(
+                    getCameraErrorMessage(error),
+                    'Camera Access Failed',
+                );
             }
         }
 
@@ -553,7 +648,13 @@ export default function AttendanceQrScanner({ events }: Props) {
                 videoRef.current.srcObject = null;
             }
         };
-    }, [scannerEnabled, selectedEventId, selectedEventStatus, submitCheckIn]);
+    }, [
+        pauseScannerWithError,
+        scannerEnabled,
+        selectedEventId,
+        selectedEventStatus,
+        submitCheckIn,
+    ]);
 
     function submitManualCheckIn(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -561,7 +662,10 @@ export default function AttendanceQrScanner({ events }: Props) {
         const value = manualParticipantId.trim();
 
         if (!value) {
-            setScanError('Enter a Participant ID.');
+            pauseScannerWithError(
+                'Enter a Participant ID.',
+                'Participant ID Required',
+            );
 
             return;
         }
@@ -652,7 +756,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                             setCheckInResult(
                                                                 null,
                                                             );
-                                                            setScanError('');
+                                                            restartScanner();
                                                         }}
                                                         className="items-start gap-3"
                                                     >
@@ -719,11 +823,13 @@ export default function AttendanceQrScanner({ events }: Props) {
                             <Badge variant="outline">
                                 {selectedEventStatus === 'closed'
                                     ? 'Event closed'
-                                    : cameraState === 'scanning'
-                                      ? 'Auto scanning'
-                                      : cameraState === 'starting'
-                                        ? 'Starting'
-                                        : 'Scanner ready'}
+                                    : scanPaused
+                                      ? 'Scan paused'
+                                      : cameraState === 'scanning'
+                                        ? 'Auto scanning'
+                                        : cameraState === 'starting'
+                                          ? 'Starting'
+                                          : 'Scanner ready'}
                             </Badge>
                         </div>
 
@@ -752,7 +858,9 @@ export default function AttendanceQrScanner({ events }: Props) {
                                     )}
                                     {cameraState === 'starting' &&
                                         'Starting camera'}
+                                    {scanPaused && 'Scan paused'}
                                     {cameraState === 'scanning' &&
+                                        !scanPaused &&
                                         'Scanning QR code'}
                                     {cameraState === 'error' &&
                                         (selectedEventStatus === 'closed'
@@ -765,16 +873,10 @@ export default function AttendanceQrScanner({ events }: Props) {
                             </div>
                         </div>
 
-                        {scanError && (
+                        {scanError && !scanErrorDialogOpen && (
                             <Alert variant="destructive">
                                 <AlertCircle className="size-4" />
-                                <AlertTitle>
-                                    {selectedEventStatus === 'closed'
-                                        ? 'Event closed'
-                                        : cameraState === 'error'
-                                          ? 'Camera access failed'
-                                          : 'Scan validation failed'}
-                                </AlertTitle>
+                                <AlertTitle>{scanErrorTitle}</AlertTitle>
                                 <AlertDescription>{scanError}</AlertDescription>
                             </Alert>
                         )}
@@ -852,9 +954,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                                     size="sm"
                                     className="mt-3"
                                     onClick={() => {
-                                        setCheckInResult(null);
-                                        setManualParticipantId('');
-                                        setScanError('');
+                                        closeSuccessDialog();
                                     }}
                                 >
                                     <RotateCcw className="size-3.5" />
@@ -870,7 +970,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                 open={checkInResult !== null}
                 onOpenChange={(open) => {
                     if (!open) {
-                        setCheckInResult(null);
+                        closeSuccessDialog();
                     }
                 }}
             >
@@ -946,6 +1046,31 @@ export default function AttendanceQrScanner({ events }: Props) {
                             </div>
                         </>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={scanErrorDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        restartScanner();
+                    }
+                }}
+            >
+                <DialogContent className="gap-3 p-4 sm:max-w-md">
+                    <DialogHeader className="gap-1">
+                        <DialogTitle className="inline-flex items-center gap-2 text-base">
+                            <AlertCircle className="size-4 text-destructive" />
+                            {scanErrorTitle}
+                        </DialogTitle>
+                        <DialogDescription className="text-xs leading-5">
+                            {scanError}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <Button type="button" onClick={restartScanner}>
+                        Restart scan
+                    </Button>
                 </DialogContent>
             </Dialog>
         </>
