@@ -710,7 +710,9 @@ export default function Dashboard({
 
                     <div className="mt-3 space-y-2 text-xs">
                       <div>
-                        <p className="font-medium text-muted-foreground">Organization</p>
+                        <p className="font-medium text-muted-foreground">
+                          Organization
+                        </p>
                         <p className="mt-0.5 break-words text-foreground">
                           {participant.organization ?? "-"}
                         </p>
@@ -742,47 +744,48 @@ export default function Dashboard({
             </div>
 
             {/* Desktop table layout */}
-            <div className="hidden overflow-hidden md:block">
-              <Table className="w-full table-fixed">
+            <div className="hidden overflow-x-auto md:block">
+              <Table className="min-w-[900px] table-fixed">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[22%]">Participant</TableHead>
-                    <TableHead className="w-[32%]">Organization</TableHead>
+                    <TableHead className="w-[24%]">Participant</TableHead>
+                    <TableHead className="w-[30%]">Organization</TableHead>
                     <TableHead className="w-[12%]">Type</TableHead>
                     <TableHead className="w-[18%]">Event</TableHead>
                     <TableHead className="w-[16%]">Date</TableHead>
                   </TableRow>
                 </TableHeader>
+
                 <TableBody>
                   {recentParticipants.length > 0 ? (
                     recentParticipants.map((participant) => (
                       <TableRow key={participant.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-foreground">
+                        <TableCell className="align-top">
+                          <div className="min-w-0 overflow-hidden">
+                            <p className="break-words font-medium leading-5 text-foreground">
                               {participant.name}
                             </p>
-                            <p className="break-all text-xs text-muted-foreground">
+                            <p className="mt-0.5 break-all text-xs leading-4 text-muted-foreground">
                               {participant.email}
                             </p>
                           </div>
                         </TableCell>
 
-                        <TableCell className="whitespace-normal break-words leading-5">
+                        <TableCell className="whitespace-normal break-words align-top leading-5">
                           {participant.organization ?? "-"}
                         </TableCell>
 
-                        <TableCell>
+                        <TableCell className="align-top">
                           <Badge variant="outline">
                             {formatLabel(participant.participant_type)}
                           </Badge>
                         </TableCell>
 
-                        <TableCell className="whitespace-normal break-words leading-5">
+                        <TableCell className="whitespace-normal break-words align-top leading-5">
                           {formatLabel(participant.event_name)}
                         </TableCell>
 
-                        <TableCell className="whitespace-normal text-sm">
+                        <TableCell className="whitespace-normal break-words align-top text-sm leading-5">
                           {formatDate(participant.created_at)}
                         </TableCell>
                       </TableRow>
