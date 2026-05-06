@@ -745,14 +745,14 @@ export default function Dashboard({
 
             {/* Desktop table layout */}
             <div className="hidden overflow-x-auto md:block">
-              <Table className="min-w-[900px] table-fixed">
+              <Table className="min-w-[1050px] table-fixed">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[24%]">Participant</TableHead>
-                    <TableHead className="w-[30%]">Organization</TableHead>
+                    <TableHead className="w-[28%]">Participant</TableHead>
+                    <TableHead className="w-[29%]">Organization</TableHead>
                     <TableHead className="w-[12%]">Type</TableHead>
-                    <TableHead className="w-[18%]">Event</TableHead>
-                    <TableHead className="w-[16%]">Date</TableHead>
+                    <TableHead className="w-[16%]">Event</TableHead>
+                    <TableHead className="w-[15%]">Date</TableHead>
                   </TableRow>
                 </TableHeader>
 
@@ -761,8 +761,8 @@ export default function Dashboard({
                     recentParticipants.map((participant) => (
                       <TableRow key={participant.id}>
                         <TableCell className="align-top">
-                          <div className="min-w-0 overflow-hidden">
-                            <p className="break-words font-medium leading-5 text-foreground">
+                          <div className="min-w-0">
+                            <p className="whitespace-normal break-words font-medium leading-5 text-foreground">
                               {participant.name}
                             </p>
                             <p className="mt-0.5 break-all text-xs leading-4 text-muted-foreground">
@@ -776,7 +776,10 @@ export default function Dashboard({
                         </TableCell>
 
                         <TableCell className="align-top">
-                          <Badge variant="outline">
+                          <Badge
+                            variant="outline"
+                            className="whitespace-normal break-words text-center"
+                          >
                             {formatLabel(participant.participant_type)}
                           </Badge>
                         </TableCell>
