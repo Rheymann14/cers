@@ -62,8 +62,6 @@ class ParticipantsController extends Controller
                 ]),
              'participantTypes' => ParticipantType::query()
                 ->where('is_active', true)
-                ->whereNotIn('slug', ['admin', 'administrator'])
-                ->whereNotIn('name', ['Admin', 'Administrator'])
                 ->orderByRaw("CASE WHEN type = '4ps' THEN 1 ELSE 2 END")
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label', 'type']),
