@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Organization;
-use App\Models\ParticipantType;
+use App\Models\Event;
+use App\Models\EventAttendance;
 use App\Models\User;
+use Carbon\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -12,12 +13,129 @@ class DashboardController extends Controller
 {
     public function __invoke(): Response
     {
+        $events = Event::query()
+            ->withCount('users')
+            ->orderBy('starts_at')
+            ->orderBy('name')
+            ->get([
+                'id',
+                'name',
+                'slug',
+                'starts_at',
+            ]);
+
+        $eventsById = $events->keyBy('id');
+
+        $checkedInByEvent = EventAttendance::query()
+            ->selectRaw('event_id, count(distinct user_id) as checked_in_count')
+            ->groupBy('event_id')
+            ->pluck('checked_in_count', 'event_id');
+
+        $eventAttendanceSummary = $events->map(function (Event $event) use ($checkedInByEvent) {
+            $participantsCount = (int) $event->users_count;
+            $checkedInCount = (int) ($checkedInByEvent[$event->id] ?? 0);
+            $notCheckedInCount = max(0, $participantsCount - $checkedInCount);
+
+            return [
+                'id' => $event->id,
+                'name' => $event->name,
+                'slug' => $event->slug,
+                'starts_at' => $event->starts_at ? Carbon::parse($event->starts_at)->toIso8601String() : null,
+                'participants_count' => $participantsCount,
+                'checked_in_count' => $checkedInCount,
+                'not_checked_in_count' => $notCheckedInCount,
+                'attendance_rate' => $participantsCount > 0
+                    ? round(($checkedInCount / $participantsCount) * 100, 2)
+                    : 0,
+            ];
+        })->values();
+
+        $registeredEventParticipants = $eventAttendanceSummary->sum('participants_count');
+        $checkedInParticipants = $eventAttendanceSummary->sum('checked_in_count');
+        $notCheckedInParticipants = max(0, $registeredEventParticipants - $checkedInParticipants);
+
+        $registrationTrend = collect(range(13, 0))
+            ->map(function (int $daysAgo) {
+                $date = Carbon::today()->subDays($daysAgo);
+
+                return [
+                    'date' => $date->toDateString(),
+                    'label' => $date->format('M j'),
+                    'count' => User::query()
+                        ->whereDate('created_at', $date->toDateString())
+                        ->count(),
+                ];
+            });
+
+        $checkedInParticipantsList = EventAttendance::query()
+            ->with([
+                'event:id,name,slug',
+                'participant:id,participant_id,name,email,organization,participant_type,event_id,event_name,created_at',
+            ])
+            ->latest('checked_in_at')
+            ->get()
+            ->filter(fn (EventAttendance $attendance) => $attendance->participant && $attendance->event)
+            ->map(function (EventAttendance $attendance) {
+                $participant = $attendance->participant;
+                $event = $attendance->event;
+
+                return [
+                    'id' => $attendance->id,
+                    'participant_id' => $participant->participant_id,
+                    'name' => $participant->name,
+                    'email' => $participant->email,
+                    'organization' => $participant->organization,
+                    'participant_type' => $participant->participant_type,
+                    'event_name' => $event->name,
+                    'event_slug' => $event->slug,
+                    'registered_at' => $participant->created_at?->toIso8601String(),
+                    'checked_in_at' => $attendance->checked_in_at?->toIso8601String(),
+                ];
+            })
+            ->values();
+
+        $checkedInUserIds = EventAttendance::query()
+            ->select('user_id')
+            ->distinct();
+
+        $notCheckedInParticipantsList = User::query()
+            ->whereNotNull('event_id')
+            ->whereNotIn('id', $checkedInUserIds)
+            ->latest()
+            ->get([
+                'id',
+                'participant_id',
+                'name',
+                'email',
+                'organization',
+                'participant_type',
+                'event_id',
+                'event_name',
+                'created_at',
+            ])
+            ->map(function (User $participant) use ($eventsById) {
+                $event = $eventsById->get($participant->event_id);
+
+                return [
+                    'id' => $participant->id,
+                    'participant_id' => $participant->participant_id,
+                    'name' => $participant->name,
+                    'email' => $participant->email,
+                    'organization' => $participant->organization,
+                    'participant_type' => $participant->participant_type,
+                    'event_name' => $event?->name ?? $participant->event_name,
+                    'event_slug' => $event?->slug ?? $participant->event_name,
+                    'registered_at' => $participant->created_at?->toIso8601String(),
+                    'checked_in_at' => null,
+                ];
+            })
+            ->values();
+
         return Inertia::render('dashboard', [
             'stats' => [
                 'participants' => User::query()->count(),
-                'deletedParticipants' => User::query()->onlyTrashed()->count(),
-                'organizations' => Organization::query()->where('is_active', true)->count(),
-                'participantTypes' => ParticipantType::query()->where('is_active', true)->count(),
+                'checkedInParticipants' => $checkedInParticipants,
+                'notCheckedInParticipants' => $notCheckedInParticipants,
             ],
             'recentParticipants' => User::query()
                 ->latest()
@@ -38,6 +156,20 @@ class DashboardController extends Controller
                 ->groupBy('event_name')
                 ->orderByDesc('participants_count')
                 ->get(),
+            'registrationTrend' => $registrationTrend,
+            'attendanceStatus' => [
+                [
+                    'label' => 'Checked In',
+                    'count' => $checkedInParticipants,
+                ],
+                [
+                    'label' => 'Not Checked In',
+                    'count' => $notCheckedInParticipants,
+                ],
+            ],
+            'eventAttendanceSummary' => $eventAttendanceSummary,
+            'checkedInParticipants' => $checkedInParticipantsList,
+            'notCheckedInParticipants' => $notCheckedInParticipantsList,
         ]);
     }
 }
