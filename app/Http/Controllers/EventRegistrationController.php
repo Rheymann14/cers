@@ -52,12 +52,12 @@ class EventRegistrationController extends Controller
             ]);
         }
 
-        Inertia::flash('toast', [
+         $request->session()->flash('toast', [
             'type' => 'success',
             'message' => 'Registration submitted successfully.',
         ]);
 
-        $request->session()->flash('registration_success', [
+         $request->session()->flash('registration_success', [
             'participant_id' => $user->participant_id,
             'name' => $user->name,
             'email' => $user->email,
