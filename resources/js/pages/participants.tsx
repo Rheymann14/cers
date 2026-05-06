@@ -165,7 +165,7 @@ const columns: {
     { key: 'email', label: 'Contact', className: 'w-48' },
     { key: 'location', label: 'Location', className: 'w-40' },
     { key: 'organization', label: 'Org' },
-    { key: 'participant_type', label: 'Type', className: 'w-24' },
+    { key: 'participant_type', label: 'Type', className: 'w-36' },
     { key: 'sex', label: 'Sex', className: 'w-20' },
     { key: 'event_name', label: 'Event', className: 'w-36' },
     { key: 'created_at', label: 'Date', className: 'w-28' },

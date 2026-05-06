@@ -783,7 +783,7 @@ export default function Dashboard({
         }}
       >
         <DialogContent
-          className="grid h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] !max-w-none grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-3 sm:h-[92vh] sm:max-h-[92vh] sm:w-[96vw] sm:!max-w-[96vw] sm:p-4 xl:w-[92vw] xl:!max-w-[1500px] 2xl:!max-w-[1680px]"
+          className="grid h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-3 sm:h-[88vh] sm:max-h-[88vh] sm:w-[92vw] sm:!max-w-3xl sm:p-4 lg:!max-w-4xl xl:!max-w-5xl"
           onPointerDownOutside={preventDialogOutsideClose}
           onInteractOutside={preventDialogInteractOutside}
         >
