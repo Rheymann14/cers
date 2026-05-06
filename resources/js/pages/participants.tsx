@@ -131,6 +131,7 @@ type SortDirection = 'asc' | 'desc';
 type Option = {
     value: string;
     label: string;
+    type?: string | null;
 };
 
 type LocationOption = {
@@ -161,15 +162,15 @@ const columns: {
     label: string;
     className?: string;
 }[] = [
-    { key: 'name', label: 'Participant', className: 'w-52' },
-    { key: 'email', label: 'Contact', className: 'w-48' },
-    { key: 'location', label: 'Location', className: 'w-40' },
-    { key: 'organization', label: 'Org' },
-    { key: 'participant_type', label: 'Type', className: 'w-36' },
-    { key: 'sex', label: 'Sex', className: 'w-20' },
-    { key: 'event_name', label: 'Event', className: 'w-36' },
-    { key: 'created_at', label: 'Date', className: 'w-28' },
-];
+        { key: 'name', label: 'Participant', className: 'w-52' },
+        { key: 'email', label: 'Contact', className: 'w-48' },
+        { key: 'location', label: 'Location', className: 'w-40' },
+        { key: 'organization', label: 'Org' },
+        { key: 'participant_type', label: 'Type', className: 'w-36' },
+        { key: 'sex', label: 'Sex', className: 'w-20' },
+        { key: 'event_name', label: 'Event', className: 'w-36' },
+        { key: 'created_at', label: 'Date', className: 'w-28' },
+    ];
 
 const pageSizeOptions = [5, 10, 25];
 
@@ -396,6 +397,12 @@ function SearchableOptionField({
     emptyMessage,
     error,
     disabled = false,
+    grouped = false,
+    organizationOptions = [],
+    schoolOptions = [],
+    participantTypeGrouped = false,
+    fourPsOptions = [],
+    generalOptions = [],
     onValueChange,
 }: {
     id: string;
@@ -407,6 +414,12 @@ function SearchableOptionField({
     emptyMessage: string;
     error?: string;
     disabled?: boolean;
+    grouped?: boolean;
+    organizationOptions?: Option[];
+    schoolOptions?: Option[];
+    participantTypeGrouped?: boolean;
+    fourPsOptions?: Option[];
+    generalOptions?: Option[];
     onValueChange: (value: string) => void;
 }) {
     const [open, setOpen] = useState(false);
@@ -429,7 +442,7 @@ function SearchableOptionField({
                             'w-full justify-between font-normal',
                             !selectedOption && 'text-muted-foreground',
                             disabled &&
-                                'cursor-not-allowed opacity-70 hover:bg-background',
+                            'cursor-not-allowed opacity-70 hover:bg-background',
                         )}
                     >
                         <span className="truncate">
@@ -440,34 +453,148 @@ function SearchableOptionField({
                 </PopoverTrigger>
                 <PopoverContent
                     align="start"
-                    className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                    className="z-[100] w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
                 >
                     <Command>
                         <CommandInput placeholder={searchPlaceholder} />
-                        <CommandList>
+                        <CommandList className="h-[260px] max-h-[260px] overflow-y-auto overscroll-contain">
                             <CommandEmpty>{emptyMessage}</CommandEmpty>
-                            <CommandGroup>
-                                {options.map((option) => (
-                                    <CommandItem
-                                        key={option.value}
-                                        value={option.label}
-                                        onSelect={() => {
-                                            onValueChange(option.value);
-                                            setOpen(false);
-                                        }}
-                                    >
-                                        <Check
-                                            className={cn(
-                                                'mr-2 size-4',
-                                                value === option.value
-                                                    ? 'opacity-100'
-                                                    : 'opacity-0',
-                                            )}
-                                        />
-                                        {option.label}
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
+                            {grouped ? (
+                                <>
+                                    {organizationOptions.length > 0 && (
+                                        <CommandGroup heading="Organization">
+                                            {organizationOptions.map((option) => (
+                                                <CommandItem
+                                                    key={option.value}
+                                                    value={option.label}
+                                                    onSelect={() => {
+                                                        onValueChange(option.value);
+                                                        setOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            'mr-2 size-4',
+                                                            value === option.value
+                                                                ? 'opacity-100'
+                                                                : 'opacity-0',
+                                                        )}
+                                                    />
+                                                    <span className="min-w-0 flex-1 whitespace-normal break-words">
+                                                        {option.label}
+                                                    </span>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    )}
+
+                                    {schoolOptions.length > 0 && (
+                                        <CommandGroup heading="School">
+                                            {schoolOptions.map((option) => (
+                                                <CommandItem
+                                                    key={option.value}
+                                                    value={option.label}
+                                                    onSelect={() => {
+                                                        onValueChange(option.value);
+                                                        setOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            'mr-2 size-4',
+                                                            value === option.value
+                                                                ? 'opacity-100'
+                                                                : 'opacity-0',
+                                                        )}
+                                                    />
+                                                    <span className="min-w-0 flex-1 whitespace-normal break-words">
+                                                        {option.label}
+                                                    </span>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    )}
+                                </>
+                            ) : participantTypeGrouped ? (
+                                <>
+                                    {fourPsOptions.length > 0 && (
+                                        <CommandGroup heading="4Ps">
+                                            {fourPsOptions.map((option) => (
+                                                <CommandItem
+                                                    key={option.value}
+                                                    value={option.label}
+                                                    onSelect={() => {
+                                                        onValueChange(option.value);
+                                                        setOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            'mr-2 size-4',
+                                                            value === option.value
+                                                                ? 'opacity-100'
+                                                                : 'opacity-0',
+                                                        )}
+                                                    />
+                                                    <span className="min-w-0 flex-1 whitespace-normal break-words">
+                                                        {option.label}
+                                                    </span>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    )}
+
+                                    {generalOptions.length > 0 && (
+                                        <CommandGroup heading="General">
+                                            {generalOptions.map((option) => (
+                                                <CommandItem
+                                                    key={option.value}
+                                                    value={option.label}
+                                                    onSelect={() => {
+                                                        onValueChange(option.value);
+                                                        setOpen(false);
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            'mr-2 size-4',
+                                                            value === option.value
+                                                                ? 'opacity-100'
+                                                                : 'opacity-0',
+                                                        )}
+                                                    />
+                                                    <span className="min-w-0 flex-1 whitespace-normal break-words">
+                                                        {option.label}
+                                                    </span>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    )}
+                                </>
+                            ) : (
+                                <CommandGroup>
+                                    {options.map((option) => (
+                                        <CommandItem
+                                            key={option.value}
+                                            value={option.label}
+                                            onSelect={() => {
+                                                onValueChange(option.value);
+                                                setOpen(false);
+                                            }}
+                                        >
+                                            <Check
+                                                className={cn(
+                                                    'mr-2 size-4',
+                                                    value === option.value
+                                                        ? 'opacity-100'
+                                                        : 'opacity-0',
+                                                )}
+                                            />
+                                            {option.label}
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                            )}
                         </CommandList>
                     </Command>
                 </PopoverContent>
@@ -878,6 +1005,40 @@ export default function Participants({
         restoring ||
         updatingStatus;
 
+    const organizationOptions = useMemo(
+        () =>
+            organizations.filter(
+                (organization) =>
+                    organization.type?.trim().toLowerCase() === 'agency',
+            ),
+        [organizations],
+    );
+
+    const schoolOptions = useMemo(
+        () =>
+            organizations.filter(
+                (organization) =>
+                    organization.type?.trim().toLowerCase() === 'institution',
+            ),
+        [organizations],
+    );
+
+    const fourPsParticipantTypes = useMemo(
+        () =>
+            participantTypes.filter(
+                (type) => type.type?.trim().toLowerCase() === '4ps',
+            ),
+        [participantTypes],
+    );
+
+    const generalParticipantTypes = useMemo(
+        () =>
+            participantTypes.filter(
+                (type) => type.type?.trim().toLowerCase() !== '4ps',
+            ),
+        [participantTypes],
+    );
+
     useEffect(() => {
         if (!addData.province) {
             return;
@@ -995,23 +1156,23 @@ export default function Participants({
 
         const filtered = normalizedSearch
             ? participants.filter((participant) =>
-                  [
-                      participant.name,
-                      participant.participant_id,
-                      participant.email,
-                      participant.phone,
-                      getLocationLabel(participant),
-                      participant.organization,
-                      participant.participant_type,
-                      participant.sex,
-                      participant.event_name,
-                      participant.is_active ? 'active' : 'inactive',
-                  ]
-                      .filter(Boolean)
-                      .join(' ')
-                      .toLowerCase()
-                      .includes(normalizedSearch),
-              )
+                [
+                    participant.name,
+                    participant.participant_id,
+                    participant.email,
+                    participant.phone,
+                    getLocationLabel(participant),
+                    participant.organization,
+                    participant.participant_type,
+                    participant.sex,
+                    participant.event_name,
+                    participant.is_active ? 'active' : 'inactive',
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase()
+                    .includes(normalizedSearch),
+            )
             : participants;
 
         return [...filtered].sort((a, b) => {
@@ -1231,11 +1392,11 @@ export default function Participants({
         setEditMunicipalityOptions(
             participant.municipality
                 ? [
-                      {
-                          value: participant.municipality.code,
-                          label: participant.municipality.name,
-                      },
-                  ]
+                    {
+                        value: participant.municipality.code,
+                        label: participant.municipality.name,
+                    },
+                ]
                 : [],
         );
     }
@@ -2105,13 +2266,14 @@ export default function Participants({
                                         label="School or organization"
                                         value={addData.organization}
                                         options={organizations}
+                                        grouped
+                                        organizationOptions={organizationOptions}
+                                        schoolOptions={schoolOptions}
                                         placeholder="Search and select school or organization"
                                         searchPlaceholder="Search school or organization..."
                                         emptyMessage="No school or organization found."
                                         error={addErrors.organization}
-                                        onValueChange={(value) =>
-                                            setAddData('organization', value)
-                                        }
+                                        onValueChange={(value) => setAddData('organization', value)}
                                     />
                                 </div>
                             )}
@@ -2176,15 +2338,15 @@ export default function Participants({
                                             label="Participant type"
                                             value={addData.participant_type}
                                             options={participantTypes}
+                                            participantTypeGrouped
+                                            fourPsOptions={fourPsParticipantTypes}
+                                            generalOptions={generalParticipantTypes}
                                             placeholder="Search and select type"
                                             searchPlaceholder="Search participant type..."
                                             emptyMessage="No type found."
                                             error={addErrors.participant_type}
                                             onValueChange={(value) =>
-                                                setAddData(
-                                                    'participant_type',
-                                                    value,
-                                                )
+                                                setAddData('participant_type', value)
                                             }
                                         />
 
@@ -2524,13 +2686,14 @@ export default function Participants({
                                 label="School or organization"
                                 value={data.organization}
                                 options={organizations}
+                                grouped
+                                organizationOptions={organizationOptions}
+                                schoolOptions={schoolOptions}
                                 placeholder="Search and select school or organization"
                                 searchPlaceholder="Search school or organization..."
                                 emptyMessage="No school or organization found."
                                 error={errors.organization}
-                                onValueChange={(value) =>
-                                    setData('organization', value)
-                                }
+                                onValueChange={(value) => setData('organization', value)}
                             />
 
                             <SearchableOptionField
@@ -2538,6 +2701,9 @@ export default function Participants({
                                 label="Participant type"
                                 value={data.participant_type}
                                 options={participantTypes}
+                                participantTypeGrouped
+                                fourPsOptions={fourPsParticipantTypes}
+                                generalOptions={generalParticipantTypes}
                                 placeholder="Search and select type"
                                 searchPlaceholder="Search participant type..."
                                 emptyMessage="No type found."
@@ -2764,8 +2930,8 @@ export default function Participants({
                                                 Deleted{' '}
                                                 {participant.deleted_at
                                                     ? formatDate(
-                                                          participant.deleted_at,
-                                                      )
+                                                        participant.deleted_at,
+                                                    )
                                                     : '-'}
                                             </p>
                                         </div>

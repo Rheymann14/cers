@@ -1,4 +1,4 @@
-import { Head } from "@inertiajs/react";
+import { Head, router } from "@inertiajs/react";
 import type { ComponentProps } from "react";
 import { useMemo, useState } from "react";
 import {
@@ -145,6 +145,8 @@ function formatDate(value: string): string {
     month: "short",
     day: "numeric",
     year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(new Date(value));
 }
 
@@ -535,6 +537,10 @@ export default function Dashboard({
               key={card.key}
               type="button"
               onClick={() => {
+                if (card.key === "participants") {
+                  router.visit("/participants");
+                }
+
                 if (card.key === "checkedInParticipants") {
                   openAttendanceDialog("checked-in");
                 }
@@ -625,9 +631,9 @@ export default function Dashboard({
                           <p className="font-medium text-foreground">
                             {event.name}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          {/* <p className="text-xs text-muted-foreground">
                             {event.slug}
-                          </p>
+                          </p> */}
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-medium">
@@ -678,15 +684,73 @@ export default function Dashboard({
                 Latest participants added to CERS.
               </p>
             </div>
-            <div className="overflow-x-auto">
-              <Table className="min-w-[720px]">
+
+            {/* Mobile card layout */}
+            <div className="space-y-3 p-3 md:hidden">
+              {recentParticipants.length > 0 ? (
+                recentParticipants.map((participant) => (
+                  <article
+                    key={participant.id}
+                    className="rounded-lg border bg-background p-3 text-sm shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-foreground">
+                          {participant.name}
+                        </p>
+                        <p className="mt-0.5 break-all text-xs text-muted-foreground">
+                          {participant.email}
+                        </p>
+                      </div>
+
+                      <Badge variant="outline" className="shrink-0">
+                        {formatLabel(participant.participant_type)}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div>
+                        <p className="font-medium text-muted-foreground">Organization</p>
+                        <p className="mt-0.5 break-words text-foreground">
+                          {participant.organization ?? "-"}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="font-medium text-muted-foreground">Event</p>
+                          <p className="mt-0.5 break-words text-foreground">
+                            {formatLabel(participant.event_name)}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-medium text-muted-foreground">Date</p>
+                          <p className="mt-0.5 text-foreground">
+                            {formatDate(participant.created_at)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  No registrations found.
+                </div>
+              )}
+            </div>
+
+            {/* Desktop table layout */}
+            <div className="hidden overflow-hidden md:block">
+              <Table className="w-full table-fixed">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Participant</TableHead>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Event</TableHead>
-                    <TableHead className="w-28">Date</TableHead>
+                    <TableHead className="w-[22%]">Participant</TableHead>
+                    <TableHead className="w-[32%]">Organization</TableHead>
+                    <TableHead className="w-[12%]">Type</TableHead>
+                    <TableHead className="w-[18%]">Event</TableHead>
+                    <TableHead className="w-[16%]">Date</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -698,21 +762,27 @@ export default function Dashboard({
                             <p className="font-medium text-foreground">
                               {participant.name}
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="break-all text-xs text-muted-foreground">
                               {participant.email}
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell>{participant.organization ?? "-"}</TableCell>
+
+                        <TableCell className="whitespace-normal break-words leading-5">
+                          {participant.organization ?? "-"}
+                        </TableCell>
+
                         <TableCell>
                           <Badge variant="outline">
                             {formatLabel(participant.participant_type)}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+
+                        <TableCell className="whitespace-normal break-words leading-5">
                           {formatLabel(participant.event_name)}
                         </TableCell>
-                        <TableCell>
+
+                        <TableCell className="whitespace-normal text-sm">
                           {formatDate(participant.created_at)}
                         </TableCell>
                       </TableRow>
@@ -720,7 +790,7 @@ export default function Dashboard({
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={2}
+                        colSpan={5}
                         className="h-24 text-center text-sm text-muted-foreground"
                       >
                         No registrations found.
@@ -911,9 +981,9 @@ export default function Dashboard({
               <span className="text-center sm:text-right">
                 {selectedAttendanceParticipants.length > 0
                   ? `${attendanceStartIndex + 1}-${Math.min(
-                      attendanceEndIndex,
-                      selectedAttendanceParticipants.length,
-                    ).toLocaleString()} of ${selectedAttendanceParticipants.length.toLocaleString()}`
+                    attendanceEndIndex,
+                    selectedAttendanceParticipants.length,
+                  ).toLocaleString()} of ${selectedAttendanceParticipants.length.toLocaleString()}`
                   : "0 of 0"}
               </span>
               <div className="flex items-center justify-center gap-2">

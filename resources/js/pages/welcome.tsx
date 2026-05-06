@@ -71,6 +71,7 @@ const defaultActiveSection = 'home';
 type LookupOption = {
     value: string;
     label: string;
+    type?: 'organization' | 'school' | string | null;
 };
 
 type EventOption = LookupOption & {
@@ -556,11 +557,11 @@ function EventStatusBadge({ event }: { event: EventOption }) {
             className={cn(
                 'shrink-0 border-transparent text-[11px] capitalize',
                 status === 'ongoing' &&
-                    'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+                'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
                 status === 'closed' &&
-                    'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+                'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
                 status === 'upcoming' &&
-                    'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+                'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
             )}
             variant="secondary"
         >
@@ -676,12 +677,45 @@ export default function Welcome() {
             ),
         [organizations],
     );
+    const organizationOptions = useMemo(
+        () =>
+            organizations.filter(
+                (organization) =>
+                    normalizeLookupLabel(organization.type ?? '') ===
+                    'agency',
+            ),
+        [organizations],
+    );
+
+    const schoolOptions = useMemo(
+        () =>
+            organizations.filter(
+                (organization) =>
+                    normalizeLookupLabel(organization.type ?? '') === 'institution',
+            ),
+        [organizations],
+    );
     const participantTypeLabels = useMemo(
         () =>
             participantTypes.flatMap((type) => [
                 normalizeLookupLabel(type.label),
                 normalizeLookupLabel(type.value),
             ]),
+        [participantTypes],
+    );
+    const fourPsParticipantTypes = useMemo(
+        () =>
+            participantTypes.filter(
+                (type) => normalizeLookupLabel(type.type ?? '') === '4ps',
+            ),
+        [participantTypes],
+    );
+
+    const generalParticipantTypes = useMemo(
+        () =>
+            participantTypes.filter(
+                (type) => normalizeLookupLabel(type.type ?? '') !== '4ps',
+            ),
         [participantTypes],
     );
     const selectedEventOption = useMemo(
@@ -694,9 +728,9 @@ export default function Welcome() {
             selectedOrganization === otherOrganizationValue
                 ? 'Others'
                 : (organizations.find(
-                      (organization) =>
-                          organization.value === selectedOrganization,
-                  )?.label ?? ''),
+                    (organization) =>
+                        organization.value === selectedOrganization,
+                )?.label ?? ''),
         [organizations, selectedOrganization],
     );
     const selectedProvinceOption = useMemo(
@@ -718,8 +752,8 @@ export default function Welcome() {
             selectedParticipantType === otherParticipantTypeValue
                 ? 'Others'
                 : (participantTypes.find(
-                      (type) => type.value === selectedParticipantType,
-                  )?.label ?? ''),
+                    (type) => type.value === selectedParticipantType,
+                )?.label ?? ''),
         [participantTypes, selectedParticipantType],
     );
 
@@ -1751,15 +1785,15 @@ export default function Welcome() {
                                                     </p>
                                                     {selectedOrganization !==
                                                         otherOrganizationValue && (
-                                                        <input
-                                                            type="hidden"
-                                                            name="organization"
-                                                            value={
-                                                                selectedOrganization
-                                                            }
-                                                            readOnly
-                                                        />
-                                                    )}
+                                                            <input
+                                                                type="hidden"
+                                                                name="organization"
+                                                                value={
+                                                                    selectedOrganization
+                                                                }
+                                                                readOnly
+                                                            />
+                                                        )}
                                                     <Popover
                                                         open={
                                                             organizationPopoverOpen
@@ -1837,49 +1871,60 @@ export default function Welcome() {
                                                                                 Others
                                                                             </span>
                                                                         </CommandItem>
-                                                                        {organizations.map(
-                                                                            (
-                                                                                organization,
-                                                                            ) => (
-                                                                                <CommandItem
-                                                                                    key={
-                                                                                        organization.value
-                                                                                    }
-                                                                                    className={
-                                                                                        commandItemClass
-                                                                                    }
-                                                                                    value={
-                                                                                        organization.label
-                                                                                    }
-                                                                                    onSelect={() => {
-                                                                                        setSelectedOrganization(
-                                                                                            organization.value,
-                                                                                        );
-                                                                                        setOrganizationPopoverOpen(
-                                                                                            false,
-                                                                                        );
-                                                                                    }}
-                                                                                >
-                                                                                    <Check
-                                                                                        className={cn(
-                                                                                            'mt-0.5 mr-2 size-4',
-                                                                                            selectedOrganization ===
-                                                                                                organization.value
-                                                                                                ? 'opacity-100'
-                                                                                                : 'opacity-0',
-                                                                                        )}
-                                                                                    />
-                                                                                    <span
-                                                                                        className={
-                                                                                            commandItemTextClass
-                                                                                        }
+                                                                        {organizationOptions.length > 0 && (
+                                                                            <CommandGroup heading="Organization">
+                                                                                {organizationOptions.map((organization) => (
+                                                                                    <CommandItem
+                                                                                        key={organization.value}
+                                                                                        className={commandItemClass}
+                                                                                        value={organization.label}
+                                                                                        onSelect={() => {
+                                                                                            setSelectedOrganization(organization.value);
+                                                                                            setOrganizationPopoverOpen(false);
+                                                                                        }}
                                                                                     >
-                                                                                        {
-                                                                                            organization.label
-                                                                                        }
-                                                                                    </span>
-                                                                                </CommandItem>
-                                                                            ),
+                                                                                        <Check
+                                                                                            className={cn(
+                                                                                                'mt-0.5 mr-2 size-4',
+                                                                                                selectedOrganization === organization.value
+                                                                                                    ? 'opacity-100'
+                                                                                                    : 'opacity-0',
+                                                                                            )}
+                                                                                        />
+                                                                                        <span className={commandItemTextClass}>
+                                                                                            {organization.label}
+                                                                                        </span>
+                                                                                    </CommandItem>
+                                                                                ))}
+                                                                            </CommandGroup>
+                                                                        )}
+
+                                                                        {schoolOptions.length > 0 && (
+                                                                            <CommandGroup heading="School">
+                                                                                {schoolOptions.map((organization) => (
+                                                                                    <CommandItem
+                                                                                        key={organization.value}
+                                                                                        className={commandItemClass}
+                                                                                        value={organization.label}
+                                                                                        onSelect={() => {
+                                                                                            setSelectedOrganization(organization.value);
+                                                                                            setOrganizationPopoverOpen(false);
+                                                                                        }}
+                                                                                    >
+                                                                                        <Check
+                                                                                            className={cn(
+                                                                                                'mt-0.5 mr-2 size-4',
+                                                                                                selectedOrganization === organization.value
+                                                                                                    ? 'opacity-100'
+                                                                                                    : 'opacity-0',
+                                                                                            )}
+                                                                                        />
+                                                                                        <span className={commandItemTextClass}>
+                                                                                            {organization.label}
+                                                                                        </span>
+                                                                                    </CommandItem>
+                                                                                ))}
+                                                                            </CommandGroup>
                                                                         )}
                                                                     </CommandGroup>
                                                                 </CommandList>
@@ -1888,20 +1933,20 @@ export default function Welcome() {
                                                     </Popover>
                                                     {selectedOrganization ===
                                                         otherOrganizationValue && (
-                                                        <Input
-                                                            type="text"
-                                                            required
-                                                            autoComplete="organization"
-                                                            name="organization"
-                                                            placeholder="Enter school or organization"
-                                                            onBlur={
-                                                                handleOtherOrganizationBlur
-                                                            }
-                                                            className={
-                                                                fieldClass
-                                                            }
-                                                        />
-                                                    )}
+                                                            <Input
+                                                                type="text"
+                                                                required
+                                                                autoComplete="organization"
+                                                                name="organization"
+                                                                placeholder="Enter school or organization"
+                                                                onBlur={
+                                                                    handleOtherOrganizationBlur
+                                                                }
+                                                                className={
+                                                                    fieldClass
+                                                                }
+                                                            />
+                                                        )}
                                                     <InputError
                                                         message={
                                                             errors.organization
@@ -1994,15 +2039,15 @@ export default function Welcome() {
                                                     </p>
                                                     {selectedParticipantType !==
                                                         otherParticipantTypeValue && (
-                                                        <input
-                                                            type="hidden"
-                                                            name="participant_type"
-                                                            value={
-                                                                selectedParticipantType
-                                                            }
-                                                            readOnly
-                                                        />
-                                                    )}
+                                                            <input
+                                                                type="hidden"
+                                                                name="participant_type"
+                                                                value={
+                                                                    selectedParticipantType
+                                                                }
+                                                                readOnly
+                                                            />
+                                                        )}
                                                     <Popover
                                                         open={
                                                             participantTypePopoverOpen
@@ -2080,49 +2125,60 @@ export default function Welcome() {
                                                                                 Others
                                                                             </span>
                                                                         </CommandItem>
-                                                                        {participantTypes.map(
-                                                                            (
-                                                                                type,
-                                                                            ) => (
-                                                                                <CommandItem
-                                                                                    key={
-                                                                                        type.value
-                                                                                    }
-                                                                                    className={
-                                                                                        commandItemClass
-                                                                                    }
-                                                                                    value={
-                                                                                        type.label
-                                                                                    }
-                                                                                    onSelect={() => {
-                                                                                        setSelectedParticipantType(
-                                                                                            type.value,
-                                                                                        );
-                                                                                        setParticipantTypePopoverOpen(
-                                                                                            false,
-                                                                                        );
-                                                                                    }}
-                                                                                >
-                                                                                    <Check
-                                                                                        className={cn(
-                                                                                            'mt-0.5 mr-2 size-4',
-                                                                                            selectedParticipantType ===
-                                                                                                type.value
-                                                                                                ? 'opacity-100'
-                                                                                                : 'opacity-0',
-                                                                                        )}
-                                                                                    />
-                                                                                    <span
-                                                                                        className={
-                                                                                            commandItemTextClass
-                                                                                        }
+                                                                        {fourPsParticipantTypes.length > 0 && (
+                                                                            <CommandGroup heading="4Ps">
+                                                                                {fourPsParticipantTypes.map((type) => (
+                                                                                    <CommandItem
+                                                                                        key={type.value}
+                                                                                        className={commandItemClass}
+                                                                                        value={type.label}
+                                                                                        onSelect={() => {
+                                                                                            setSelectedParticipantType(type.value);
+                                                                                            setParticipantTypePopoverOpen(false);
+                                                                                        }}
                                                                                     >
-                                                                                        {
-                                                                                            type.label
-                                                                                        }
-                                                                                    </span>
-                                                                                </CommandItem>
-                                                                            ),
+                                                                                        <Check
+                                                                                            className={cn(
+                                                                                                'mt-0.5 mr-2 size-4',
+                                                                                                selectedParticipantType === type.value
+                                                                                                    ? 'opacity-100'
+                                                                                                    : 'opacity-0',
+                                                                                            )}
+                                                                                        />
+                                                                                        <span className={commandItemTextClass}>
+                                                                                            {type.label}
+                                                                                        </span>
+                                                                                    </CommandItem>
+                                                                                ))}
+                                                                            </CommandGroup>
+                                                                        )}
+
+                                                                        {generalParticipantTypes.length > 0 && (
+                                                                            <CommandGroup heading="General">
+                                                                                {generalParticipantTypes.map((type) => (
+                                                                                    <CommandItem
+                                                                                        key={type.value}
+                                                                                        className={commandItemClass}
+                                                                                        value={type.label}
+                                                                                        onSelect={() => {
+                                                                                            setSelectedParticipantType(type.value);
+                                                                                            setParticipantTypePopoverOpen(false);
+                                                                                        }}
+                                                                                    >
+                                                                                        <Check
+                                                                                            className={cn(
+                                                                                                'mt-0.5 mr-2 size-4',
+                                                                                                selectedParticipantType === type.value
+                                                                                                    ? 'opacity-100'
+                                                                                                    : 'opacity-0',
+                                                                                            )}
+                                                                                        />
+                                                                                        <span className={commandItemTextClass}>
+                                                                                            {type.label}
+                                                                                        </span>
+                                                                                    </CommandItem>
+                                                                                ))}
+                                                                            </CommandGroup>
                                                                         )}
                                                                     </CommandGroup>
                                                                 </CommandList>
@@ -2131,19 +2187,19 @@ export default function Welcome() {
                                                     </Popover>
                                                     {selectedParticipantType ===
                                                         otherParticipantTypeValue && (
-                                                        <Input
-                                                            type="text"
-                                                            required
-                                                            name="participant_type"
-                                                            placeholder="Enter participant type"
-                                                            onBlur={
-                                                                handleOtherParticipantTypeBlur
-                                                            }
-                                                            className={
-                                                                fieldClass
-                                                            }
-                                                        />
-                                                    )}
+                                                            <Input
+                                                                type="text"
+                                                                required
+                                                                name="participant_type"
+                                                                placeholder="Enter participant type"
+                                                                onBlur={
+                                                                    handleOtherParticipantTypeBlur
+                                                                }
+                                                                className={
+                                                                    fieldClass
+                                                                }
+                                                            />
+                                                        )}
                                                     <InputError
                                                         message={
                                                             errors.participant_type
@@ -2374,25 +2430,25 @@ export default function Welcome() {
                                                 </div>
                                             </div>
                                             */}
-                                            <label className="flex items-start gap-3 text-sm leading-6 text-slate-600 dark:text-neutral-400">
-                                                <input
-                                                    type="checkbox"
-                                                    name="consent"
-                                                    value="yes"
-                                                    required
-                                                    className="mt-0.5 size-5 rounded border-[#d9e5f5] text-[#0038A8] focus:ring-[#0038A8]/20 dark:border-neutral-700 dark:bg-neutral-950"
-                                                />
-                                                I consent to CERS sharing my
-                                                full name, designation,
-                                                institution, and email address
-                                                with other event attendees to
-                                                support networking among
-                                                institutions with shared
-                                                interests. <RequiredMark />
-                                            </label>
-                                            <InputError
-                                                message={errors.consent}
+                                        <label className="flex items-start gap-3 text-sm leading-6 text-slate-600 dark:text-neutral-400">
+                                            <input
+                                                type="checkbox"
+                                                name="consent"
+                                                value="yes"
+                                                required
+                                                className="mt-0.5 size-5 rounded border-[#d9e5f5] text-[#0038A8] focus:ring-[#0038A8]/20 dark:border-neutral-700 dark:bg-neutral-950"
                                             />
+                                            I consent to CERS sharing my
+                                            full name, designation,
+                                            institution, and email address
+                                            with other event attendees to
+                                            support networking among
+                                            institutions with shared
+                                            interests. <RequiredMark />
+                                        </label>
+                                        <InputError
+                                            message={errors.consent}
+                                        />
                                         {/* </section>  */}
 
                                         <Button

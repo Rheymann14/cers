@@ -15,10 +15,15 @@ class WelcomeLookupController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-            'organizations' => Organization::query()
+           'organizations' => Organization::query()
                 ->where('is_active', true)
+                ->orderBy('type')
                 ->orderBy('name')
-                ->get(['name as value', 'name as label']),
+                ->get([
+                    'name as value',
+                    'name as label',
+                    'type',
+                ]),
             'provinces' => Province::query()
                 ->where('is_active', true)
                 ->orderBy('name')
@@ -27,8 +32,9 @@ class WelcomeLookupController extends Controller
                 ->where('is_active', true)
                 ->whereNotIn('slug', ['admin', 'administrator'])
                 ->whereNotIn('name', ['Admin', 'Administrator'])
+                ->orderByRaw("CASE WHEN type = '4ps' THEN 1 ELSE 2 END")
                 ->orderBy('name')
-                ->get(['slug as value', 'name as label']),
+                ->get(['slug as value', 'name as label', 'type']),
             'events' => Event::query()
                 ->where('is_active', true)
                 ->whereNotNull('starts_at')

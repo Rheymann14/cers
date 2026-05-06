@@ -51,14 +51,22 @@ class ParticipantsController extends Controller
                 ->with(['province:id,code,name', 'municipality:id,code,name'])
                 ->latest('deleted_at')
                 ->get($columns),
-            'organizations' => Organization::query()
+             'organizations' => Organization::query()
                 ->where('is_active', true)
+                ->orderBy('type')
                 ->orderBy('name')
-                ->get(['name as value', 'name as label']),
-            'participantTypes' => ParticipantType::query()
+                ->get([
+                    'name as value',
+                    'name as label',
+                    'type',
+                ]),
+             'participantTypes' => ParticipantType::query()
                 ->where('is_active', true)
+                ->whereNotIn('slug', ['admin', 'administrator'])
+                ->whereNotIn('name', ['Admin', 'Administrator'])
+                ->orderByRaw("CASE WHEN type = '4ps' THEN 1 ELSE 2 END")
                 ->orderBy('name')
-                ->get(['slug as value', 'name as label']),
+                ->get(['slug as value', 'name as label', 'type']),
             'events' => Event::query()
                 ->where('is_active', true)
                 ->orderBy('name')
