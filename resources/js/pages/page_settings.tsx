@@ -1,6 +1,4 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import type { ComponentProps, FormEvent, ReactNode } from 'react';
-import { useMemo, useState } from 'react';
 import {
     AlertTriangle,
     Building2,
@@ -20,6 +18,10 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import type { ComponentProps, FormEvent, ReactNode } from 'react';
+import { useMemo, useState } from 'react';
+import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -67,10 +69,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import InputError from '@/components/input-error';
 import { cn } from '@/lib/utils';
 import { pageSettings } from '@/routes';
-import type { LucideIcon } from 'lucide-react';
 
 type BaseSetting = {
     id: number;
@@ -99,7 +99,6 @@ type Organization = CreatedSetting & {
 type Province = BaseSetting & {
     code: string;
     region_name: string;
-    region_code: string;
 };
 
 type Municipality = BaseSetting & {
@@ -127,7 +126,6 @@ type SettingsForm = {
     type: string;
     code: string;
     region_name: string;
-    region_code: string;
     province_id: string;
     is_active: boolean;
 };
@@ -147,7 +145,6 @@ const defaultForm: SettingsForm = {
     type: 'general',
     code: '',
     region_name: '',
-    region_code: '',
     province_id: '',
     is_active: true,
 };
@@ -369,11 +366,6 @@ export default function PageSettings({
                                 'region_name' in item ? item.region_name : '-',
                         },
                         {
-                            label: 'Region Code',
-                            render: (item) =>
-                                'region_code' in item ? item.region_code : '-',
-                        },
-                        {
                             label: 'Status',
                             render: (item) => (
                                 <StatusBadge active={item.is_active} />
@@ -540,7 +532,6 @@ function SettingsTable({
             type: 'type' in item ? item.type : 'school',
             code: 'code' in item ? item.code : '',
             region_name: 'region_name' in item ? item.region_name : '',
-            region_code: 'region_code' in item ? item.region_code : '',
             province_id: 'province_id' in item ? String(item.province_id) : '',
             is_active: item.is_active,
         });
@@ -565,6 +556,7 @@ function SettingsTable({
 
         if (dialogMode === 'edit' && editingItem) {
             patch(`/page-settings/${tableKey}/${editingItem.id}`, options);
+
             return;
         }
 
@@ -901,41 +893,22 @@ function SettingsTable({
                         </div>
 
                         {tableKey === 'provinces' && (
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor={`${tableKey}-region-name`}>
-                                        Region name
-                                    </Label>
-                                    <Input
-                                        id={`${tableKey}-region-name`}
-                                        value={data.region_name}
-                                        onChange={(event) =>
-                                            setData(
-                                                'region_name',
-                                                event.target.value,
-                                            )
-                                        }
-                                        aria-invalid={!!errors.region_name}
-                                    />
-                                    <InputError message={errors.region_name} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor={`${tableKey}-region-code`}>
-                                        Region code
-                                    </Label>
-                                    <Input
-                                        id={`${tableKey}-region-code`}
-                                        value={data.region_code}
-                                        onChange={(event) =>
-                                            setData(
-                                                'region_code',
-                                                event.target.value,
-                                            )
-                                        }
-                                        aria-invalid={!!errors.region_code}
-                                    />
-                                    <InputError message={errors.region_code} />
-                                </div>
+                            <div className="space-y-2">
+                                <Label htmlFor={`${tableKey}-region-name`}>
+                                    Region name
+                                </Label>
+                                <Input
+                                    id={`${tableKey}-region-name`}
+                                    value={data.region_name}
+                                    onChange={(event) =>
+                                        setData(
+                                            'region_name',
+                                            event.target.value,
+                                        )
+                                    }
+                                    aria-invalid={!!errors.region_name}
+                                />
+                                <InputError message={errors.region_name} />
                             </div>
                         )}
 
@@ -992,7 +965,7 @@ function SettingsTable({
                                                                     key={
                                                                         province.id
                                                                     }
-                                                                    value={`${province.name} ${province.code} ${province.region_name} ${province.region_code}`}
+                                                                    value={`${province.name} ${province.code} ${province.region_name}`}
                                                                     onSelect={() => {
                                                                         setData(
                                                                             'province_id',
@@ -1358,7 +1331,7 @@ function searchableText(item: SettingsRecord) {
     }
 
     if ('region_name' in item) {
-        values.push(item.region_name, item.region_code);
+        values.push(item.region_name);
     }
 
     if ('province' in item) {

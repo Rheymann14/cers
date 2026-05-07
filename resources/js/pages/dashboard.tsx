@@ -1,15 +1,18 @@
 import { Head, router } from "@inertiajs/react";
-import type { ComponentProps } from "react";
-import { useMemo, useState } from "react";
+import ExcelJS from "exceljs";
 import {
   Activity,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Download,
   Search,
   UserCheck,
   Users,
 } from "lucide-react";
+import type { ComponentProps } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -39,7 +42,7 @@ type RecentParticipant = {
   id: number;
   participant_id: string | null;
   name: string;
-  email: string;
+  email: string | null;
   organization: string | null;
   participant_type: string | null;
   event_name: string | null;
@@ -77,9 +80,17 @@ type AttendanceParticipant = {
   id: number;
   participant_id: string | null;
   name: string;
+  given_name: string | null;
+  middle_name: string | null;
+  surname: string | null;
   email: string;
+  phone: string | null;
   organization: string | null;
   participant_type: string | null;
+  sex: string | null;
+  province: string | null;
+  municipality: string | null;
+  is_active: boolean;
   event_name: string | null;
   event_slug: string | null;
   registered_at: string | null;
@@ -116,6 +127,34 @@ const statCards = [
 ] as const;
 
 const attendancePageSizeOptions = [10, 25, 50, 100] as const;
+const excelMimeType =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+type AttendanceExportColumn = {
+  header: string;
+  key: string;
+  width: number;
+};
+
+const attendanceExportColumns: AttendanceExportColumn[] = [
+  { header: "Participant ID", key: "participant_id", width: 22 },
+  { header: "Full Name", key: "name", width: 28 },
+  { header: "Given Name", key: "given_name", width: 20 },
+  { header: "Middle Name", key: "middle_name", width: 18 },
+  { header: "Surname", key: "surname", width: 20 },
+  { header: "Email", key: "email", width: 30 },
+  { header: "Phone", key: "phone", width: 16 },
+  { header: "Sex", key: "sex", width: 12 },
+  { header: "Participant Type", key: "participant_type", width: 20 },
+  { header: "Organization", key: "organization", width: 34 },
+  { header: "Province", key: "province", width: 22 },
+  { header: "Municipality / City", key: "municipality", width: 24 },
+  { header: "Event", key: "event_name", width: 34 },
+  { header: "Registered At", key: "registered_at", width: 24 },
+  { header: "Checked In At", key: "checked_in_at", width: 24 },
+  { header: "Attendance Status", key: "attendance_status", width: 20 },
+  { header: "Account Status", key: "account_status", width: 18 },
+];
 
 const preventDialogOutsideClose: NonNullable<
   ComponentProps<typeof DialogContent>["onPointerDownOutside"]
@@ -174,6 +213,119 @@ function formatDateTime(value: string | null): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatFileDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function sanitizeFilePart(value: string): string {
+  const sanitized = value
+    .replace(/[<>:"/\\|?*]+/g, " ")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+
+  return sanitized || "all-events";
+}
+
+function getAttendanceExportFileName(
+  checkedInParticipants: AttendanceParticipant[],
+  notCheckedInParticipants: AttendanceParticipant[],
+): string {
+  const eventNames = [
+    ...new Set(
+      [...checkedInParticipants, ...notCheckedInParticipants]
+        .map((participant) => participant.event_name)
+        .filter((eventName): eventName is string => Boolean(eventName)),
+    ),
+  ];
+  const eventName = eventNames.length === 1 ? eventNames[0] : "all-events";
+
+  return `cers-${formatFileDate(new Date())}-${sanitizeFilePart(eventName)}-attendance.xlsx`;
+}
+
+function attendanceExportRow(
+  participant: AttendanceParticipant,
+  status: "Checked In" | "Not Checked In",
+) {
+  return {
+    participant_id: participant.participant_id ?? "-",
+    name: participant.name || "-",
+    given_name: participant.given_name ?? "-",
+    middle_name: participant.middle_name ?? "-",
+    surname: participant.surname ?? "-",
+    email: participant.email ?? "-",
+    phone: participant.phone ?? "-",
+    sex: formatLabel(participant.sex),
+    participant_type: formatLabel(participant.participant_type),
+    organization: participant.organization ?? "-",
+    province: participant.province ?? "-",
+    municipality: participant.municipality ?? "-",
+    event_name: participant.event_name ?? "-",
+    registered_at: formatDateTime(participant.registered_at),
+    checked_in_at: formatDateTime(participant.checked_in_at),
+    attendance_status: status,
+    account_status: participant.is_active ? "Active" : "Inactive",
+  };
+}
+
+function styleAttendanceWorksheet(
+  worksheet: ExcelJS.Worksheet,
+  headerColor: string,
+) {
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+  worksheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: attendanceExportColumns.length },
+  };
+  worksheet.properties.defaultRowHeight = 22;
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.height = 26;
+  headerRow.eachCell((cell) => {
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: headerColor },
+    };
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
+    cell.border = {
+      top: { style: "thin", color: { argb: "FF475569" } },
+      left: { style: "thin", color: { argb: "FF475569" } },
+      bottom: { style: "thin", color: { argb: "FF475569" } },
+      right: { style: "thin", color: { argb: "FF475569" } },
+    };
+  });
+
+  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber > 1) {
+      row.height = 34;
+    }
+
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.alignment = {
+        vertical: "top",
+        wrapText: true,
+      };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFE2E8F0" } },
+        left: { style: "thin", color: { argb: "FFE2E8F0" } },
+        bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+        right: { style: "thin", color: { argb: "FFE2E8F0" } },
+      };
+    });
+  });
 }
 
 function percent(value: number): string {
@@ -458,6 +610,7 @@ export default function Dashboard({
   const [attendancePage, setAttendancePage] = useState(1);
   const [attendancePageSize, setAttendancePageSize] =
     useState<(typeof attendancePageSizeOptions)[number]>(25);
+  const [isExportingAttendance, setIsExportingAttendance] = useState(false);
 
   const selectedAttendanceRawParticipants =
     selectedAttendanceStatus === "checked-in"
@@ -514,6 +667,56 @@ export default function Dashboard({
   function updateAttendancePageSize(value: number) {
     setAttendancePageSize(value as (typeof attendancePageSizeOptions)[number]);
     setAttendancePage(1);
+  }
+
+  async function downloadAttendanceExcel() {
+    setIsExportingAttendance(true);
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "CERS";
+      workbook.created = new Date();
+      workbook.modified = new Date();
+
+      const checkedInSheet = workbook.addWorksheet("Checked In");
+      checkedInSheet.columns = attendanceExportColumns;
+      checkedInSheet.addRows(
+        checkedInParticipants.map((participant) =>
+          attendanceExportRow(participant, "Checked In"),
+        ),
+      );
+      styleAttendanceWorksheet(checkedInSheet, "FF0038A8");
+
+      const notCheckedInSheet = workbook.addWorksheet("Not Checked In");
+      notCheckedInSheet.columns = attendanceExportColumns;
+      notCheckedInSheet.addRows(
+        notCheckedInParticipants.map((participant) =>
+          attendanceExportRow(participant, "Not Checked In"),
+        ),
+      );
+      styleAttendanceWorksheet(notCheckedInSheet, "FFF59E0B");
+
+      const workbookArrayBuffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([workbookArrayBuffer], { type: excelMimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = getAttendanceExportFileName(
+        checkedInParticipants,
+        notCheckedInParticipants,
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Attendance Excel downloaded.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Unable to download attendance Excel.");
+    } finally {
+      setIsExportingAttendance(false);
+    }
   }
 
   return (
@@ -584,14 +787,27 @@ export default function Dashboard({
           </section>
 
           <section className="min-w-0 rounded-lg border bg-card p-3 text-card-foreground shadow-sm sm:p-4">
-            <div className="mb-4 flex items-center gap-2">
-              <UserCheck className="size-4 text-muted-foreground" />
-              <div>
-                <h2 className="text-base font-semibold">Attendance Status</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Checked-in vs not checked-in participants.
-                </p>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-center gap-2">
+                <UserCheck className="size-4 text-muted-foreground" />
+                <div>
+                  <h2 className="text-base font-semibold">
+                    Attendance Status
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Checked-in vs not checked-in participants.
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => void downloadAttendanceExcel()}
+                disabled={isExportingAttendance}
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border bg-background px-3 text-xs font-medium text-foreground transition hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Download className="size-4" />
+                {isExportingAttendance ? "Preparing..." : "Download Excel"}
+              </button>
             </div>
             <DoughnutChart
               data={attendanceStatus}

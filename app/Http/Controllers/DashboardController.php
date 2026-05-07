@@ -70,7 +70,9 @@ class DashboardController extends Controller
         $checkedInParticipantsList = EventAttendance::query()
             ->with([
                 'event:id,name,slug',
-                'participant:id,participant_id,name,email,organization,participant_type,event_id,event_name,created_at',
+                'participant:id,participant_id,name,given_name,middle_name,surname,email,phone,organization,participant_type,sex,event_id,event_name,province_id,municipality_id,is_active,created_at',
+                'participant.province:id,name',
+                'participant.municipality:id,name',
             ])
             ->latest('checked_in_at')
             ->get()
@@ -83,9 +85,17 @@ class DashboardController extends Controller
                     'id' => $attendance->id,
                     'participant_id' => $participant->participant_id,
                     'name' => $participant->name,
+                    'given_name' => $participant->given_name,
+                    'middle_name' => $participant->middle_name,
+                    'surname' => $participant->surname,
                     'email' => $participant->email,
+                    'phone' => $participant->phone,
                     'organization' => $participant->organization,
                     'participant_type' => $participant->participant_type,
+                    'sex' => $participant->sex,
+                    'province' => $participant->province?->name,
+                    'municipality' => $participant->municipality?->name,
+                    'is_active' => $participant->is_active,
                     'event_name' => $event->name,
                     'event_slug' => $event->slug,
                     'registered_at' => $participant->created_at?->toIso8601String(),
@@ -99,6 +109,7 @@ class DashboardController extends Controller
             ->distinct();
 
         $notCheckedInParticipantsList = User::query()
+            ->with(['province:id,name', 'municipality:id,name'])
             ->whereNotNull('event_id')
             ->whereNotIn('id', $checkedInUserIds)
             ->latest()
@@ -106,11 +117,19 @@ class DashboardController extends Controller
                 'id',
                 'participant_id',
                 'name',
+                'given_name',
+                'middle_name',
+                'surname',
                 'email',
+                'phone',
                 'organization',
                 'participant_type',
+                'sex',
                 'event_id',
                 'event_name',
+                'province_id',
+                'municipality_id',
+                'is_active',
                 'created_at',
             ])
             ->map(function (User $participant) use ($eventsById) {
@@ -120,9 +139,17 @@ class DashboardController extends Controller
                     'id' => $participant->id,
                     'participant_id' => $participant->participant_id,
                     'name' => $participant->name,
+                    'given_name' => $participant->given_name,
+                    'middle_name' => $participant->middle_name,
+                    'surname' => $participant->surname,
                     'email' => $participant->email,
+                    'phone' => $participant->phone,
                     'organization' => $participant->organization,
                     'participant_type' => $participant->participant_type,
+                    'sex' => $participant->sex,
+                    'province' => $participant->province?->name,
+                    'municipality' => $participant->municipality?->name,
+                    'is_active' => $participant->is_active,
                     'event_name' => $event?->name ?? $participant->event_name,
                     'event_slug' => $event?->slug ?? $participant->event_name,
                     'registered_at' => $participant->created_at?->toIso8601String(),

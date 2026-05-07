@@ -31,7 +31,7 @@ class PageSettingsController extends Controller
                 ->orderBy('name')
                 ->get(),
             'provinces' => Province::query()
-                ->select(['id', 'name', 'code', 'region_name', 'region_code', 'is_active', 'created_at'])
+                ->select(['id', 'name', 'code', 'region_name', 'is_active', 'created_at'])
                 ->withCount('users')
                 ->orderBy('name')
                 ->get(),
@@ -158,13 +158,14 @@ class PageSettingsController extends Controller
                 'code' => [
                     'required',
                     'string',
-                    'max:10',
+                    'regex:/^\d{10}$/',
                     Rule::unique('provinces', 'code')->ignore($id),
                 ],
                 'region_name' => ['required', 'string', 'max:255'],
-                'region_code' => ['required', 'string', 'max:10'],
                 'is_active' => ['boolean'],
-            ]),
+            ]) + [
+                'region_code' => $this->regionCodeFromProvinceCode((string) $request->input('code')),
+            ],
             'municipalities' => $request->validate([
                 'province_id' => ['required', 'integer', Rule::exists('provinces', 'id')],
                 'name' => [
@@ -202,5 +203,10 @@ class PageSettingsController extends Controller
     private function tracksCreator(string $table): bool
     {
         return in_array($table, ['participant-types', 'organizations'], true);
+    }
+
+    private function regionCodeFromProvinceCode(string $provinceCode): string
+    {
+        return substr($provinceCode, 0, 2).'00000000';
     }
 }
