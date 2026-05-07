@@ -39,21 +39,22 @@ class ParticipantsController extends Controller
             'province_id',
             'municipality_id',
             'is_active',
+            'created_by_user_id',
             'created_at',
             'deleted_at',
         ];
 
         return Inertia::render('participants', [
             'participants' => User::query()
-                ->with(['province:id,code,name', 'municipality:id,code,name'])
+                ->with(['province:id,code,name', 'municipality:id,code,name', 'createdBy:id,name'])
                 ->latest()
                 ->get($columns),
             'deletedParticipants' => User::query()
                 ->onlyTrashed()
-                ->with(['province:id,code,name', 'municipality:id,code,name'])
+                ->with(['province:id,code,name', 'municipality:id,code,name', 'createdBy:id,name'])
                 ->latest('deleted_at')
                 ->get($columns),
-             'organizations' => Organization::query()
+            'organizations' => Organization::query()
                 ->where('is_active', true)
                 ->orderBy('type')
                 ->orderBy('name')
@@ -62,7 +63,7 @@ class ParticipantsController extends Controller
                     'name as label',
                     'type',
                 ]),
-             'participantTypes' => ParticipantType::query()
+            'participantTypes' => ParticipantType::query()
                 ->where('is_active', true)
                 ->orderByRaw("CASE WHEN type = '4ps' THEN 1 ELSE 2 END")
                 ->orderBy('name')
@@ -71,6 +72,19 @@ class ParticipantsController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label']),
+            'addedByOptions' => collect([
+                ['value' => 'system', 'label' => 'System', 'type' => 'system'],
+            ])->concat(
+                User::query()
+                    ->whereIn('participant_type', ['admin', 'administrator'])
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                    ->map(fn (User $admin) => [
+                        'value' => 'admin:'.$admin->id,
+                        'label' => $admin->name,
+                        'type' => 'administrator',
+                    ]),
+            )->values(),
             'provinces' => Province::query()
                 ->where('is_active', true)
                 ->orderBy('name')
@@ -173,6 +187,7 @@ class ParticipantsController extends Controller
             'event_id' => $event?->id,
             'event_name' => $event?->slug,
             'is_active' => true,
+            'created_by_user_id' => $request->user()?->id,
             'registration_consent_accepted_at' => now(),
             'password' => 'cers2026',
         ]);

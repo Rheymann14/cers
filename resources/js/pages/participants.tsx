@@ -103,8 +103,14 @@ type Participant = {
     sex: string | null;
     event_name: string | null;
     is_active: boolean;
+    created_by: CreatedByUser | null;
     created_at: string;
     deleted_at: string | null;
+};
+
+type CreatedByUser = {
+    id: number;
+    name: string;
 };
 
 type Props = {
@@ -113,6 +119,7 @@ type Props = {
     organizations: Option[];
     participantTypes: Option[];
     events: Option[];
+    addedByOptions: Option[];
     provinces: Option[];
 };
 
@@ -124,6 +131,7 @@ type SortKey =
     | 'participant_type'
     | 'sex'
     | 'event_name'
+    | 'added_by'
     | 'created_at';
 
 type SortDirection = 'asc' | 'desc';
@@ -162,15 +170,16 @@ const columns: {
     label: string;
     className?: string;
 }[] = [
-        { key: 'name', label: 'Participant', className: 'w-52' },
-        { key: 'email', label: 'Contact', className: 'w-48' },
-        { key: 'location', label: 'Location', className: 'w-40' },
-        { key: 'organization', label: 'Org' },
-        { key: 'participant_type', label: 'Type', className: 'w-36' },
-        { key: 'sex', label: 'Sex', className: 'w-20' },
-        { key: 'event_name', label: 'Event', className: 'w-36' },
-        { key: 'created_at', label: 'Date', className: 'w-28' },
-    ];
+    { key: 'name', label: 'Participant', className: 'w-64' },
+    { key: 'email', label: 'Contact', className: 'w-48' },
+    { key: 'location', label: 'Location', className: 'w-44' },
+    { key: 'organization', label: 'Org', className: 'w-72' },
+    { key: 'participant_type', label: 'Type', className: 'w-36' },
+    { key: 'sex', label: 'Sex', className: 'w-20' },
+    { key: 'event_name', label: 'Event', className: 'w-44' },
+    { key: 'added_by', label: 'Added By', className: 'w-40' },
+    { key: 'created_at', label: 'Date', className: 'w-40' },
+];
 
 const pageSizeOptions = [5, 10, 25];
 
@@ -291,6 +300,32 @@ function getLocationLabel(participant: Participant): string {
             .filter(Boolean)
             .join(' / ') || '-'
     );
+}
+
+function getAddedByType(participant: Participant): 'Admin' | 'System' {
+    return participant.created_by ? 'Admin' : 'System';
+}
+
+function getAddedByLabel(participant: Participant): string {
+    return participant.created_by?.name ?? 'System';
+}
+
+function getAddedByFilterValue(participant: Participant): string {
+    return participant.created_by
+        ? `admin:${participant.created_by.id}`
+        : 'system';
+}
+
+function getSortValue(participant: Participant, key: SortKey): string {
+    if (key === 'location') {
+        return getLocationLabel(participant);
+    }
+
+    if (key === 'added_by') {
+        return `${getAddedByType(participant)} ${getAddedByLabel(participant)}`;
+    }
+
+    return String(participant[key] ?? '');
 }
 
 function getInitials(name: string) {
@@ -442,7 +477,7 @@ function SearchableOptionField({
                             'w-full justify-between font-normal',
                             !selectedOption && 'text-muted-foreground',
                             disabled &&
-                            'cursor-not-allowed opacity-70 hover:bg-background',
+                                'cursor-not-allowed opacity-70 hover:bg-background',
                         )}
                     >
                         <span className="truncate">
@@ -463,28 +498,33 @@ function SearchableOptionField({
                                 <>
                                     {organizationOptions.length > 0 && (
                                         <CommandGroup heading="Organization">
-                                            {organizationOptions.map((option) => (
-                                                <CommandItem
-                                                    key={option.value}
-                                                    value={option.label}
-                                                    onSelect={() => {
-                                                        onValueChange(option.value);
-                                                        setOpen(false);
-                                                    }}
-                                                >
-                                                    <Check
-                                                        className={cn(
-                                                            'mr-2 size-4',
-                                                            value === option.value
-                                                                ? 'opacity-100'
-                                                                : 'opacity-0',
-                                                        )}
-                                                    />
-                                                    <span className="min-w-0 flex-1 whitespace-normal break-words">
-                                                        {option.label}
-                                                    </span>
-                                                </CommandItem>
-                                            ))}
+                                            {organizationOptions.map(
+                                                (option) => (
+                                                    <CommandItem
+                                                        key={option.value}
+                                                        value={option.label}
+                                                        onSelect={() => {
+                                                            onValueChange(
+                                                                option.value,
+                                                            );
+                                                            setOpen(false);
+                                                        }}
+                                                    >
+                                                        <Check
+                                                            className={cn(
+                                                                'mr-2 size-4',
+                                                                value ===
+                                                                    option.value
+                                                                    ? 'opacity-100'
+                                                                    : 'opacity-0',
+                                                            )}
+                                                        />
+                                                        <span className="min-w-0 flex-1 break-words whitespace-normal">
+                                                            {option.label}
+                                                        </span>
+                                                    </CommandItem>
+                                                ),
+                                            )}
                                         </CommandGroup>
                                     )}
 
@@ -495,19 +535,22 @@ function SearchableOptionField({
                                                     key={option.value}
                                                     value={option.label}
                                                     onSelect={() => {
-                                                        onValueChange(option.value);
+                                                        onValueChange(
+                                                            option.value,
+                                                        );
                                                         setOpen(false);
                                                     }}
                                                 >
                                                     <Check
                                                         className={cn(
                                                             'mr-2 size-4',
-                                                            value === option.value
+                                                            value ===
+                                                                option.value
                                                                 ? 'opacity-100'
                                                                 : 'opacity-0',
                                                         )}
                                                     />
-                                                    <span className="min-w-0 flex-1 whitespace-normal break-words">
+                                                    <span className="min-w-0 flex-1 break-words whitespace-normal">
                                                         {option.label}
                                                     </span>
                                                 </CommandItem>
@@ -524,19 +567,22 @@ function SearchableOptionField({
                                                     key={option.value}
                                                     value={option.label}
                                                     onSelect={() => {
-                                                        onValueChange(option.value);
+                                                        onValueChange(
+                                                            option.value,
+                                                        );
                                                         setOpen(false);
                                                     }}
                                                 >
                                                     <Check
                                                         className={cn(
                                                             'mr-2 size-4',
-                                                            value === option.value
+                                                            value ===
+                                                                option.value
                                                                 ? 'opacity-100'
                                                                 : 'opacity-0',
                                                         )}
                                                     />
-                                                    <span className="min-w-0 flex-1 whitespace-normal break-words">
+                                                    <span className="min-w-0 flex-1 break-words whitespace-normal">
                                                         {option.label}
                                                     </span>
                                                 </CommandItem>
@@ -551,19 +597,22 @@ function SearchableOptionField({
                                                     key={option.value}
                                                     value={option.label}
                                                     onSelect={() => {
-                                                        onValueChange(option.value);
+                                                        onValueChange(
+                                                            option.value,
+                                                        );
                                                         setOpen(false);
                                                     }}
                                                 >
                                                     <Check
                                                         className={cn(
                                                             'mr-2 size-4',
-                                                            value === option.value
+                                                            value ===
+                                                                option.value
                                                                 ? 'opacity-100'
                                                                 : 'opacity-0',
                                                         )}
                                                     />
-                                                    <span className="min-w-0 flex-1 whitespace-normal break-words">
+                                                    <span className="min-w-0 flex-1 break-words whitespace-normal">
                                                         {option.label}
                                                     </span>
                                                 </CommandItem>
@@ -905,6 +954,9 @@ function ParticipantsTableSkeleton() {
                         <Skeleton className="h-4 w-full max-w-32" />
                     </TableCell>
                     <TableCell className="px-2 py-2">
+                        <Skeleton className="h-4 w-full max-w-28" />
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
                         <Skeleton className="h-6 w-16 rounded-full" />
                     </TableCell>
                     <TableCell className="px-2 py-2">
@@ -912,6 +964,12 @@ function ParticipantsTableSkeleton() {
                     </TableCell>
                     <TableCell className="px-2 py-2">
                         <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                        <div className="grid gap-1">
+                            <Skeleton className="h-5 w-16 rounded-full" />
+                            <Skeleton className="h-3 w-20" />
+                        </div>
                     </TableCell>
                     <TableCell className="px-2 py-2">
                         <Skeleton className="h-4 w-20" />
@@ -925,16 +983,111 @@ function ParticipantsTableSkeleton() {
     );
 }
 
+function AddedByFilter({
+    value,
+    options,
+    onChange,
+}: {
+    value: string;
+    options: Option[];
+    onChange: (value: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const selectedOption = options.find((option) => option.value === value);
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="h-auto min-h-8 justify-between px-2 py-1 text-xs"
+                >
+                    <span className="max-w-44 text-left leading-tight break-words whitespace-normal">
+                        {selectedOption?.label ?? 'Added by'}
+                    </span>
+                    <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="end"
+                className="w-[min(calc(100vw-2rem),20rem)] p-0"
+            >
+                <Command>
+                    <CommandInput placeholder="Search added by..." />
+                    <CommandList>
+                        <CommandEmpty>No source found.</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem
+                                value="All added by"
+                                onSelect={() => {
+                                    onChange('all');
+                                    setOpen(false);
+                                }}
+                            >
+                                <Check
+                                    className={cn(
+                                        'mr-2 size-4',
+                                        value === 'all'
+                                            ? 'opacity-100'
+                                            : 'opacity-0',
+                                    )}
+                                />
+                                <span>All</span>
+                            </CommandItem>
+                            {options.map((option) => (
+                                <CommandItem
+                                    key={option.value}
+                                    value={`${option.label} ${option.type ?? ''}`}
+                                    onSelect={() => {
+                                        onChange(option.value);
+                                        setOpen(false);
+                                    }}
+                                    className="items-start"
+                                >
+                                    <Check
+                                        className={cn(
+                                            'mt-0.5 mr-2 size-4 shrink-0',
+                                            value === option.value
+                                                ? 'opacity-100'
+                                                : 'opacity-0',
+                                        )}
+                                    />
+                                    <div className="min-w-0">
+                                        <p className="text-sm leading-snug break-words whitespace-normal">
+                                            {option.label}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {option.type === 'system'
+                                                ? 'System'
+                                                : 'Administrator'}
+                                        </p>
+                                    </div>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 export default function Participants({
     participants,
     deletedParticipants,
     organizations,
     participantTypes,
     events,
+    addedByOptions,
     provinces,
 }: Props) {
     const getInitials = useInitials();
     const [search, setSearch] = useState('');
+    const [addedByFilter, setAddedByFilter] = useState('all');
     const [sortKey, setSortKey] = useState<SortKey>('created_at');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const [pageSize, setPageSize] = useState(10);
@@ -1038,6 +1191,20 @@ export default function Participants({
             ),
         [participantTypes],
     );
+
+    const normalizedAddedByOptions = useMemo(() => {
+        const seen = new Set<string>();
+
+        return addedByOptions.filter((option) => {
+            if (seen.has(option.value)) {
+                return false;
+            }
+
+            seen.add(option.value);
+
+            return true;
+        });
+    }, [addedByOptions]);
 
     useEffect(() => {
         if (!addData.province) {
@@ -1154,36 +1321,40 @@ export default function Participants({
     const filteredParticipants = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
 
+        const addedByFiltered =
+            addedByFilter === 'all'
+                ? participants
+                : participants.filter(
+                      (participant) =>
+                          getAddedByFilterValue(participant) === addedByFilter,
+                  );
+
         const filtered = normalizedSearch
-            ? participants.filter((participant) =>
-                [
-                    participant.name,
-                    participant.participant_id,
-                    participant.email,
-                    participant.phone,
-                    getLocationLabel(participant),
-                    participant.organization,
-                    participant.participant_type,
-                    participant.sex,
-                    participant.event_name,
-                    participant.is_active ? 'active' : 'inactive',
-                ]
-                    .filter(Boolean)
-                    .join(' ')
-                    .toLowerCase()
-                    .includes(normalizedSearch),
-            )
-            : participants;
+            ? addedByFiltered.filter((participant) =>
+                  [
+                      participant.name,
+                      participant.participant_id,
+                      participant.email,
+                      participant.phone,
+                      getLocationLabel(participant),
+                      participant.organization,
+                      participant.participant_type,
+                      participant.sex,
+                      participant.event_name,
+                      getAddedByType(participant),
+                      getAddedByLabel(participant),
+                      participant.is_active ? 'active' : 'inactive',
+                  ]
+                      .filter(Boolean)
+                      .join(' ')
+                      .toLowerCase()
+                      .includes(normalizedSearch),
+              )
+            : addedByFiltered;
 
         return [...filtered].sort((a, b) => {
-            const aValue =
-                sortKey === 'location'
-                    ? getLocationLabel(a)
-                    : (a[sortKey] ?? '');
-            const bValue =
-                sortKey === 'location'
-                    ? getLocationLabel(b)
-                    : (b[sortKey] ?? '');
+            const aValue = getSortValue(a, sortKey);
+            const bValue = getSortValue(b, sortKey);
 
             if (sortKey === 'created_at') {
                 const comparison =
@@ -1196,7 +1367,7 @@ export default function Participants({
 
             return sortDirection === 'asc' ? comparison : -comparison;
         });
-    }, [participants, search, sortDirection, sortKey]);
+    }, [addedByFilter, participants, search, sortDirection, sortKey]);
 
     const totalPages = Math.max(
         1,
@@ -1224,6 +1395,11 @@ export default function Participants({
 
     function updateSearch(value: string) {
         setSearch(value);
+        setPage(1);
+    }
+
+    function updateAddedByFilter(value: string) {
+        setAddedByFilter(value);
         setPage(1);
     }
 
@@ -1392,11 +1568,11 @@ export default function Participants({
         setEditMunicipalityOptions(
             participant.municipality
                 ? [
-                    {
-                        value: participant.municipality.code,
-                        label: participant.municipality.name,
-                    },
-                ]
+                      {
+                          value: participant.municipality.code,
+                          label: participant.municipality.name,
+                      },
+                  ]
                 : [],
         );
     }
@@ -1579,6 +1755,11 @@ export default function Participants({
                             </div>
 
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                                <AddedByFilter
+                                    value={addedByFilter}
+                                    options={normalizedAddedByOptions}
+                                    onChange={updateAddedByFilter}
+                                />
                                 <Button
                                     type="button"
                                     size="sm"
@@ -1713,6 +1894,14 @@ export default function Participants({
                                                             participant.created_at,
                                                         )}
                                                     </Badge>
+                                                    {participant.created_by && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="max-w-full"
+                                                        >
+                                                            Admin
+                                                        </Badge>
+                                                    )}
                                                     <UserStatusBadge
                                                         active={
                                                             participant.is_active
@@ -1762,9 +1951,19 @@ export default function Participants({
                                                         <dt className="font-medium text-muted-foreground">
                                                             Organization
                                                         </dt>
-                                                        <dd className="mt-0.5 line-clamp-2 text-foreground">
+                                                        <dd className="mt-0.5 break-words whitespace-normal text-foreground">
                                                             {participant.organization ??
                                                                 '-'}
+                                                        </dd>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <dt className="font-medium text-muted-foreground">
+                                                            Added by
+                                                        </dt>
+                                                        <dd className="mt-0.5 truncate text-foreground">
+                                                            {getAddedByLabel(
+                                                                participant,
+                                                            )}
                                                         </dd>
                                                     </div>
                                                     <div className="min-w-0">
@@ -1791,199 +1990,229 @@ export default function Participants({
                         </div>
                     )}
 
-                    <Table className="hidden table-fixed text-xs md:table">
-                        <TableHeader>
-                            <TableRow className="bg-muted/45 hover:bg-muted/45">
-                                <TableHead className="h-9 w-12 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
-                                    Seq
-                                </TableHead>
-                                {columns.map((column) => {
-                                    const isActive = sortKey === column.key;
-                                    const SortIcon = isActive
-                                        ? sortDirection === 'asc'
-                                            ? ArrowUp
-                                            : ArrowDown
-                                        : ArrowUpDown;
+                    <div className="hidden overflow-x-auto md:block">
+                        <Table className="min-w-[92rem] table-fixed text-xs">
+                            <TableHeader>
+                                <TableRow className="bg-muted/45 hover:bg-muted/45">
+                                    <TableHead className="h-9 w-12 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                        Seq
+                                    </TableHead>
+                                    {columns.map((column) => {
+                                        const isActive = sortKey === column.key;
+                                        const SortIcon = isActive
+                                            ? sortDirection === 'asc'
+                                                ? ArrowUp
+                                                : ArrowDown
+                                            : ArrowUpDown;
 
-                                    return (
-                                        <TableHead
-                                            key={column.key}
-                                            className={cn(
-                                                'h-9 px-2 text-[11px] font-semibold text-muted-foreground uppercase',
-                                                column.className,
-                                            )}
-                                        >
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    updateSort(column.key)
-                                                }
+                                        return (
+                                            <TableHead
+                                                key={column.key}
                                                 className={cn(
-                                                    'inline-flex min-w-0 items-center gap-1 rounded-sm text-left hover:text-foreground',
-                                                    isActive
-                                                        ? 'text-foreground'
-                                                        : 'text-muted-foreground',
+                                                    'h-9 px-2 text-[11px] font-semibold text-muted-foreground uppercase',
+                                                    column.className,
                                                 )}
                                             >
-                                                {column.label}
-                                                <SortIcon className="size-3.5" />
-                                            </button>
-                                        </TableHead>
-                                    );
-                                })}
-                                <TableHead className="h-9 w-20 px-2 text-right text-[11px] font-semibold text-muted-foreground uppercase">
-                                    Actions
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        {tableLoading ? (
-                            <ParticipantsTableSkeleton />
-                        ) : (
-                            <TableBody>
-                                {pageParticipants.length > 0 ? (
-                                    pageParticipants.map(
-                                        (participant, index) => (
-                                            <TableRow
-                                                key={participant.id}
-                                                className="odd:bg-muted/[0.18]"
-                                            >
-                                                <TableCell className="px-2 py-2 font-medium text-muted-foreground">
-                                                    {startIndex + index + 1}
-                                                </TableCell>
-                                                <TableCell className="overflow-hidden px-2 py-2">
-                                                    <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-                                                        <ParticipantAvatarThumbnail
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        updateSort(column.key)
+                                                    }
+                                                    className={cn(
+                                                        'inline-flex min-w-0 items-center gap-1 rounded-sm text-left hover:text-foreground',
+                                                        isActive
+                                                            ? 'text-foreground'
+                                                            : 'text-muted-foreground',
+                                                    )}
+                                                >
+                                                    {column.label}
+                                                    <SortIcon className="size-3.5 shrink-0" />
+                                                </button>
+                                            </TableHead>
+                                        );
+                                    })}
+                                    <TableHead className="h-9 w-20 px-2 text-right text-[11px] font-semibold text-muted-foreground uppercase">
+                                        Actions
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            {tableLoading ? (
+                                <ParticipantsTableSkeleton />
+                            ) : (
+                                <TableBody>
+                                    {pageParticipants.length > 0 ? (
+                                        pageParticipants.map(
+                                            (participant, index) => (
+                                                <TableRow
+                                                    key={participant.id}
+                                                    className="odd:bg-muted/[0.18]"
+                                                >
+                                                    <TableCell className="px-2 py-2 font-medium text-muted-foreground">
+                                                        {startIndex + index + 1}
+                                                    </TableCell>
+                                                    <TableCell className="overflow-hidden px-2 py-2">
+                                                        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                                                            <ParticipantAvatarThumbnail
+                                                                participant={
+                                                                    participant
+                                                                }
+                                                                getInitials={
+                                                                    getInitials
+                                                                }
+                                                                sizeClassName="size-8"
+                                                                fallbackClassName="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
+                                                                onViewImage={
+                                                                    setViewingImageParticipant
+                                                                }
+                                                            />
+                                                            <div className="grid min-w-0 gap-1 overflow-hidden">
+                                                                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                                                    <ParticipantName
+                                                                        name={
+                                                                            participant.name
+                                                                        }
+                                                                    />
+                                                                    <UserStatusBadge
+                                                                        active={
+                                                                            participant.is_active
+                                                                        }
+                                                                    />
+                                                                </div>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Participant
+                                                                    ID
+                                                                </p>
+                                                                <div className="min-w-0 text-xs leading-5">
+                                                                    <ParticipantIdButton
+                                                                        participant={
+                                                                            participant
+                                                                        }
+                                                                        onOpen={
+                                                                            setViewingIdParticipant
+                                                                        }
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2">
+                                                        <div className="min-w-0 leading-5">
+                                                            <p className="truncate font-medium text-foreground">
+                                                                {participant.email ??
+                                                                    '-'}
+                                                            </p>
+                                                            <p className="truncate text-muted-foreground">
+                                                                {participant.phone ??
+                                                                    '-'}
+                                                            </p>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 leading-5 whitespace-normal">
+                                                        <span className="line-clamp-2">
+                                                            {getLocationLabel(
+                                                                participant,
+                                                            )}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 leading-5 whitespace-normal">
+                                                        <span className="break-words whitespace-normal">
+                                                            {participant.organization ??
+                                                                '-'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2">
+                                                        <span
+                                                            className={cn(
+                                                                'inline-flex rounded-full border px-2 py-1 text-[11px] font-medium',
+                                                                getParticipantTypeBadgeClassName(
+                                                                    participant.participant_type,
+                                                                    participantTypes,
+                                                                ),
+                                                            )}
+                                                        >
+                                                            {getOptionLabel(
+                                                                participantTypes,
+                                                                participant.participant_type,
+                                                            )}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 text-muted-foreground">
+                                                        {formatLabel(
+                                                            participant.sex,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 leading-5 whitespace-normal">
+                                                        <span className="line-clamp-2">
+                                                            {getOptionLabel(
+                                                                events,
+                                                                participant.event_name,
+                                                            )}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2">
+                                                        <div className="grid min-w-0 gap-1">
+                                                            {participant.created_by ? (
+                                                                <>
+                                                                    <Badge
+                                                                        variant="outline"
+                                                                        className="w-fit px-2 py-0 text-[11px]"
+                                                                    >
+                                                                        Admin
+                                                                    </Badge>
+                                                                    <p className="truncate text-muted-foreground">
+                                                                        {getAddedByLabel(
+                                                                            participant,
+                                                                        )}
+                                                                    </p>
+                                                                </>
+                                                            ) : (
+                                                                <p className="truncate text-muted-foreground">
+                                                                    System
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 text-muted-foreground">
+                                                        {formatDate(
+                                                            participant.created_at,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 text-right">
+                                                        <ParticipantActions
                                                             participant={
                                                                 participant
                                                             }
-                                                            getInitials={
-                                                                getInitials
+                                                            onEdit={
+                                                                openEditDialog
                                                             }
-                                                            sizeClassName="size-8"
-                                                            fallbackClassName="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
-                                                            onViewImage={
-                                                                setViewingImageParticipant
+                                                            onDelete={
+                                                                setDeletingParticipant
+                                                            }
+                                                            onStatus={
+                                                                submitStatus
+                                                            }
+                                                            onResetPassword={
+                                                                setResettingPasswordParticipant
                                                             }
                                                         />
-                                                        <div className="grid min-w-0 gap-1 overflow-hidden">
-                                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                                                <ParticipantName
-                                                                    name={
-                                                                        participant.name
-                                                                    }
-                                                                />
-                                                                <UserStatusBadge
-                                                                    active={
-                                                                        participant.is_active
-                                                                    }
-                                                                />
-                                                            </div>
-                                                            <p className="text-xs text-muted-foreground">
-                                                                Participant ID
-                                                            </p>
-                                                            <div className="min-w-0 text-xs leading-5">
-                                                                <ParticipantIdButton
-                                                                    participant={
-                                                                        participant
-                                                                    }
-                                                                    onOpen={
-                                                                        setViewingIdParticipant
-                                                                    }
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="px-2 py-2">
-                                                    <div className="min-w-0 leading-5">
-                                                        <p className="truncate font-medium text-foreground">
-                                                            {participant.email ??
-                                                                '-'}
-                                                        </p>
-                                                        <p className="truncate text-muted-foreground">
-                                                            {participant.phone ??
-                                                                '-'}
-                                                        </p>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="px-2 py-2 leading-5 whitespace-normal">
-                                                    <span className="line-clamp-2">
-                                                        {getLocationLabel(
-                                                            participant,
-                                                        )}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="px-2 py-2 leading-5 whitespace-normal">
-                                                    <span className="line-clamp-2">
-                                                        {participant.organization ??
-                                                            '-'}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="px-2 py-2">
-                                                    <span
-                                                        className={cn(
-                                                            'inline-flex rounded-full border px-2 py-1 text-[11px] font-medium',
-                                                            getParticipantTypeBadgeClassName(
-                                                                participant.participant_type,
-                                                                participantTypes,
-                                                            ),
-                                                        )}
-                                                    >
-                                                        {getOptionLabel(
-                                                            participantTypes,
-                                                            participant.participant_type,
-                                                        )}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="px-2 py-2 text-muted-foreground">
-                                                    {formatLabel(
-                                                        participant.sex,
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="px-2 py-2 leading-5 whitespace-normal">
-                                                    <span className="line-clamp-2">
-                                                        {getOptionLabel(
-                                                            events,
-                                                            participant.event_name,
-                                                        )}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="px-2 py-2 text-muted-foreground">
-                                                    {formatDate(
-                                                        participant.created_at,
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="px-2 py-2 text-right">
-                                                    <ParticipantActions
-                                                        participant={
-                                                            participant
-                                                        }
-                                                        onEdit={openEditDialog}
-                                                        onDelete={
-                                                            setDeletingParticipant
-                                                        }
-                                                        onStatus={submitStatus}
-                                                        onResetPassword={
-                                                            setResettingPasswordParticipant
-                                                        }
-                                                    />
-                                                </TableCell>
-                                            </TableRow>
-                                        ),
-                                    )
-                                ) : (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={columns.length + 2}
-                                            className="h-32 text-center text-muted-foreground"
-                                        >
-                                            No participants found.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        )}
-                    </Table>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ),
+                                        )
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={columns.length + 2}
+                                                className="h-32 text-center text-muted-foreground"
+                                            >
+                                                No participants found.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            )}
+                        </Table>
+                    </div>
 
                     <div className="flex flex-col gap-3 border-t p-3 text-sm text-muted-foreground sm:p-4 md:flex-row md:items-center md:justify-between">
                         <p className="text-center md:text-left">
@@ -2269,13 +2498,17 @@ export default function Participants({
                                         value={addData.organization}
                                         options={organizations}
                                         grouped
-                                        organizationOptions={organizationOptions}
+                                        organizationOptions={
+                                            organizationOptions
+                                        }
                                         schoolOptions={schoolOptions}
                                         placeholder="Search and select school or organization"
                                         searchPlaceholder="Search school or organization..."
                                         emptyMessage="No school or organization found."
                                         error={addErrors.organization}
-                                        onValueChange={(value) => setAddData('organization', value)}
+                                        onValueChange={(value) =>
+                                            setAddData('organization', value)
+                                        }
                                     />
                                 </div>
                             )}
@@ -2341,14 +2574,21 @@ export default function Participants({
                                             value={addData.participant_type}
                                             options={participantTypes}
                                             participantTypeGrouped
-                                            fourPsOptions={fourPsParticipantTypes}
-                                            generalOptions={generalParticipantTypes}
+                                            fourPsOptions={
+                                                fourPsParticipantTypes
+                                            }
+                                            generalOptions={
+                                                generalParticipantTypes
+                                            }
                                             placeholder="Search and select type"
                                             searchPlaceholder="Search participant type..."
                                             emptyMessage="No type found."
                                             error={addErrors.participant_type}
                                             onValueChange={(value) =>
-                                                setAddData('participant_type', value)
+                                                setAddData(
+                                                    'participant_type',
+                                                    value,
+                                                )
                                             }
                                         />
 
@@ -2695,7 +2935,9 @@ export default function Participants({
                                 searchPlaceholder="Search school or organization..."
                                 emptyMessage="No school or organization found."
                                 error={errors.organization}
-                                onValueChange={(value) => setData('organization', value)}
+                                onValueChange={(value) =>
+                                    setData('organization', value)
+                                }
                             />
 
                             <SearchableOptionField
@@ -2932,8 +3174,8 @@ export default function Participants({
                                                 Deleted{' '}
                                                 {participant.deleted_at
                                                     ? formatDate(
-                                                        participant.deleted_at,
-                                                    )
+                                                          participant.deleted_at,
+                                                      )
                                                     : '-'}
                                             </p>
                                         </div>
