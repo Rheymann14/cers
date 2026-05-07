@@ -4,6 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\EventAttendance;
+use App\Models\Municipality;
+use App\Models\Organization;
+use App\Models\ParticipantType;
+use App\Models\Province;
 use App\Models\User;
 use Carbon\Carbon;
 use Inertia\Inertia;
@@ -197,6 +201,38 @@ class DashboardController extends Controller
             'eventAttendanceSummary' => $eventAttendanceSummary,
             'checkedInParticipants' => $checkedInParticipantsList,
             'notCheckedInParticipants' => $notCheckedInParticipantsList,
+            'participantStatistics' => [
+                'participants' => User::query()
+                    ->get([
+                        'id',
+                        'province_id',
+                        'municipality_id',
+                        'sex',
+                        'participant_type',
+                        'organization_id',
+                        'organization',
+                    ]),
+                'provinces' => Province::query()
+                    ->select(['id', 'name', 'code'])
+                    ->withCount('users')
+                    ->orderBy('name')
+                    ->get(),
+                'municipalities' => Municipality::query()
+                    ->select(['id', 'province_id', 'name', 'code', 'type'])
+                    ->withCount('users')
+                    ->orderBy('name')
+                    ->get(),
+                'participantTypes' => ParticipantType::query()
+                    ->select(['id', 'name', 'slug', 'type'])
+                    ->withCount('users')
+                    ->orderBy('name')
+                    ->get(),
+                'organizations' => Organization::query()
+                    ->select(['id', 'name', 'slug', 'type'])
+                    ->withCount('users')
+                    ->orderBy('name')
+                    ->get(),
+            ],
         ]);
     }
 }
