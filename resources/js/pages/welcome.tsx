@@ -1315,6 +1315,12 @@ export default function Welcome() {
                                         {link.label}
                                     </a>
                                 ))}
+                                <Link
+                                    href="/events"
+                                    className="relative py-1 transition hover:text-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] dark:hover:text-blue-300"
+                                >
+                                    Events
+                                </Link>
                             </div>
 
                             <div className="flex shrink-0 items-center gap-3">
@@ -2271,7 +2277,6 @@ export default function Welcome() {
                                                         }
                                                     />
                                                 </div>
-
                                             </div>
 
                                             <div className="grid gap-3">
