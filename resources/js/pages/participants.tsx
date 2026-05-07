@@ -463,7 +463,7 @@ function SearchableOptionField({
     return (
         <div className="space-y-2">
             <Label id={`${id}_label`}>{label}</Label>
-            <Popover open={open} onOpenChange={setOpen}>
+            <Popover modal open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <Button
                         type="button"
@@ -489,10 +489,16 @@ function SearchableOptionField({
                 <PopoverContent
                     align="start"
                     className="z-[100] w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                    onWheel={(event) => event.stopPropagation()}
+                    onTouchMove={(event) => event.stopPropagation()}
                 >
                     <Command>
                         <CommandInput placeholder={searchPlaceholder} />
-                        <CommandList className="h-[260px] max-h-[260px] overflow-y-auto overscroll-contain">
+                        <CommandList
+                            className="h-[260px] max-h-[260px] touch-pan-y overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+                            onWheel={(event) => event.stopPropagation()}
+                            onTouchMove={(event) => event.stopPropagation()}
+                        >
                             <CommandEmpty>{emptyMessage}</CommandEmpty>
                             {grouped ? (
                                 <>

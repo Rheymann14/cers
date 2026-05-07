@@ -17,6 +17,8 @@ class Event extends Model
         'description',
         'venue_name',
         'venue_address',
+        'venue_latitude',
+        'venue_longitude',
         'starts_at',
         'ends_at',
         'image_path',
@@ -34,6 +36,8 @@ class Event extends Model
     {
         return [
             'is_active' => 'boolean',
+            'venue_latitude' => 'decimal:7',
+            'venue_longitude' => 'decimal:7',
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
         ];

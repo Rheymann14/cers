@@ -76,6 +76,8 @@ type ManagedEvent = {
     description: string | null;
     venue_name: string | null;
     venue_address: string | null;
+    venue_latitude: string | null;
+    venue_longitude: string | null;
     starts_at: string | null;
     ends_at: string | null;
     image_url: string | null;
@@ -106,6 +108,8 @@ type EventForm = {
 type EventVenueForm = {
     venue_name: string;
     venue_address: string;
+    venue_latitude: string;
+    venue_longitude: string;
 };
 
 type Props = {
@@ -130,6 +134,8 @@ const defaultForm: EventForm = {
 const defaultVenueForm: EventVenueForm = {
     venue_name: '',
     venue_address: '',
+    venue_latitude: '',
+    venue_longitude: '',
 };
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -202,6 +208,26 @@ function formatFileSize(value: number | null) {
     return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function toDownloadFileName(name: string, extension?: string) {
+    const normalizedName =
+        name
+            .trim()
+            .replace(/[\\/:*?"<>|]+/g, '')
+            .replace(/\s+/g, ' ') || 'download';
+
+    if (!extension) {
+        return normalizedName;
+    }
+
+    return normalizedName.toLowerCase().endsWith(`.${extension}`)
+        ? normalizedName
+        : `${normalizedName}.${extension}`;
+}
+
+function getProgramFlowFileName(event: ManagedEvent) {
+    return toDownloadFileName(`${event.name} Program Flow`, 'pdf');
+}
+
 function toDateTime(value: string | null) {
     if (!value) {
         return null;
@@ -232,7 +258,31 @@ function getEventDateStatus(event: ManagedEvent) {
     return 'ongoing';
 }
 
+function getVenueCoordinates(venue: EventVenueForm | ManagedEvent) {
+    const latitude = Number(venue.venue_latitude);
+    const longitude = Number(venue.venue_longitude);
+
+    if (
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude) ||
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180
+    ) {
+        return null;
+    }
+
+    return { latitude, longitude };
+}
+
 function getVenueMapSrc(venue: EventVenueForm | ManagedEvent) {
+    const coordinates = getVenueCoordinates(venue);
+
+    if (coordinates) {
+        return `https://maps.google.com/maps?output=embed&z=18&q=${coordinates.latitude},${coordinates.longitude}`;
+    }
+
     const query = [venue.venue_name, venue.venue_address]
         .filter(Boolean)
         .join(', ')
@@ -242,7 +292,36 @@ function getVenueMapSrc(venue: EventVenueForm | ManagedEvent) {
         return '';
     }
 
-    return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
+    return `https://maps.google.com/maps?output=embed&z=16&q=${encodeURIComponent(query)}`;
+}
+
+function extractCoordinatesFromMapsUrl(value: string) {
+    let decodedValue = value.trim();
+
+    try {
+        decodedValue = decodeURIComponent(decodedValue);
+    } catch {
+        // Keep the raw value when the pasted URL contains an incomplete escape.
+    }
+
+    const patterns = [
+        /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+        /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+        /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?),/,
+    ];
+
+    for (const pattern of patterns) {
+        const match = decodedValue.match(pattern);
+
+        if (match) {
+            return {
+                latitude: Number(match[1]).toFixed(7),
+                longitude: Number(match[2]).toFixed(7),
+            };
+        }
+    }
+
+    return null;
 }
 
 function TruncatedFileName({ name }: { name: string }) {
@@ -285,6 +364,7 @@ export default function EventsManagement({ events }: Props) {
     );
     const [statusEvent, setStatusEvent] = useState<ManagedEvent | null>(null);
     const [venueEvent, setVenueEvent] = useState<ManagedEvent | null>(null);
+    const [venueMapLink, setVenueMapLink] = useState('');
     const [dialogMode, setDialogMode] = useState<'add' | 'edit' | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState('');
     const {
@@ -307,7 +387,8 @@ export default function EventsManagement({ events }: Props) {
         clearErrors: clearVenueErrors,
     } = useForm<EventVenueForm>(defaultVenueForm);
     const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
-    const [viewingPdfUrl, setViewingPdfUrl] = useState<string | null>(null);
+    const [viewingPdfEvent, setViewingPdfEvent] =
+        useState<ManagedEvent | null>(null);
     const venueMapSrc = getVenueMapSrc(venueData);
 
     const filteredEvents = useMemo(() => {
@@ -394,7 +475,10 @@ export default function EventsManagement({ events }: Props) {
         setVenueData({
             venue_name: event.venue_name ?? '',
             venue_address: event.venue_address ?? '',
+            venue_latitude: event.venue_latitude ?? '',
+            venue_longitude: event.venue_longitude ?? '',
         });
+        setVenueMapLink('');
     }
 
     function closeVenueDialog() {
@@ -403,8 +487,22 @@ export default function EventsManagement({ events }: Props) {
         }
 
         setVenueEvent(null);
+        setVenueMapLink('');
         resetVenue();
         clearVenueErrors();
+    }
+
+    function updateVenueMapLink(value: string) {
+        setVenueMapLink(value);
+
+        const coordinates = extractCoordinatesFromMapsUrl(value);
+
+        if (!coordinates) {
+            return;
+        }
+
+        setVenueData('venue_latitude', coordinates.latitude);
+        setVenueData('venue_longitude', coordinates.longitude);
     }
 
     function submitForm(event: FormEvent<HTMLFormElement>) {
@@ -620,9 +718,7 @@ export default function EventsManagement({ events }: Props) {
                                                 className="h-7 px-2 text-xs"
                                                 type="button"
                                                 onClick={() =>
-                                                    setViewingPdfUrl(
-                                                        event.pdf_url,
-                                                    )
+                                                    setViewingPdfEvent(event)
                                                 }
                                             >
                                                 <ExternalLink className="size-3.5" />
@@ -752,8 +848,8 @@ export default function EventsManagement({ events }: Props) {
                                                     className="h-7 px-2 text-xs"
                                                     type="button"
                                                     onClick={() =>
-                                                        setViewingPdfUrl(
-                                                            event.pdf_url,
+                                                        setViewingPdfEvent(
+                                                            event,
                                                         )
                                                     }
                                                 >
@@ -1080,8 +1176,8 @@ export default function EventsManagement({ events }: Props) {
                                             size="sm"
                                             type="button"
                                             onClick={() =>
-                                                setViewingPdfUrl(
-                                                    editingEvent.pdf_url,
+                                                setViewingPdfEvent(
+                                                    editingEvent,
                                                 )
                                             }
                                         >
@@ -1342,6 +1438,67 @@ export default function EventsManagement({ events }: Props) {
                             </div>
                         </div>
 
+                        <div className="space-y-2">
+                            <Label htmlFor="event-venue-map-link">
+                                Google Maps link
+                            </Label>
+                            <Input
+                                id="event-venue-map-link"
+                                value={venueMapLink}
+                                onChange={(event) =>
+                                    updateVenueMapLink(event.target.value)
+                                }
+                                placeholder="Paste full Google Maps URL to use its exact pin"
+                            />
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="event-venue-latitude">
+                                    Latitude
+                                </Label>
+                                <Input
+                                    id="event-venue-latitude"
+                                    value={venueData.venue_latitude}
+                                    onChange={(event) =>
+                                        setVenueData(
+                                            'venue_latitude',
+                                            event.target.value,
+                                        )
+                                    }
+                                    inputMode="decimal"
+                                    aria-invalid={
+                                        !!venueErrors.venue_latitude
+                                    }
+                                />
+                                <InputError
+                                    message={venueErrors.venue_latitude}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="event-venue-longitude">
+                                    Longitude
+                                </Label>
+                                <Input
+                                    id="event-venue-longitude"
+                                    value={venueData.venue_longitude}
+                                    onChange={(event) =>
+                                        setVenueData(
+                                            'venue_longitude',
+                                            event.target.value,
+                                        )
+                                    }
+                                    inputMode="decimal"
+                                    aria-invalid={
+                                        !!venueErrors.venue_longitude
+                                    }
+                                />
+                                <InputError
+                                    message={venueErrors.venue_longitude}
+                                />
+                            </div>
+                        </div>
+
                         <div className="overflow-hidden rounded-md border bg-muted/30">
                             {venueMapSrc ? (
                                 <iframe
@@ -1349,6 +1506,8 @@ export default function EventsManagement({ events }: Props) {
                                     title="Venue map preview"
                                     className="h-[min(18rem,45dvh)] w-full"
                                     loading="lazy"
+                                    referrerPolicy="no-referrer-when-downgrade"
+                                    allowFullScreen
                                 />
                             ) : (
                                 <div className="flex h-[min(18rem,45dvh)] items-center justify-center px-3 text-center text-sm text-muted-foreground">
@@ -1513,10 +1672,10 @@ export default function EventsManagement({ events }: Props) {
             </Dialog>
 
             <Dialog
-                open={viewingPdfUrl !== null}
+                open={viewingPdfEvent !== null}
                 onOpenChange={(open) => {
                     if (!open) {
-                        setViewingPdfUrl(null);
+                        setViewingPdfEvent(null);
                     }
                 }}
             >
@@ -1533,13 +1692,28 @@ export default function EventsManagement({ events }: Props) {
                             View more event details.
                         </DialogDescription>
                     </DialogHeader>
-                    {viewingPdfUrl && (
+                    {viewingPdfEvent?.pdf_url && (
                         <iframe
-                            src={viewingPdfUrl}
+                            src={viewingPdfEvent.pdf_url}
                             title="Event PDF preview"
                             className="h-full min-h-0 w-full flex-1 rounded-md border"
                         />
                     )}
+                    <DialogFooter className="shrink-0">
+                        {viewingPdfEvent?.pdf_url && (
+                            <Button asChild>
+                                <a
+                                    href={viewingPdfEvent.pdf_url}
+                                    download={getProgramFlowFileName(
+                                        viewingPdfEvent,
+                                    )}
+                                >
+                                    <FileText className="size-4" />
+                                    Download PDF
+                                </a>
+                            </Button>
+                        )}
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </>

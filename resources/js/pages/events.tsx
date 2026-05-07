@@ -18,6 +18,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -39,6 +40,8 @@ type PublicEvent = {
     description: string | null;
     venue_name: string | null;
     venue_address: string | null;
+    venue_latitude: string | null;
+    venue_longitude: string | null;
     starts_at: string | null;
     ends_at: string | null;
     image_url: string | null;
@@ -147,17 +150,61 @@ function getProgramFlowFileName(event: PublicEvent) {
     return toDownloadFileName(`${event.name} Program Flow`, 'pdf');
 }
 
-function getMapUrl(event: PublicEvent) {
-    const query = [event.venue_name, event.venue_address]
+function getMapQuery(event: PublicEvent) {
+    return [event.venue_name, event.venue_address]
         .filter(Boolean)
         .join(', ')
         .trim();
+}
+
+function getVenueCoordinates(event: PublicEvent) {
+    const latitude = Number(event.venue_latitude);
+    const longitude = Number(event.venue_longitude);
+
+    if (
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude) ||
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180
+    ) {
+        return null;
+    }
+
+    return { latitude, longitude };
+}
+
+function getMapUrl(event: PublicEvent) {
+    const coordinates = getVenueCoordinates(event);
+
+    if (coordinates) {
+        return `https://www.google.com/maps/search/?api=1&query=${coordinates.latitude},${coordinates.longitude}`;
+    }
+
+    const query = getMapQuery(event);
 
     if (!query) {
         return '';
     }
 
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+function getMapEmbedUrl(event: PublicEvent) {
+    const coordinates = getVenueCoordinates(event);
+
+    if (coordinates) {
+        return `https://maps.google.com/maps?output=embed&z=18&q=${coordinates.latitude},${coordinates.longitude}`;
+    }
+
+    const query = getMapQuery(event);
+
+    if (!query) {
+        return '';
+    }
+
+    return `https://maps.google.com/maps?output=embed&z=16&q=${encodeURIComponent(query)}`;
 }
 
 function EventStatusBadge({ status }: { status: EventStatus }) {
@@ -263,12 +310,15 @@ function PublicNav({
 function EventCard({
     event,
     onViewImage,
+    onViewPdf,
 }: {
     event: PublicEvent;
     onViewImage: (event: PublicEvent) => void;
+    onViewPdf: (event: PublicEvent) => void;
 }) {
     const status = getEventStatus(event);
     const mapUrl = getMapUrl(event);
+    const mapEmbedUrl = getMapEmbedUrl(event);
     const previewMaterials = event.materials.slice(0, 2);
     const hiddenMaterialsCount = Math.max(0, event.materials.length - 2);
 
@@ -342,6 +392,19 @@ function EventCard({
                             Open Google Map
                         </a>
                     ) : null}
+
+                    {mapEmbedUrl ? (
+                        <div className="mt-1 overflow-hidden rounded-xl border border-[#d9e5f5] bg-[#eef5ff] dark:border-neutral-800 dark:bg-neutral-950">
+                            <iframe
+                                src={mapEmbedUrl}
+                                title={`${event.name} pinned venue map`}
+                                className="h-40 w-full"
+                                loading="lazy"
+                                referrerPolicy="no-referrer-when-downgrade"
+                                allowFullScreen
+                            />
+                        </div>
+                    ) : null}
                 </div>
 
                 {previewMaterials.length > 0 ? (
@@ -387,18 +450,14 @@ function EventCard({
                 <div className="mt-auto flex flex-wrap justify-end gap-2 pt-1">
                     {event.pdf_url ? (
                         <Button
-                            asChild
+                            type="button"
                             size="sm"
                             variant="outline"
                             className="h-10 rounded-xl px-4 text-sm font-semibold"
+                            onClick={() => onViewPdf(event)}
                         >
-                            <a
-                                href={event.pdf_url}
-                                download={getProgramFlowFileName(event)}
-                            >
-                                View more
-                                <Download className="size-4" />
-                            </a>
+                            View more
+                            <FileText className="size-4" />
                         </Button>
                     ) : null}
                 </div>
@@ -457,11 +516,59 @@ function EventImageDialog({
     );
 }
 
+function EventPdfDialog({
+    event,
+    onOpenChange,
+}: {
+    event: PublicEvent | null;
+    onOpenChange: (open: boolean) => void;
+}) {
+    return (
+        <Dialog open={event !== null} onOpenChange={onOpenChange}>
+            <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-3 p-4 sm:h-[92dvh] sm:max-h-[92dvh] sm:w-[94vw]">
+                <DialogHeader className="shrink-0 text-left">
+                    <DialogTitle className="inline-flex items-center gap-2 text-base">
+                        <FileText className="size-4 text-slate-500 dark:text-neutral-400" />
+                        {event?.name ?? 'Event details'}
+                    </DialogTitle>
+                    <DialogDescription>
+                        Preview the event PDF before downloading.
+                    </DialogDescription>
+                </DialogHeader>
+
+                {event?.pdf_url ? (
+                    <iframe
+                        src={event.pdf_url}
+                        title={`${event.name} PDF preview`}
+                        className="min-h-0 flex-1 rounded-xl border border-[#d9e5f5] bg-white dark:border-neutral-800"
+                    />
+                ) : null}
+
+                <DialogFooter className="shrink-0">
+                    {event?.pdf_url ? (
+                        <Button asChild>
+                            <a
+                                href={event.pdf_url}
+                                download={getProgramFlowFileName(event)}
+                            >
+                                <Download className="size-4" />
+                                Download PDF
+                            </a>
+                        </Button>
+                    ) : null}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function Events({ events }: Props) {
     const { auth } = usePage().props as PageProps;
     const accessHref = auth?.user ? '/participants' : '/login';
     const [search, setSearch] = useState('');
     const [viewingImageEvent, setViewingImageEvent] =
+        useState<PublicEvent | null>(null);
+    const [viewingPdfEvent, setViewingPdfEvent] =
         useState<PublicEvent | null>(null);
     const filteredEvents = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
@@ -531,6 +638,7 @@ export default function Events({ events }: Props) {
                                     key={event.id}
                                     event={event}
                                     onViewImage={setViewingImageEvent}
+                                    onViewPdf={setViewingPdfEvent}
                                 />
                             ))}
                             {filteredEvents.length === 0 ? (
@@ -563,6 +671,14 @@ export default function Events({ events }: Props) {
                     onOpenChange={(open) => {
                         if (!open) {
                             setViewingImageEvent(null);
+                        }
+                    }}
+                />
+                <EventPdfDialog
+                    event={viewingPdfEvent}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setViewingPdfEvent(null);
                         }
                     }}
                 />

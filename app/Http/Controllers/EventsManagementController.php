@@ -25,6 +25,8 @@ class EventsManagementController extends Controller
                     'description',
                     'venue_name',
                     'venue_address',
+                    'venue_latitude',
+                    'venue_longitude',
                     'starts_at',
                     'ends_at',
                     'image_path',
@@ -133,6 +135,8 @@ class EventsManagementController extends Controller
         $validated = $request->validate([
             'venue_name' => ['required', 'string', 'max:255'],
             'venue_address' => ['nullable', 'string', 'max:500'],
+            'venue_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'venue_longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
 
         $event->update($validated);
