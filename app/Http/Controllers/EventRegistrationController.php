@@ -26,38 +26,41 @@ class EventRegistrationController extends Controller
         $user = $creator->create($request->all());
 
         $eventName = Event::query()
-    ->where('slug', $user->event_name)
-    ->value('name') ?? $user->event_name;
+            ->where('slug', $user->event_name)
+            ->value('name') ?? $user->event_name;
 
         event(new Registered($user));
 
-        try {
-              Log::info('Sending Brevo registration email from EventRegistrationController.', [
+        if (filled($user->email)) {
+            try {
+                Log::info('Sending Brevo registration email from EventRegistrationController.', [
                     'participant_id' => $user->participant_id,
                     'email' => $user->email,
                 ]);
-          $brevoEmailService->sendRegistrationSuccess([
-                'participant_id' => $user->participant_id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'organization' => $user->organization,
-                'event_name' => $eventName,
-                'qr_token' => $user->qr_token,
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('Brevo registration email failed.', [
-                'participant_id' => $user->participant_id ?? null,
-                'email' => $user->email ?? null,
-                'message' => $e->getMessage(),
-            ]);
+
+                $brevoEmailService->sendRegistrationSuccess([
+                    'participant_id' => $user->participant_id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'organization' => $user->organization,
+                    'event_name' => $eventName,
+                    'qr_token' => $user->qr_token,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Brevo registration email failed.', [
+                    'participant_id' => $user->participant_id ?? null,
+                    'email' => $user->email ?? null,
+                    'message' => $e->getMessage(),
+                ]);
+            }
         }
 
-         $request->session()->flash('toast', [
+        $request->session()->flash('toast', [
             'type' => 'success',
             'message' => 'Registration submitted successfully.',
         ]);
 
-         $request->session()->flash('registration_success', [
+        $request->session()->flash('registration_success', [
             'participant_id' => $user->participant_id,
             'name' => $user->name,
             'email' => $user->email,

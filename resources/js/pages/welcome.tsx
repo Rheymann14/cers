@@ -89,7 +89,7 @@ type WelcomeProps = {
 type RegistrationSuccess = {
     participant_id: string | null;
     name: string;
-    email: string;
+    email: string | null;
     organization: string | null;
     avatar: string | null;
 };
@@ -329,7 +329,7 @@ function RegistrationSuccessVirtualId({
     const displayId = registration.participant_id || 'Not assigned';
     const organization = registration.organization ?? '';
     const qrValue = createQrToken({
-        email: registration.email,
+        email: registration.email ?? '',
         fullName: registration.name,
         organization,
         participantId: registration.participant_id ?? '',
@@ -557,11 +557,11 @@ function EventStatusBadge({ event }: { event: EventOption }) {
             className={cn(
                 'shrink-0 border-transparent text-[11px] capitalize',
                 status === 'ongoing' &&
-                'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+                    'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
                 status === 'closed' &&
-                'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+                    'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
                 status === 'upcoming' &&
-                'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+                    'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
             )}
             variant="secondary"
         >
@@ -681,8 +681,7 @@ export default function Welcome() {
         () =>
             organizations.filter(
                 (organization) =>
-                    normalizeLookupLabel(organization.type ?? '') ===
-                    'agency',
+                    normalizeLookupLabel(organization.type ?? '') === 'agency',
             ),
         [organizations],
     );
@@ -691,7 +690,8 @@ export default function Welcome() {
         () =>
             organizations.filter(
                 (organization) =>
-                    normalizeLookupLabel(organization.type ?? '') === 'institution',
+                    normalizeLookupLabel(organization.type ?? '') ===
+                    'institution',
             ),
         [organizations],
     );
@@ -728,9 +728,9 @@ export default function Welcome() {
             selectedOrganization === otherOrganizationValue
                 ? 'Others'
                 : (organizations.find(
-                    (organization) =>
-                        organization.value === selectedOrganization,
-                )?.label ?? ''),
+                      (organization) =>
+                          organization.value === selectedOrganization,
+                  )?.label ?? ''),
         [organizations, selectedOrganization],
     );
     const selectedProvinceOption = useMemo(
@@ -752,8 +752,8 @@ export default function Welcome() {
             selectedParticipantType === otherParticipantTypeValue
                 ? 'Others'
                 : (participantTypes.find(
-                    (type) => type.value === selectedParticipantType,
-                )?.label ?? ''),
+                      (type) => type.value === selectedParticipantType,
+                  )?.label ?? ''),
         [participantTypes, selectedParticipantType],
     );
 
@@ -798,7 +798,10 @@ export default function Welcome() {
                 setParticipantTypes(data.participantTypes);
                 setEvents(data.events);
             } catch (error) {
-                if (error instanceof DOMException && error.name === 'AbortError') {
+                if (
+                    error instanceof DOMException &&
+                    error.name === 'AbortError'
+                ) {
                     return;
                 }
 
@@ -823,10 +826,12 @@ export default function Welcome() {
 
     useEffect(() => {
         if (!selectedProvince) {
-            setMunicipalityOptions([]);
-            setSelectedMunicipality('');
+            const animationFrame = window.requestAnimationFrame(() => {
+                setMunicipalityOptions([]);
+                setSelectedMunicipality('');
+            });
 
-            return;
+            return () => window.cancelAnimationFrame(animationFrame);
         }
 
         const controller = new AbortController();
@@ -856,7 +861,10 @@ export default function Welcome() {
 
                 setMunicipalityOptions(data);
             } catch (error) {
-                if (error instanceof DOMException && error.name === 'AbortError') {
+                if (
+                    error instanceof DOMException &&
+                    error.name === 'AbortError'
+                ) {
                     return;
                 }
 
@@ -1205,6 +1213,24 @@ export default function Welcome() {
         }
     }
 
+    function resetRegistrationFormState() {
+        setSelectedEvent('');
+        setSelectedOrganization('');
+        setSelectedProvince('');
+        setSelectedMunicipality('');
+        setSelectedParticipantType('');
+        setProfilePhotoDataUrl('');
+        setProfilePhotoPreview('');
+        setProfilePhotoError('');
+        setCropImageSrc('');
+        setCompletedCrop(undefined);
+        setOrganizationPopoverOpen(false);
+        setProvincePopoverOpen(false);
+        setMunicipalityPopoverOpen(false);
+        setParticipantTypePopoverOpen(false);
+        setEventPopoverOpen(false);
+    }
+
     return (
         <>
             <Head title="CHED Events Registration System">
@@ -1377,11 +1403,9 @@ export default function Welcome() {
                             <Form
                                 action="/event-registration"
                                 method="post"
-                                // resetOnSuccess={[
-                                //     // 'password',
-                                //     // 'password_confirmation',
-                                // ]}
+                                resetOnSuccess
                                 options={{ preserveScroll: true }}
+                                onSuccess={resetRegistrationFormState}
                                 onError={(errors) =>
                                     scrollToFirstRegistrationError(errors)
                                 }
@@ -1483,13 +1507,11 @@ export default function Welcome() {
                                             <div className="grid gap-4 md:grid-cols-3">
                                                 <div className="grid gap-2 md:col-span-2">
                                                     <Label htmlFor="email">
-                                                        Email address{' '}
-                                                        <RequiredMark />
+                                                        Email address
                                                     </Label>
                                                     <Input
                                                         id="email"
                                                         type="email"
-                                                        required
                                                         autoComplete="email"
                                                         name="email"
                                                         placeholder="juan@example.com"
@@ -1501,13 +1523,11 @@ export default function Welcome() {
                                                 </div>
                                                 <div className="grid gap-2">
                                                     <Label htmlFor="phone">
-                                                        Contact number{' '}
-                                                        <RequiredMark />
+                                                        Contact number
                                                     </Label>
                                                     <Input
                                                         id="phone"
                                                         type="tel"
-                                                        required
                                                         autoComplete="tel"
                                                         inputMode="numeric"
                                                         maxLength={11}
@@ -1774,260 +1794,6 @@ export default function Welcome() {
                                                 </div>
                                             </div>
 
-                                            <div className="grid gap-4 md:grid-cols-3">
-                                                <div className="grid gap-2 md:col-span-3">
-                                                    <p
-                                                        id="organization_label"
-                                                        className="text-sm font-medium"
-                                                    >
-                                                        School or organization{' '}
-                                                        <RequiredMark />
-                                                    </p>
-                                                    {selectedOrganization !==
-                                                        otherOrganizationValue && (
-                                                            <input
-                                                                type="hidden"
-                                                                name="organization"
-                                                                value={
-                                                                    selectedOrganization
-                                                                }
-                                                                readOnly
-                                                            />
-                                                        )}
-                                                    <Popover
-                                                        open={
-                                                            organizationPopoverOpen
-                                                        }
-                                                        onOpenChange={
-                                                            setOrganizationPopoverOpen
-                                                        }
-                                                    >
-                                                        <PopoverTrigger asChild>
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                role="combobox"
-                                                                data-registration-field="organization"
-                                                                aria-labelledby="organization_label"
-                                                                aria-expanded={
-                                                                    organizationPopoverOpen
-                                                                }
-                                                                className={
-                                                                    comboboxButtonClass
-                                                                }
-                                                            >
-                                                                <span
-                                                                    className={
-                                                                        comboboxValueClass
-                                                                    }
-                                                                >
-                                                                    {selectedOrganizationLabel ||
-                                                                        'Search and select school or organization'}
-                                                                </span>
-                                                                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                                                            </Button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent
-                                                            align="start"
-                                                            className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
-                                                        >
-                                                            <Command>
-                                                                <CommandInput placeholder="Search school or organization..." />
-                                                                <CommandList>
-                                                                    <CommandEmpty>
-                                                                        {lookupsLoading
-                                                                            ? 'Loading organizations...'
-                                                                            : 'No school or organization found.'}
-                                                                    </CommandEmpty>
-                                                                    <CommandGroup>
-                                                                        <CommandItem
-                                                                            value="Others"
-                                                                            className={
-                                                                                commandItemClass
-                                                                            }
-                                                                            onSelect={() => {
-                                                                                setSelectedOrganization(
-                                                                                    otherOrganizationValue,
-                                                                                );
-                                                                                setOrganizationPopoverOpen(
-                                                                                    false,
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <Check
-                                                                                className={cn(
-                                                                                    'mt-0.5 mr-2 size-4',
-                                                                                    selectedOrganization ===
-                                                                                        otherOrganizationValue
-                                                                                        ? 'opacity-100'
-                                                                                        : 'opacity-0',
-                                                                                )}
-                                                                            />
-                                                                            <span
-                                                                                className={
-                                                                                    commandItemTextClass
-                                                                                }
-                                                                            >
-                                                                                Others
-                                                                            </span>
-                                                                        </CommandItem>
-                                                                        {organizationOptions.length > 0 && (
-                                                                            <CommandGroup heading="Organization">
-                                                                                {organizationOptions.map((organization) => (
-                                                                                    <CommandItem
-                                                                                        key={organization.value}
-                                                                                        className={commandItemClass}
-                                                                                        value={organization.label}
-                                                                                        onSelect={() => {
-                                                                                            setSelectedOrganization(organization.value);
-                                                                                            setOrganizationPopoverOpen(false);
-                                                                                        }}
-                                                                                    >
-                                                                                        <Check
-                                                                                            className={cn(
-                                                                                                'mt-0.5 mr-2 size-4',
-                                                                                                selectedOrganization === organization.value
-                                                                                                    ? 'opacity-100'
-                                                                                                    : 'opacity-0',
-                                                                                            )}
-                                                                                        />
-                                                                                        <span className={commandItemTextClass}>
-                                                                                            {organization.label}
-                                                                                        </span>
-                                                                                    </CommandItem>
-                                                                                ))}
-                                                                            </CommandGroup>
-                                                                        )}
-
-                                                                        {schoolOptions.length > 0 && (
-                                                                            <CommandGroup heading="School">
-                                                                                {schoolOptions.map((organization) => (
-                                                                                    <CommandItem
-                                                                                        key={organization.value}
-                                                                                        className={commandItemClass}
-                                                                                        value={organization.label}
-                                                                                        onSelect={() => {
-                                                                                            setSelectedOrganization(organization.value);
-                                                                                            setOrganizationPopoverOpen(false);
-                                                                                        }}
-                                                                                    >
-                                                                                        <Check
-                                                                                            className={cn(
-                                                                                                'mt-0.5 mr-2 size-4',
-                                                                                                selectedOrganization === organization.value
-                                                                                                    ? 'opacity-100'
-                                                                                                    : 'opacity-0',
-                                                                                            )}
-                                                                                        />
-                                                                                        <span className={commandItemTextClass}>
-                                                                                            {organization.label}
-                                                                                        </span>
-                                                                                    </CommandItem>
-                                                                                ))}
-                                                                            </CommandGroup>
-                                                                        )}
-                                                                    </CommandGroup>
-                                                                </CommandList>
-                                                            </Command>
-                                                        </PopoverContent>
-                                                    </Popover>
-                                                    {selectedOrganization ===
-                                                        otherOrganizationValue && (
-                                                            <Input
-                                                                type="text"
-                                                                required
-                                                                autoComplete="organization"
-                                                                name="organization"
-                                                                placeholder="Enter school or organization"
-                                                                onBlur={
-                                                                    handleOtherOrganizationBlur
-                                                                }
-                                                                className={
-                                                                    fieldClass
-                                                                }
-                                                            />
-                                                        )}
-                                                    <InputError
-                                                        message={
-                                                            errors.organization
-                                                        }
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="grid gap-3">
-                                                <p className="text-sm font-medium">
-                                                    Profile image
-                                                </p>
-                                                <input
-                                                    type="hidden"
-                                                    name="avatar"
-                                                    value={profilePhotoDataUrl}
-                                                    readOnly
-                                                />
-                                                <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-[#d9e5f5] bg-[#f8fbff] p-4 sm:flex-row sm:items-center dark:border-neutral-700 dark:bg-neutral-950">
-                                                    <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#d9e5f5] bg-white dark:border-neutral-700 dark:bg-neutral-900">
-                                                        {profilePhotoPreview ? (
-                                                            <img
-                                                                src={
-                                                                    profilePhotoPreview
-                                                                }
-                                                                alt="Profile preview"
-                                                                className="size-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <ImagePlus className="size-8 text-slate-400 dark:text-neutral-500" />
-                                                        )}
-                                                    </div>
-                                                    <div className="grid flex-1 gap-2">
-                                                        <p className="text-sm text-slate-600 dark:text-neutral-400">
-                                                            Upload a square
-                                                            profile image for
-                                                            your account.
-                                                        </p>
-                                                        <div className="flex flex-wrap items-center gap-2">
-                                                            <Label
-                                                                htmlFor="profile_photo_upload"
-                                                                className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-[#0038A8] bg-[#0038A8] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-[#0038A8] hover:bg-[#002f8f]"
-                                                            >
-                                                                <ImagePlus className="mr-2 size-4" />
-                                                                Choose image
-                                                            </Label>
-                                                            <input
-                                                                id="profile_photo_upload"
-                                                                type="file"
-                                                                data-registration-field="avatar"
-                                                                accept="image/png,image/jpeg"
-                                                                className="sr-only"
-                                                                onChange={
-                                                                    handleProfilePhotoSelect
-                                                                }
-                                                            />
-                                                            {profilePhotoPreview && (
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="icon"
-                                                                    aria-label="Remove profile image"
-                                                                    className="rounded-xl border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-red-900/70 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
-                                                                    onClick={
-                                                                        removeProfilePhoto
-                                                                    }
-                                                                >
-                                                                    <Trash2 className="size-4" />
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <InputError
-                                                    message={
-                                                        errors.avatar ||
-                                                        profilePhotoError
-                                                    }
-                                                />
-                                            </div>
-
                                             <div className="grid gap-4 md:grid-cols-2">
                                                 <div className="grid gap-2">
                                                     <p
@@ -2039,15 +1805,15 @@ export default function Welcome() {
                                                     </p>
                                                     {selectedParticipantType !==
                                                         otherParticipantTypeValue && (
-                                                            <input
-                                                                type="hidden"
-                                                                name="participant_type"
-                                                                value={
-                                                                    selectedParticipantType
-                                                                }
-                                                                readOnly
-                                                            />
-                                                        )}
+                                                        <input
+                                                            type="hidden"
+                                                            name="participant_type"
+                                                            value={
+                                                                selectedParticipantType
+                                                            }
+                                                            readOnly
+                                                        />
+                                                    )}
                                                     <Popover
                                                         open={
                                                             participantTypePopoverOpen
@@ -2125,59 +1891,103 @@ export default function Welcome() {
                                                                                 Others
                                                                             </span>
                                                                         </CommandItem>
-                                                                        {fourPsParticipantTypes.length > 0 && (
+                                                                        {fourPsParticipantTypes.length >
+                                                                            0 && (
                                                                             <CommandGroup heading="4Ps">
-                                                                                {fourPsParticipantTypes.map((type) => (
-                                                                                    <CommandItem
-                                                                                        key={type.value}
-                                                                                        className={commandItemClass}
-                                                                                        value={type.label}
-                                                                                        onSelect={() => {
-                                                                                            setSelectedParticipantType(type.value);
-                                                                                            setParticipantTypePopoverOpen(false);
-                                                                                        }}
-                                                                                    >
-                                                                                        <Check
-                                                                                            className={cn(
-                                                                                                'mt-0.5 mr-2 size-4',
-                                                                                                selectedParticipantType === type.value
-                                                                                                    ? 'opacity-100'
-                                                                                                    : 'opacity-0',
-                                                                                            )}
-                                                                                        />
-                                                                                        <span className={commandItemTextClass}>
-                                                                                            {type.label}
-                                                                                        </span>
-                                                                                    </CommandItem>
-                                                                                ))}
+                                                                                {fourPsParticipantTypes.map(
+                                                                                    (
+                                                                                        type,
+                                                                                    ) => (
+                                                                                        <CommandItem
+                                                                                            key={
+                                                                                                type.value
+                                                                                            }
+                                                                                            className={
+                                                                                                commandItemClass
+                                                                                            }
+                                                                                            value={
+                                                                                                type.label
+                                                                                            }
+                                                                                            onSelect={() => {
+                                                                                                setSelectedParticipantType(
+                                                                                                    type.value,
+                                                                                                );
+                                                                                                setParticipantTypePopoverOpen(
+                                                                                                    false,
+                                                                                                );
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                                    selectedParticipantType ===
+                                                                                                        type.value
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            <span
+                                                                                                className={
+                                                                                                    commandItemTextClass
+                                                                                                }
+                                                                                            >
+                                                                                                {
+                                                                                                    type.label
+                                                                                                }
+                                                                                            </span>
+                                                                                        </CommandItem>
+                                                                                    ),
+                                                                                )}
                                                                             </CommandGroup>
                                                                         )}
 
-                                                                        {generalParticipantTypes.length > 0 && (
+                                                                        {generalParticipantTypes.length >
+                                                                            0 && (
                                                                             <CommandGroup heading="General">
-                                                                                {generalParticipantTypes.map((type) => (
-                                                                                    <CommandItem
-                                                                                        key={type.value}
-                                                                                        className={commandItemClass}
-                                                                                        value={type.label}
-                                                                                        onSelect={() => {
-                                                                                            setSelectedParticipantType(type.value);
-                                                                                            setParticipantTypePopoverOpen(false);
-                                                                                        }}
-                                                                                    >
-                                                                                        <Check
-                                                                                            className={cn(
-                                                                                                'mt-0.5 mr-2 size-4',
-                                                                                                selectedParticipantType === type.value
-                                                                                                    ? 'opacity-100'
-                                                                                                    : 'opacity-0',
-                                                                                            )}
-                                                                                        />
-                                                                                        <span className={commandItemTextClass}>
-                                                                                            {type.label}
-                                                                                        </span>
-                                                                                    </CommandItem>
-                                                                                ))}
+                                                                                {generalParticipantTypes.map(
+                                                                                    (
+                                                                                        type,
+                                                                                    ) => (
+                                                                                        <CommandItem
+                                                                                            key={
+                                                                                                type.value
+                                                                                            }
+                                                                                            className={
+                                                                                                commandItemClass
+                                                                                            }
+                                                                                            value={
+                                                                                                type.label
+                                                                                            }
+                                                                                            onSelect={() => {
+                                                                                                setSelectedParticipantType(
+                                                                                                    type.value,
+                                                                                                );
+                                                                                                setParticipantTypePopoverOpen(
+                                                                                                    false,
+                                                                                                );
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                                    selectedParticipantType ===
+                                                                                                        type.value
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            <span
+                                                                                                className={
+                                                                                                    commandItemTextClass
+                                                                                                }
+                                                                                            >
+                                                                                                {
+                                                                                                    type.label
+                                                                                                }
+                                                                                            </span>
+                                                                                        </CommandItem>
+                                                                                    ),
+                                                                                )}
                                                                             </CommandGroup>
                                                                         )}
                                                                     </CommandGroup>
@@ -2187,19 +1997,19 @@ export default function Welcome() {
                                                     </Popover>
                                                     {selectedParticipantType ===
                                                         otherParticipantTypeValue && (
-                                                            <Input
-                                                                type="text"
-                                                                required
-                                                                name="participant_type"
-                                                                placeholder="Enter participant type"
-                                                                onBlur={
-                                                                    handleOtherParticipantTypeBlur
-                                                                }
-                                                                className={
-                                                                    fieldClass
-                                                                }
-                                                            />
-                                                        )}
+                                                        <Input
+                                                            type="text"
+                                                            required
+                                                            name="participant_type"
+                                                            placeholder="Enter participant type"
+                                                            onBlur={
+                                                                handleOtherParticipantTypeBlur
+                                                            }
+                                                            className={
+                                                                fieldClass
+                                                            }
+                                                        />
+                                                    )}
                                                     <InputError
                                                         message={
                                                             errors.participant_type
@@ -2236,6 +2046,305 @@ export default function Welcome() {
                                                         message={errors.sex}
                                                     />
                                                 </div>
+                                            </div>
+
+                                            <div className="grid gap-4">
+                                                <div className="grid gap-2">
+                                                    <p
+                                                        id="organization_label"
+                                                        className="text-sm font-medium"
+                                                    >
+                                                        School or organization{' '}
+                                                        <RequiredMark />
+                                                    </p>
+                                                    {selectedOrganization !==
+                                                        otherOrganizationValue && (
+                                                        <input
+                                                            type="hidden"
+                                                            name="organization"
+                                                            value={
+                                                                selectedOrganization
+                                                            }
+                                                            readOnly
+                                                        />
+                                                    )}
+                                                    <Popover
+                                                        open={
+                                                            organizationPopoverOpen
+                                                        }
+                                                        onOpenChange={
+                                                            setOrganizationPopoverOpen
+                                                        }
+                                                    >
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                role="combobox"
+                                                                data-registration-field="organization"
+                                                                aria-labelledby="organization_label"
+                                                                aria-expanded={
+                                                                    organizationPopoverOpen
+                                                                }
+                                                                className={
+                                                                    comboboxButtonClass
+                                                                }
+                                                            >
+                                                                <span
+                                                                    className={
+                                                                        comboboxValueClass
+                                                                    }
+                                                                >
+                                                                    {selectedOrganizationLabel ||
+                                                                        'Search and select school or organization'}
+                                                                </span>
+                                                                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent
+                                                            align="start"
+                                                            className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                                                        >
+                                                            <Command>
+                                                                <CommandInput placeholder="Search school or organization..." />
+                                                                <CommandList>
+                                                                    <CommandEmpty>
+                                                                        {lookupsLoading
+                                                                            ? 'Loading organizations...'
+                                                                            : 'No school or organization found.'}
+                                                                    </CommandEmpty>
+                                                                    <CommandGroup>
+                                                                        <CommandItem
+                                                                            value="Others"
+                                                                            className={
+                                                                                commandItemClass
+                                                                            }
+                                                                            onSelect={() => {
+                                                                                setSelectedOrganization(
+                                                                                    otherOrganizationValue,
+                                                                                );
+                                                                                setOrganizationPopoverOpen(
+                                                                                    false,
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <Check
+                                                                                className={cn(
+                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                    selectedOrganization ===
+                                                                                        otherOrganizationValue
+                                                                                        ? 'opacity-100'
+                                                                                        : 'opacity-0',
+                                                                                )}
+                                                                            />
+                                                                            <span
+                                                                                className={
+                                                                                    commandItemTextClass
+                                                                                }
+                                                                            >
+                                                                                Others
+                                                                            </span>
+                                                                        </CommandItem>
+                                                                        {organizationOptions.length >
+                                                                            0 && (
+                                                                            <CommandGroup heading="Organization">
+                                                                                {organizationOptions.map(
+                                                                                    (
+                                                                                        organization,
+                                                                                    ) => (
+                                                                                        <CommandItem
+                                                                                            key={
+                                                                                                organization.value
+                                                                                            }
+                                                                                            className={
+                                                                                                commandItemClass
+                                                                                            }
+                                                                                            value={
+                                                                                                organization.label
+                                                                                            }
+                                                                                            onSelect={() => {
+                                                                                                setSelectedOrganization(
+                                                                                                    organization.value,
+                                                                                                );
+                                                                                                setOrganizationPopoverOpen(
+                                                                                                    false,
+                                                                                                );
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                                    selectedOrganization ===
+                                                                                                        organization.value
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            <span
+                                                                                                className={
+                                                                                                    commandItemTextClass
+                                                                                                }
+                                                                                            >
+                                                                                                {
+                                                                                                    organization.label
+                                                                                                }
+                                                                                            </span>
+                                                                                        </CommandItem>
+                                                                                    ),
+                                                                                )}
+                                                                            </CommandGroup>
+                                                                        )}
+
+                                                                        {schoolOptions.length >
+                                                                            0 && (
+                                                                            <CommandGroup heading="School">
+                                                                                {schoolOptions.map(
+                                                                                    (
+                                                                                        organization,
+                                                                                    ) => (
+                                                                                        <CommandItem
+                                                                                            key={
+                                                                                                organization.value
+                                                                                            }
+                                                                                            className={
+                                                                                                commandItemClass
+                                                                                            }
+                                                                                            value={
+                                                                                                organization.label
+                                                                                            }
+                                                                                            onSelect={() => {
+                                                                                                setSelectedOrganization(
+                                                                                                    organization.value,
+                                                                                                );
+                                                                                                setOrganizationPopoverOpen(
+                                                                                                    false,
+                                                                                                );
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                                    selectedOrganization ===
+                                                                                                        organization.value
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            <span
+                                                                                                className={
+                                                                                                    commandItemTextClass
+                                                                                                }
+                                                                                            >
+                                                                                                {
+                                                                                                    organization.label
+                                                                                                }
+                                                                                            </span>
+                                                                                        </CommandItem>
+                                                                                    ),
+                                                                                )}
+                                                                            </CommandGroup>
+                                                                        )}
+                                                                    </CommandGroup>
+                                                                </CommandList>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    {selectedOrganization ===
+                                                        otherOrganizationValue && (
+                                                        <Input
+                                                            type="text"
+                                                            required
+                                                            autoComplete="organization"
+                                                            name="organization"
+                                                            placeholder="Enter school or organization"
+                                                            onBlur={
+                                                                handleOtherOrganizationBlur
+                                                            }
+                                                            className={
+                                                                fieldClass
+                                                            }
+                                                        />
+                                                    )}
+                                                    <InputError
+                                                        message={
+                                                            errors.organization
+                                                        }
+                                                    />
+                                                </div>
+
+                                            </div>
+
+                                            <div className="grid gap-3">
+                                                <p className="text-sm font-medium">
+                                                    Profile image
+                                                </p>
+                                                <input
+                                                    type="hidden"
+                                                    name="avatar"
+                                                    value={profilePhotoDataUrl}
+                                                    readOnly
+                                                />
+                                                <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-[#d9e5f5] bg-[#f8fbff] p-4 sm:flex-row sm:items-center dark:border-neutral-700 dark:bg-neutral-950">
+                                                    <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#d9e5f5] bg-white dark:border-neutral-700 dark:bg-neutral-900">
+                                                        {profilePhotoPreview ? (
+                                                            <img
+                                                                src={
+                                                                    profilePhotoPreview
+                                                                }
+                                                                alt="Profile preview"
+                                                                className="size-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <ImagePlus className="size-8 text-slate-400 dark:text-neutral-500" />
+                                                        )}
+                                                    </div>
+                                                    <div className="grid flex-1 gap-2">
+                                                        <p className="text-sm text-slate-600 dark:text-neutral-400">
+                                                            Upload a square
+                                                            profile image for
+                                                            your account.
+                                                        </p>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <Label
+                                                                htmlFor="profile_photo_upload"
+                                                                className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-[#0038A8] bg-[#0038A8] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-[#0038A8] hover:bg-[#002f8f]"
+                                                            >
+                                                                <ImagePlus className="mr-2 size-4" />
+                                                                Choose image
+                                                            </Label>
+                                                            <input
+                                                                id="profile_photo_upload"
+                                                                type="file"
+                                                                data-registration-field="avatar"
+                                                                accept="image/png,image/jpeg"
+                                                                className="sr-only"
+                                                                onChange={
+                                                                    handleProfilePhotoSelect
+                                                                }
+                                                            />
+                                                            {profilePhotoPreview && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="icon"
+                                                                    aria-label="Remove profile image"
+                                                                    className="rounded-xl border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-red-900/70 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                                                                    onClick={
+                                                                        removeProfilePhoto
+                                                                    }
+                                                                >
+                                                                    <Trash2 className="size-4" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <InputError
+                                                    message={
+                                                        errors.avatar ||
+                                                        profilePhotoError
+                                                    }
+                                                />
                                             </div>
                                         </section>
 
@@ -2438,17 +2547,14 @@ export default function Welcome() {
                                                 required
                                                 className="mt-0.5 size-5 rounded border-[#d9e5f5] text-[#0038A8] focus:ring-[#0038A8]/20 dark:border-neutral-700 dark:bg-neutral-950"
                                             />
-                                            I consent to CERS sharing my
-                                            full name, designation,
-                                            institution, and email address
-                                            with other event attendees to
-                                            support networking among
-                                            institutions with shared
-                                            interests. <RequiredMark />
+                                            I consent to CERS sharing my full
+                                            name, designation, institution, and
+                                            email address if provided with other
+                                            event attendees to support
+                                            networking among institutions with
+                                            shared interests. <RequiredMark />
                                         </label>
-                                        <InputError
-                                            message={errors.consent}
-                                        />
+                                        <InputError message={errors.consent} />
                                         {/* </section>  */}
 
                                         <Button
