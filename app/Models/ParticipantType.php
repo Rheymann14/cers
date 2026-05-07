@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'slug', 'is_active', 'created_by_user_id'])]
+#[Fillable(['name', 'slug', 'type', 'is_active', 'created_by_user_id'])]
 class ParticipantType extends Model
 {
     use HasFactory;

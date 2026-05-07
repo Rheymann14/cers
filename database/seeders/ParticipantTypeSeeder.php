@@ -13,8 +13,8 @@ class ParticipantTypeSeeder extends Seeder
     public function run(): void
     {
         foreach ([
-            ['name' => 'Administrator', 'slug' => 'admin'],
-            ['name' => 'Participant', 'slug' => 'participant'],
+            ['name' => 'Administrator', 'slug' => 'admin', 'type' => 'general'],
+            ['name' => 'Participant', 'slug' => 'participant', 'type' => 'general'],
         ] as $participantType) {
             ParticipantType::query()->updateOrCreate(
                 ['slug' => $participantType['slug']],

@@ -53,6 +53,13 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
     Table,
     TableBody,
     TableCell,
@@ -81,7 +88,9 @@ type CreatedSetting = BaseSetting & {
     } | null;
 };
 
-type ParticipantType = CreatedSetting;
+type ParticipantType = CreatedSetting & {
+    type: string;
+};
 
 type Organization = CreatedSetting & {
     type: string;
@@ -135,7 +144,7 @@ const pageSizeOptions = [5, 10, 25];
 const defaultForm: SettingsForm = {
     name: '',
     slug: '',
-    type: 'school',
+    type: 'general',
     code: '',
     region_name: '',
     region_code: '',
@@ -236,7 +245,7 @@ export default function PageSettings({
                     items={participantTypes}
                     columns={[
                         {
-                            label: 'Type',
+                            label: 'Participant Type',
                             render: (item) => (
                                 <p className="font-medium text-foreground">
                                     {item.name}
@@ -247,6 +256,13 @@ export default function PageSettings({
                             label: 'Slug',
                             render: (item) =>
                                 'slug' in item ? item.slug : '-',
+                        },
+                        {
+                            label: 'Category',
+                            render: (item) =>
+                                'type' in item
+                                    ? formatTypeLabel(item.type)
+                                    : '-',
                         },
                         {
                             label: 'Status',
@@ -1049,6 +1065,34 @@ function SettingsTable({
                             </div>
                         )}
 
+                        {tableKey === 'participant-types' && (
+                            <div className="space-y-2">
+                                <Label htmlFor={`${tableKey}-type`}>
+                                    Category
+                                </Label>
+                                <Select
+                                    value={data.type}
+                                    onValueChange={(value) =>
+                                        setData('type', value)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id={`${tableKey}-type`}
+                                        aria-invalid={!!errors.type}
+                                    >
+                                        <SelectValue placeholder="Select category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="general">
+                                            General
+                                        </SelectItem>
+                                        <SelectItem value="4ps">4Ps</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <InputError message={errors.type} />
+                            </div>
+                        )}
+
                         <div className="grid gap-3 sm:grid-cols-2">
                             <label className="flex items-center gap-2 rounded-md border p-3 text-sm">
                                 <input
@@ -1260,7 +1304,12 @@ function defaultSettingsForm(
 ): SettingsForm {
     return {
         ...defaultForm,
-        type: tableKey === 'municipalities' ? 'Mun' : 'school',
+        type:
+            tableKey === 'participant-types'
+                ? 'general'
+                : tableKey === 'municipalities'
+                  ? 'Mun'
+                  : 'school',
         province_id:
             tableKey === 'municipalities' && provinceOptions[0]
                 ? String(provinceOptions[0].id)
@@ -1325,6 +1374,10 @@ function formatDate(value: string | null) {
     }
 
     return dateFormatter.format(new Date(value));
+}
+
+function formatTypeLabel(value: string) {
+    return value.trim().toLowerCase() === '4ps' ? '4Ps' : 'General';
 }
 
 PageSettings.layout = {

@@ -8,8 +8,10 @@ use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\Province;
 use App\Models\User;
+use App\Services\BrevoEmailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -76,13 +78,13 @@ class ParticipantsController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, BrevoEmailService $brevoEmailService): RedirectResponse
     {
         $validated = $request->validate([
             'given_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'surname' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
+            'email' => ['nullable', 'string', 'email', 'max:255', Rule::unique(User::class)],
             'avatar' => ['nullable', 'string'],
             'website' => ['prohibited'],
             'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/'],
@@ -153,13 +155,13 @@ class ParticipantsController extends Controller
                 ->first()
             : null;
 
-        User::query()->create([
+        $participant = User::query()->create([
             'name' => $name,
             'participant_id' => $this->generateParticipantId(),
             'given_name' => $validated['given_name'],
             'middle_name' => $validated['middle_name'] ?? null,
             'surname' => $validated['surname'],
-            'email' => $validated['email'],
+            'email' => $validated['email'] ?? null,
             'avatar' => $this->storeAvatar($validated['avatar'] ?? null),
             'phone' => $validated['phone'] ?? null,
             'province_id' => $province->id,
@@ -174,6 +176,29 @@ class ParticipantsController extends Controller
             'registration_consent_accepted_at' => now(),
             'password' => 'cers2026',
         ]);
+
+        if (filled($participant->email)) {
+            try {
+                Log::info('Sending Brevo registration email from ParticipantsController.', [
+                    'participant_id' => $participant->participant_id,
+                    'email' => $participant->email,
+                ]);
+
+                $brevoEmailService->sendRegistrationSuccess([
+                    'participant_id' => $participant->participant_id,
+                    'name' => $participant->name,
+                    'email' => $participant->email,
+                    'organization' => $participant->organization,
+                    'event_name' => $event?->name ?? $participant->event_name,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Brevo registration email failed from ParticipantsController.', [
+                    'participant_id' => $participant->participant_id ?? null,
+                    'email' => $participant->email ?? null,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
 
         Inertia::flash('toast', [
             'type' => 'success',
