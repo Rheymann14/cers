@@ -5,8 +5,10 @@ import {
     ExternalLink,
     FileText,
     MapPin,
+    Moon,
     Package,
     Search,
+    Sun,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -19,6 +21,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { useAppearance } from '@/hooks/use-appearance';
 import { cn } from '@/lib/utils';
 
 type EventMaterial = {
@@ -105,7 +108,11 @@ function formatDateRange(event: PublicEvent) {
         return `Until ${dateTimeFormatter.format(endsAt)}`;
     }
 
-    return `${dateTimeFormatter.format(startsAt)} - ${dateTimeFormatter.format(endsAt)}`;
+    if (startsAt && endsAt) {
+        return `${dateTimeFormatter.format(startsAt)} - ${dateTimeFormatter.format(endsAt)}`;
+    }
+
+    return 'Schedule to be announced';
 }
 
 function formatFileSize(value: number | null) {
@@ -188,50 +195,65 @@ function PublicNav({
     accessHref: string;
     auth?: PageProps['auth'];
 }) {
+    const { resolvedAppearance, updateAppearance } = useAppearance();
+    const nextAppearance = resolvedAppearance === 'dark' ? 'light' : 'dark';
+    const AppearanceIcon = resolvedAppearance === 'dark' ? Sun : Moon;
+
     return (
         <header className="sticky top-0 z-50 border-b border-[#d9e5f5] bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
             <nav
-                className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8"
+                className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8"
                 aria-label="Main navigation"
             >
-                <Link href="/home" className="flex min-w-0 items-center gap-2">
+                <Link href="/home" className="flex min-w-0 items-center gap-3">
                     <img
                         src="/ched_logo-128.png"
                         alt="Commission on Higher Education logo"
-                        className="size-10 shrink-0 object-contain"
+                        className="h-12 w-12 shrink-0 object-contain"
                     />
                     <span className="min-w-0">
                         <span className="block text-sm font-semibold tracking-wide text-slate-950 dark:text-white">
                             CERS
                         </span>
-                        <span className="block truncate text-xs text-slate-600 dark:text-neutral-400">
+                        <span className="block truncate text-xs text-slate-600 sm:text-sm dark:text-neutral-400">
                             CHED Events Registration System
                         </span>
                     </span>
                 </Link>
 
-                <div className="flex shrink-0 items-center gap-3">
-                    <div className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-neutral-300">
+                <div className="flex items-center justify-between gap-4 lg:gap-8">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-medium text-slate-600 dark:text-neutral-300">
                         <Link
                             href="/home"
-                            className="py-1 transition hover:text-[#0038A8] dark:hover:text-blue-300"
+                            className="relative py-1 transition hover:text-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] dark:hover:text-blue-300"
                         >
                             Home
                         </Link>
                         <Link
                             href="/events"
-                            className="relative py-1 font-semibold text-[#0038A8] after:absolute after:right-0 after:-bottom-1 after:left-0 after:h-0.5 after:rounded-full after:bg-[#0038A8] dark:text-blue-300 dark:after:bg-blue-300"
+                            className="relative py-1 font-semibold text-[#0038A8] transition after:absolute after:right-0 after:-bottom-1 after:left-0 after:h-0.5 after:rounded-full after:bg-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] dark:text-blue-300 dark:after:bg-blue-300"
                         >
                             Events
                         </Link>
                     </div>
 
-                    <Link
-                        href={accessHref}
-                        className="inline-flex h-9 items-center justify-center rounded-lg border border-[#0038A8] bg-[#0038A8] px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002f8f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]"
-                    >
-                        {auth?.user ? 'Participants' : 'Login'}
-                    </Link>
+                    <div className="flex shrink-0 items-center gap-3">
+                        <button
+                            type="button"
+                            aria-label={`Switch to ${nextAppearance} mode`}
+                            onClick={() => updateAppearance(nextAppearance)}
+                            className="inline-flex size-11 items-center justify-center rounded-xl border border-[#d9e5f5] bg-white text-slate-700 shadow-sm transition hover:border-[#0038A8]/30 hover:text-[#0038A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:text-white"
+                        >
+                            <AppearanceIcon className="size-5" />
+                        </button>
+
+                        <Link
+                            href={accessHref}
+                            className="inline-flex items-center justify-center rounded-xl border border-[#0038A8] bg-[#0038A8] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002f8f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0038A8]"
+                        >
+                            {auth?.user ? 'Participants' : 'Login'}
+                        </Link>
+                    </div>
                 </div>
             </nav>
         </header>
