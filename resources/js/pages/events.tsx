@@ -351,7 +351,6 @@ function EventCard({
             <div className="grid flex-1 content-start gap-3 pt-3">
                 <div className="flex min-w-0 flex-wrap gap-2">
                     <EventDatePill event={event} />
-                    <EventStatusBadge status={status} />
                 </div>
 
                 <div className="grid gap-1.5">

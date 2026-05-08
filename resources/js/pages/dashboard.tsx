@@ -125,6 +125,7 @@ type AttendanceParticipant = {
     event_slug: string | null;
     registered_at: string | null;
     checked_in_at: string | null;
+    scanned_by: string | null;
 };
 
 type StatisticParticipant = {
@@ -266,6 +267,27 @@ const attendanceExportColumns: AttendanceExportColumn[] = [
     { header: 'Account Status', key: 'account_status', width: 18 },
 ];
 
+const checkedInAttendanceExportColumns: AttendanceExportColumn[] = [
+    { header: 'Participant ID', key: 'participant_id', width: 22 },
+    { header: 'Full Name', key: 'name', width: 28 },
+    { header: 'Given Name', key: 'given_name', width: 20 },
+    { header: 'Middle Name', key: 'middle_name', width: 18 },
+    { header: 'Surname', key: 'surname', width: 20 },
+    { header: 'Email', key: 'email', width: 30 },
+    { header: 'Phone', key: 'phone', width: 16 },
+    { header: 'Sex', key: 'sex', width: 12 },
+    { header: 'Participant Type', key: 'participant_type', width: 20 },
+    { header: 'Organization', key: 'organization', width: 34 },
+    { header: 'Province', key: 'province', width: 22 },
+    { header: 'Municipality / City', key: 'municipality', width: 24 },
+    { header: 'Event', key: 'event_name', width: 34 },
+    { header: 'Registered At', key: 'registered_at', width: 24 },
+    { header: 'Checked In At', key: 'checked_in_at', width: 24 },
+    { header: 'Scanned By', key: 'scanned_by', width: 24 },
+    { header: 'Attendance Status', key: 'attendance_status', width: 20 },
+    { header: 'Account Status', key: 'account_status', width: 18 },
+];
+
 const preventDialogOutsideClose: NonNullable<
     ComponentProps<typeof DialogContent>['onPointerDownOutside']
 > = (event) => {
@@ -380,6 +402,7 @@ function attendanceExportRow(
         event_name: participant.event_name ?? '-',
         registered_at: formatDateTime(participant.registered_at),
         checked_in_at: formatDateTime(participant.checked_in_at),
+        scanned_by: participant.scanned_by ?? '-',
         attendance_status: status,
         account_status: participant.is_active ? 'Active' : 'Inactive',
     };
@@ -392,7 +415,7 @@ function styleAttendanceWorksheet(
     worksheet.views = [{ state: 'frozen', ySplit: 1 }];
     worksheet.autoFilter = {
         from: { row: 1, column: 1 },
-        to: { row: 1, column: attendanceExportColumns.length },
+        to: { row: 1, column: worksheet.columns.length },
     };
     worksheet.properties.defaultRowHeight = 22;
 
@@ -717,34 +740,28 @@ function PieBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
                 aria-label="Participant statistics pie chart"
             />
             <div className="space-y-2">
-                {items.map((item, index) => {
-                    const percentValue =
-                        total > 0 ? Math.round((item.count / total) * 100) : 0;
-
-                    return (
-                        <div
-                            key={item.key}
-                            className="flex items-center justify-between gap-3 text-sm"
-                        >
-                            <div className="flex min-w-0 flex-1 items-center gap-2">
-                                <span
-                                    className="size-2.5 shrink-0 rounded-full"
-                                    style={{
-                                        backgroundColor:
-                                            statisticChartColors[
-                                                index %
-                                                    statisticChartColors.length
-                                            ],
-                                    }}
-                                />
-                                <TruncatedTooltipText text={item.label} />
-                            </div>
-                            <span className="shrink-0 text-right text-xs font-medium">
-                                {percentValue}% · {item.count.toLocaleString()}
-                            </span>
+                {items.map((item, index) => (
+                    <div
+                        key={item.key}
+                        className="flex items-center justify-between gap-3 text-sm"
+                    >
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span
+                                className="size-2.5 shrink-0 rounded-full"
+                                style={{
+                                    backgroundColor:
+                                        statisticChartColors[
+                                            index % statisticChartColors.length
+                                        ],
+                                }}
+                            />
+                            <TruncatedTooltipText text={item.label} />
                         </div>
-                    );
-                })}
+                        <span className="shrink-0 text-right text-xs font-medium">
+                            {item.count.toLocaleString()}
+                        </span>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -1165,6 +1182,14 @@ function AttendanceParticipantCard({
                                 : participant.registered_at,
                         )}
                     </p>
+                    {selectedAttendanceStatus === 'checked-in' ? (
+                        <>
+                            <p className="mt-2 font-medium text-foreground">
+                                Scanned By
+                            </p>
+                            <p>{participant.scanned_by ?? '-'}</p>
+                        </>
+                    ) : null}
                 </div>
             </div>
         </article>
@@ -1512,7 +1537,7 @@ export default function Dashboard({
             workbook.modified = new Date();
 
             const checkedInSheet = workbook.addWorksheet('Checked In');
-            checkedInSheet.columns = attendanceExportColumns;
+            checkedInSheet.columns = checkedInAttendanceExportColumns;
             checkedInSheet.addRows(
                 checkedInParticipants.map((participant) =>
                     attendanceExportRow(participant, 'Checked In'),
@@ -2079,7 +2104,7 @@ export default function Dashboard({
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             <StatisticChart
                                 title="Province Distribution"
-                                description="Bar chart of top provinces for the active filters."
+                                description="Shows where registered participants are coming from."
                                 icon={MapPin}
                                 items={provinceBreakdown}
                                 emptyText="No province statistics found."
@@ -2087,7 +2112,7 @@ export default function Dashboard({
                             />
                             <StatisticChart
                                 title="Municipality Distribution"
-                                description="Line chart of top municipalities in the selected scope."
+                                description="City and municipality counts within the current filters."
                                 icon={MapPin}
                                 items={municipalityBreakdown}
                                 emptyText="No municipality statistics found."
@@ -2095,7 +2120,7 @@ export default function Dashboard({
                             />
                             <StatisticChart
                                 title="Sex Split"
-                                description="Pie chart of participants by recorded sex."
+                                description="Participant counts grouped by recorded sex."
                                 icon={Users}
                                 items={sexBreakdown}
                                 emptyText="No sex statistics found."
@@ -2103,7 +2128,7 @@ export default function Dashboard({
                             />
                             <StatisticChart
                                 title="Participant Types"
-                                description="Pie chart by registration participant category."
+                                description="Counts by the category selected during registration."
                                 icon={GraduationCap}
                                 items={participantTypeBreakdown}
                                 emptyText="No participant type statistics found."
@@ -2111,7 +2136,7 @@ export default function Dashboard({
                             />
                             <StatisticChart
                                 title="Schools / Organizations"
-                                description="Bar chart of top schools and organizations."
+                                description="Schools and partner organizations represented in the list."
                                 icon={Building2}
                                 items={organizationBreakdown}
                                 emptyText="No school or organization statistics found."
@@ -2173,10 +2198,16 @@ export default function Dashboard({
 
                     <div className="min-h-0 overflow-hidden rounded-lg border">
                         <div className="hidden h-full overflow-auto md:block">
-                            <Table className="min-w-[720px]">
+                            <Table className="min-w-[860px]">
                                 <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
                                     <TableRow>
                                         <TableHead>Participant</TableHead>
+                                        {selectedAttendanceStatus ===
+                                        'checked-in' ? (
+                                            <TableHead className="w-48">
+                                                Scanned By
+                                            </TableHead>
+                                        ) : null}
                                         <TableHead className="w-56 text-right">
                                             {selectedAttendanceStatus ===
                                             'checked-in'
@@ -2208,6 +2239,13 @@ export default function Dashboard({
                                                             </p>
                                                         </div>
                                                     </TableCell>
+                                                    {selectedAttendanceStatus ===
+                                                    'checked-in' ? (
+                                                        <TableCell>
+                                                            {participant.scanned_by ??
+                                                                '-'}
+                                                        </TableCell>
+                                                    ) : null}
                                                     <TableCell className="text-right">
                                                         {formatDateTime(
                                                             selectedAttendanceStatus ===
@@ -2222,7 +2260,12 @@ export default function Dashboard({
                                     ) : (
                                         <TableRow>
                                             <TableCell
-                                                colSpan={2}
+                                                colSpan={
+                                                    selectedAttendanceStatus ===
+                                                    'checked-in'
+                                                        ? 3
+                                                        : 2
+                                                }
                                                 className="h-24 text-center text-sm text-muted-foreground"
                                             >
                                                 No participants found.

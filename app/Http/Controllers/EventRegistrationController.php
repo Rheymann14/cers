@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Fortify\CreateNewUser;
+use App\Models\Event;
 use App\Services\BrevoEmailService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Inertia\Inertia;
-use App\Models\Event;
 
 class EventRegistrationController extends Controller
 {
@@ -23,7 +22,7 @@ class EventRegistrationController extends Controller
             'password_confirmation' => 'cers2026',
         ]);
 
-        $user = $creator->create($request->all());
+        $user = $creator->createEventRegistration($request->all());
 
         $eventName = Event::query()
             ->where('slug', $user->event_name)

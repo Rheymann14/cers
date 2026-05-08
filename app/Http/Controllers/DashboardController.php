@@ -77,6 +77,7 @@ class DashboardController extends Controller
                 'participant:id,participant_id,name,given_name,middle_name,surname,email,phone,organization,participant_type,sex,event_id,event_name,province_id,municipality_id,is_active,created_at',
                 'participant.province:id,name',
                 'participant.municipality:id,name',
+                'checkedInBy:id,name',
             ])
             ->latest('checked_in_at')
             ->get()
@@ -104,6 +105,7 @@ class DashboardController extends Controller
                     'event_slug' => $event->slug,
                     'registered_at' => $participant->created_at?->toIso8601String(),
                     'checked_in_at' => $attendance->checked_in_at?->toIso8601String(),
+                    'scanned_by' => $attendance->checkedInBy?->name,
                 ];
             })
             ->values();
@@ -158,6 +160,7 @@ class DashboardController extends Controller
                     'event_slug' => $event?->slug ?? $participant->event_name,
                     'registered_at' => $participant->created_at?->toIso8601String(),
                     'checked_in_at' => null,
+                    'scanned_by' => null,
                 ];
             })
             ->values();

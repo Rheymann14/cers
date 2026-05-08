@@ -713,12 +713,12 @@ export default function AttendanceQrScanner({ events }: Props) {
                                     aria-labelledby="event_scanner_label"
                                     aria-expanded={eventOpen}
                                     className={cn(
-                                        'min-h-10 w-full justify-between font-normal',
+                                        'h-auto min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left font-normal',
                                         !selectedEvent &&
                                             'text-muted-foreground',
                                     )}
                                 >
-                                    <span className="truncate">
+                                    <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug sm:truncate">
                                         {selectedEvent?.name ??
                                             'Search and select event'}
                                     </span>
@@ -727,11 +727,12 @@ export default function AttendanceQrScanner({ events }: Props) {
                             </PopoverTrigger>
                             <PopoverContent
                                 align="start"
-                                className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                                collisionPadding={12}
+                                className="w-[calc(100vw-1.5rem)] max-w-[var(--radix-popover-content-available-width)] p-0 sm:w-[var(--radix-popover-trigger-width)]"
                             >
                                 <Command>
                                     <CommandInput placeholder="Search events..." />
-                                    <CommandList>
+                                    <CommandList className="max-h-[60vh]">
                                         <CommandEmpty>
                                             No event found.
                                         </CommandEmpty>
@@ -758,11 +759,11 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                             );
                                                             restartScanner();
                                                         }}
-                                                        className="items-start gap-3"
+                                                        className="items-start gap-2 py-2.5 sm:gap-3"
                                                     >
                                                         <Check
                                                             className={cn(
-                                                                'mt-0.5 size-4',
+                                                                'mt-1 size-4',
                                                                 selectedEventId ===
                                                                     String(
                                                                         event.id,
@@ -772,17 +773,19 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                             )}
                                                         />
                                                         <div className="min-w-0 flex-1">
-                                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                                                <span className="truncate font-medium">
+                                                            <div className="grid min-w-0 gap-1 sm:flex sm:items-center sm:gap-2">
+                                                                <span className="min-w-0 whitespace-normal break-words leading-snug font-medium sm:truncate">
                                                                     {event.name}
                                                                 </span>
-                                                                <EventStatusBadge
-                                                                    status={
-                                                                        status
-                                                                    }
-                                                                />
+                                                                <div className="shrink-0">
+                                                                    <EventStatusBadge
+                                                                        status={
+                                                                            status
+                                                                        }
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                            <p className="mt-1 text-xs leading-snug break-words text-muted-foreground">
                                                                 {formatDateTime(
                                                                     event.starts_at,
                                                                 )}{' '}
