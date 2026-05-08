@@ -591,14 +591,23 @@ export default function AttendanceQrScanner({ events }: Props) {
                                 'Only CERS virtual ID QR codes can be scanned.';
 
                             pauseScannerWithError(message);
+                            return;
                         } else {
-                            await submitCheckIn('qr', rawValue);
+                            const checkedIn = await submitCheckIn(
+                                'qr',
+                                rawValue,
+                            );
+
+                            if (checkedIn) {
+                                return;
+                            }
                         }
                     }
                 } catch {
                     pauseScannerWithError(
                         'The camera image could not be scanned. Keep the QR code inside the frame or use Participant ID entry.',
                     );
+                    return;
                 }
             }
 
