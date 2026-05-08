@@ -236,7 +236,7 @@ class ParticipantsController extends Controller
                 'max:255',
                 Rule::unique(User::class)->ignore($participant),
             ],
-            'phone' => ['required', 'string', 'regex:/^09\d{9}$/'],
+            'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/'],
             'province' => [
                 'nullable',
                 'string',
