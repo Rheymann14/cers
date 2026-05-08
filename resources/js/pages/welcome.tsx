@@ -138,16 +138,6 @@ function hashString(value: string) {
     return (hash >>> 0).toString(36).toUpperCase();
 }
 
-function getOrganizationSearchValue(organization: LookupOption) {
-    return [organization.label, organization.value, organization.type]
-        .filter(Boolean)
-        .join(' ');
-}
-
-function getLookupSearchValue(option: LookupOption) {
-    return [option.label, option.value, option.type].filter(Boolean).join(' ');
-}
-
 function createQrToken({
     email,
     fullName,
@@ -689,23 +679,20 @@ export default function Welcome() {
     );
     const organizationOptions = useMemo(
         () =>
-            organizations.filter((organization) => {
-                const type = normalizeLookupLabel(organization.type ?? '');
-
-                return type === 'organization' || type === 'agency';
-            }),
+            organizations.filter(
+                (organization) =>
+                    normalizeLookupLabel(organization.type ?? '') === 'agency',
+            ),
         [organizations],
     );
 
     const schoolOptions = useMemo(
         () =>
-            organizations.filter((organization) => {
-                const type = normalizeLookupLabel(organization.type ?? '');
-
-                return (
-                    type === 'school' || type === 'institution' || type === ''
-                );
-            }),
+            organizations.filter(
+                (organization) =>
+                    normalizeLookupLabel(organization.type ?? '') ===
+                    'institution',
+            ),
         [organizations],
     );
     const participantTypeLabels = useMemo(
@@ -1878,136 +1865,138 @@ export default function Welcome() {
                                                                             ? 'Loading participant types...'
                                                                             : 'No type found.'}
                                                                     </CommandEmpty>
-                                                                    <CommandItem
-                                                                        value="Others"
-                                                                        className={
-                                                                            commandItemClass
-                                                                        }
-                                                                        onSelect={() => {
-                                                                            setSelectedParticipantType(
-                                                                                otherParticipantTypeValue,
-                                                                            );
-                                                                            setParticipantTypePopoverOpen(
-                                                                                false,
-                                                                            );
-                                                                        }}
-                                                                    >
-                                                                        <Check
-                                                                            className={cn(
-                                                                                'mt-0.5 mr-2 size-4',
-                                                                                selectedParticipantType ===
-                                                                                    otherParticipantTypeValue
-                                                                                    ? 'opacity-100'
-                                                                                    : 'opacity-0',
-                                                                            )}
-                                                                        />
-                                                                        <span
+                                                                    <CommandGroup>
+                                                                        <CommandItem
+                                                                            value="Others"
                                                                             className={
-                                                                                commandItemTextClass
+                                                                                commandItemClass
                                                                             }
+                                                                            onSelect={() => {
+                                                                                setSelectedParticipantType(
+                                                                                    otherParticipantTypeValue,
+                                                                                );
+                                                                                setParticipantTypePopoverOpen(
+                                                                                    false,
+                                                                                );
+                                                                            }}
                                                                         >
-                                                                            Others
-                                                                        </span>
-                                                                    </CommandItem>
-                                                                    {fourPsParticipantTypes.length >
-                                                                        0 && (
-                                                                        <CommandGroup heading="4Ps">
-                                                                            {fourPsParticipantTypes.map(
-                                                                                (
-                                                                                    type,
-                                                                                ) => (
-                                                                                    <CommandItem
-                                                                                        key={
-                                                                                            type.value
-                                                                                        }
-                                                                                        className={
-                                                                                            commandItemClass
-                                                                                        }
-                                                                                        value={getLookupSearchValue(
-                                                                                            type,
-                                                                                        )}
-                                                                                        onSelect={() => {
-                                                                                            setSelectedParticipantType(
-                                                                                                type.value,
-                                                                                            );
-                                                                                            setParticipantTypePopoverOpen(
-                                                                                                false,
-                                                                                            );
-                                                                                        }}
-                                                                                    >
-                                                                                        <Check
-                                                                                            className={cn(
-                                                                                                'mt-0.5 mr-2 size-4',
-                                                                                                selectedParticipantType ===
-                                                                                                    type.value
-                                                                                                    ? 'opacity-100'
-                                                                                                    : 'opacity-0',
-                                                                                            )}
-                                                                                        />
-                                                                                        <span
-                                                                                            className={
-                                                                                                commandItemTextClass
+                                                                            <Check
+                                                                                className={cn(
+                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                    selectedParticipantType ===
+                                                                                        otherParticipantTypeValue
+                                                                                        ? 'opacity-100'
+                                                                                        : 'opacity-0',
+                                                                                )}
+                                                                            />
+                                                                            <span
+                                                                                className={
+                                                                                    commandItemTextClass
+                                                                                }
+                                                                            >
+                                                                                Others
+                                                                            </span>
+                                                                        </CommandItem>
+                                                                        {fourPsParticipantTypes.length >
+                                                                            0 && (
+                                                                            <CommandGroup heading="4Ps">
+                                                                                {fourPsParticipantTypes.map(
+                                                                                    (
+                                                                                        type,
+                                                                                    ) => (
+                                                                                        <CommandItem
+                                                                                            key={
+                                                                                                type.value
                                                                                             }
-                                                                                        >
-                                                                                            {
+                                                                                            className={
+                                                                                                commandItemClass
+                                                                                            }
+                                                                                            value={
                                                                                                 type.label
                                                                                             }
-                                                                                        </span>
-                                                                                    </CommandItem>
-                                                                                ),
-                                                                            )}
-                                                                        </CommandGroup>
-                                                                    )}
+                                                                                            onSelect={() => {
+                                                                                                setSelectedParticipantType(
+                                                                                                    type.value,
+                                                                                                );
+                                                                                                setParticipantTypePopoverOpen(
+                                                                                                    false,
+                                                                                                );
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                                    selectedParticipantType ===
+                                                                                                        type.value
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            <span
+                                                                                                className={
+                                                                                                    commandItemTextClass
+                                                                                                }
+                                                                                            >
+                                                                                                {
+                                                                                                    type.label
+                                                                                                }
+                                                                                            </span>
+                                                                                        </CommandItem>
+                                                                                    ),
+                                                                                )}
+                                                                            </CommandGroup>
+                                                                        )}
 
-                                                                    {generalParticipantTypes.length >
-                                                                        0 && (
-                                                                        <CommandGroup heading="General">
-                                                                            {generalParticipantTypes.map(
-                                                                                (
-                                                                                    type,
-                                                                                ) => (
-                                                                                    <CommandItem
-                                                                                        key={
-                                                                                            type.value
-                                                                                        }
-                                                                                        className={
-                                                                                            commandItemClass
-                                                                                        }
-                                                                                        value={getLookupSearchValue(
-                                                                                            type,
-                                                                                        )}
-                                                                                        onSelect={() => {
-                                                                                            setSelectedParticipantType(
-                                                                                                type.value,
-                                                                                            );
-                                                                                            setParticipantTypePopoverOpen(
-                                                                                                false,
-                                                                                            );
-                                                                                        }}
-                                                                                    >
-                                                                                        <Check
-                                                                                            className={cn(
-                                                                                                'mt-0.5 mr-2 size-4',
-                                                                                                selectedParticipantType ===
-                                                                                                    type.value
-                                                                                                    ? 'opacity-100'
-                                                                                                    : 'opacity-0',
-                                                                                            )}
-                                                                                        />
-                                                                                        <span
-                                                                                            className={
-                                                                                                commandItemTextClass
+                                                                        {generalParticipantTypes.length >
+                                                                            0 && (
+                                                                            <CommandGroup heading="General">
+                                                                                {generalParticipantTypes.map(
+                                                                                    (
+                                                                                        type,
+                                                                                    ) => (
+                                                                                        <CommandItem
+                                                                                            key={
+                                                                                                type.value
                                                                                             }
-                                                                                        >
-                                                                                            {
+                                                                                            className={
+                                                                                                commandItemClass
+                                                                                            }
+                                                                                            value={
                                                                                                 type.label
                                                                                             }
-                                                                                        </span>
-                                                                                    </CommandItem>
-                                                                                ),
-                                                                            )}
-                                                                        </CommandGroup>
-                                                                    )}
+                                                                                            onSelect={() => {
+                                                                                                setSelectedParticipantType(
+                                                                                                    type.value,
+                                                                                                );
+                                                                                                setParticipantTypePopoverOpen(
+                                                                                                    false,
+                                                                                                );
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                                    selectedParticipantType ===
+                                                                                                        type.value
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            <span
+                                                                                                className={
+                                                                                                    commandItemTextClass
+                                                                                                }
+                                                                                            >
+                                                                                                {
+                                                                                                    type.label
+                                                                                                }
+                                                                                            </span>
+                                                                                        </CommandItem>
+                                                                                    ),
+                                                                                )}
+                                                                            </CommandGroup>
+                                                                        )}
+                                                                    </CommandGroup>
                                                                 </CommandList>
                                                             </Command>
                                                         </PopoverContent>
@@ -2130,136 +2119,138 @@ export default function Welcome() {
                                                                             ? 'Loading organizations...'
                                                                             : 'No school or organization found.'}
                                                                     </CommandEmpty>
-                                                                    <CommandItem
-                                                                        value="Others"
-                                                                        className={
-                                                                            commandItemClass
-                                                                        }
-                                                                        onSelect={() => {
-                                                                            setSelectedOrganization(
-                                                                                otherOrganizationValue,
-                                                                            );
-                                                                            setOrganizationPopoverOpen(
-                                                                                false,
-                                                                            );
-                                                                        }}
-                                                                    >
-                                                                        <Check
-                                                                            className={cn(
-                                                                                'mt-0.5 mr-2 size-4',
-                                                                                selectedOrganization ===
-                                                                                    otherOrganizationValue
-                                                                                    ? 'opacity-100'
-                                                                                    : 'opacity-0',
-                                                                            )}
-                                                                        />
-                                                                        <span
+                                                                    <CommandGroup>
+                                                                        <CommandItem
+                                                                            value="Others"
                                                                             className={
-                                                                                commandItemTextClass
+                                                                                commandItemClass
                                                                             }
+                                                                            onSelect={() => {
+                                                                                setSelectedOrganization(
+                                                                                    otherOrganizationValue,
+                                                                                );
+                                                                                setOrganizationPopoverOpen(
+                                                                                    false,
+                                                                                );
+                                                                            }}
                                                                         >
-                                                                            Others
-                                                                        </span>
-                                                                    </CommandItem>
-                                                                    {organizationOptions.length >
-                                                                        0 && (
-                                                                        <CommandGroup heading="Organization">
-                                                                            {organizationOptions.map(
-                                                                                (
-                                                                                    organization,
-                                                                                ) => (
-                                                                                    <CommandItem
-                                                                                        key={
-                                                                                            organization.value
-                                                                                        }
-                                                                                        className={
-                                                                                            commandItemClass
-                                                                                        }
-                                                                                        value={getOrganizationSearchValue(
-                                                                                            organization,
-                                                                                        )}
-                                                                                        onSelect={() => {
-                                                                                            setSelectedOrganization(
-                                                                                                organization.value,
-                                                                                            );
-                                                                                            setOrganizationPopoverOpen(
-                                                                                                false,
-                                                                                            );
-                                                                                        }}
-                                                                                    >
-                                                                                        <Check
-                                                                                            className={cn(
-                                                                                                'mt-0.5 mr-2 size-4',
-                                                                                                selectedOrganization ===
-                                                                                                    organization.value
-                                                                                                    ? 'opacity-100'
-                                                                                                    : 'opacity-0',
-                                                                                            )}
-                                                                                        />
-                                                                                        <span
-                                                                                            className={
-                                                                                                commandItemTextClass
+                                                                            <Check
+                                                                                className={cn(
+                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                    selectedOrganization ===
+                                                                                        otherOrganizationValue
+                                                                                        ? 'opacity-100'
+                                                                                        : 'opacity-0',
+                                                                                )}
+                                                                            />
+                                                                            <span
+                                                                                className={
+                                                                                    commandItemTextClass
+                                                                                }
+                                                                            >
+                                                                                Others
+                                                                            </span>
+                                                                        </CommandItem>
+                                                                        {organizationOptions.length >
+                                                                            0 && (
+                                                                            <CommandGroup heading="Organization">
+                                                                                {organizationOptions.map(
+                                                                                    (
+                                                                                        organization,
+                                                                                    ) => (
+                                                                                        <CommandItem
+                                                                                            key={
+                                                                                                organization.value
                                                                                             }
-                                                                                        >
-                                                                                            {
+                                                                                            className={
+                                                                                                commandItemClass
+                                                                                            }
+                                                                                            value={
                                                                                                 organization.label
                                                                                             }
-                                                                                        </span>
-                                                                                    </CommandItem>
-                                                                                ),
-                                                                            )}
-                                                                        </CommandGroup>
-                                                                    )}
+                                                                                            onSelect={() => {
+                                                                                                setSelectedOrganization(
+                                                                                                    organization.value,
+                                                                                                );
+                                                                                                setOrganizationPopoverOpen(
+                                                                                                    false,
+                                                                                                );
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                                    selectedOrganization ===
+                                                                                                        organization.value
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            <span
+                                                                                                className={
+                                                                                                    commandItemTextClass
+                                                                                                }
+                                                                                            >
+                                                                                                {
+                                                                                                    organization.label
+                                                                                                }
+                                                                                            </span>
+                                                                                        </CommandItem>
+                                                                                    ),
+                                                                                )}
+                                                                            </CommandGroup>
+                                                                        )}
 
-                                                                    {schoolOptions.length >
-                                                                        0 && (
-                                                                        <CommandGroup heading="School">
-                                                                            {schoolOptions.map(
-                                                                                (
-                                                                                    organization,
-                                                                                ) => (
-                                                                                    <CommandItem
-                                                                                        key={
-                                                                                            organization.value
-                                                                                        }
-                                                                                        className={
-                                                                                            commandItemClass
-                                                                                        }
-                                                                                        value={getOrganizationSearchValue(
-                                                                                            organization,
-                                                                                        )}
-                                                                                        onSelect={() => {
-                                                                                            setSelectedOrganization(
-                                                                                                organization.value,
-                                                                                            );
-                                                                                            setOrganizationPopoverOpen(
-                                                                                                false,
-                                                                                            );
-                                                                                        }}
-                                                                                    >
-                                                                                        <Check
-                                                                                            className={cn(
-                                                                                                'mt-0.5 mr-2 size-4',
-                                                                                                selectedOrganization ===
-                                                                                                    organization.value
-                                                                                                    ? 'opacity-100'
-                                                                                                    : 'opacity-0',
-                                                                                            )}
-                                                                                        />
-                                                                                        <span
-                                                                                            className={
-                                                                                                commandItemTextClass
+                                                                        {schoolOptions.length >
+                                                                            0 && (
+                                                                            <CommandGroup heading="School">
+                                                                                {schoolOptions.map(
+                                                                                    (
+                                                                                        organization,
+                                                                                    ) => (
+                                                                                        <CommandItem
+                                                                                            key={
+                                                                                                organization.value
                                                                                             }
-                                                                                        >
-                                                                                            {
+                                                                                            className={
+                                                                                                commandItemClass
+                                                                                            }
+                                                                                            value={
                                                                                                 organization.label
                                                                                             }
-                                                                                        </span>
-                                                                                    </CommandItem>
-                                                                                ),
-                                                                            )}
-                                                                        </CommandGroup>
-                                                                    )}
+                                                                                            onSelect={() => {
+                                                                                                setSelectedOrganization(
+                                                                                                    organization.value,
+                                                                                                );
+                                                                                                setOrganizationPopoverOpen(
+                                                                                                    false,
+                                                                                                );
+                                                                                            }}
+                                                                                        >
+                                                                                            <Check
+                                                                                                className={cn(
+                                                                                                    'mt-0.5 mr-2 size-4',
+                                                                                                    selectedOrganization ===
+                                                                                                        organization.value
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0',
+                                                                                                )}
+                                                                                            />
+                                                                                            <span
+                                                                                                className={
+                                                                                                    commandItemTextClass
+                                                                                                }
+                                                                                            >
+                                                                                                {
+                                                                                                    organization.label
+                                                                                                }
+                                                                                            </span>
+                                                                                        </CommandItem>
+                                                                                    ),
+                                                                                )}
+                                                                            </CommandGroup>
+                                                                        )}
+                                                                    </CommandGroup>
                                                                 </CommandList>
                                                             </Command>
                                                         </PopoverContent>

@@ -53,7 +53,6 @@ class BrevoEmailService
 
         Log::info('Brevo email response.', [
             'status' => $response->status(),
-            'message_id' => $response->json('messageId'),
             'body' => $response->body(),
         ]);
 

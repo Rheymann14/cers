@@ -27,27 +27,6 @@ class CreateNewUser implements CreatesNewUsers
      */
     public function create(array $input): User
     {
-        return $this->createWithPasswordRules($input, $this->passwordRules());
-    }
-
-    /**
-     * Validate and create an event registration using the default participant password.
-     *
-     * @param  array<string, string>  $input
-     */
-    public function createEventRegistration(array $input): User
-    {
-        return $this->createWithPasswordRules($input, ['required', 'string', 'min:8', 'confirmed']);
-    }
-
-    /**
-     * Validate and create a newly registered user.
-     *
-     * @param  array<string, string>  $input
-     * @param  array<int, mixed>  $passwordRules
-     */
-    private function createWithPasswordRules(array $input, array $passwordRules): User
-    {
         $validator = Validator::make(
             $input,
             [
@@ -90,7 +69,7 @@ class CreateNewUser implements CreatesNewUsers
                         ->where('ends_at', '>=', now())),
                 ],
                 'consent' => ['accepted'],
-                'password' => $passwordRules,
+                'password' => $this->passwordRules(),
             ],
             [
                 'email.unique' => 'This account is already registered.',
