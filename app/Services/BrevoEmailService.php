@@ -11,7 +11,7 @@ class BrevoEmailService
     {
         $apiKey = config('services.brevo.api_key');
 
-        if (!$apiKey) {
+        if (! $apiKey) {
             Log::warning('Brevo API key is missing.');
 
             return false;
@@ -26,9 +26,13 @@ class BrevoEmailService
             participantId: $participant['participant_id'],
         );
 
-        $participant['qr_image_url'] = 'https://quickchart.io/qr?size=180&margin=1&text=' . urlencode($participant['qr_token']);
+        $participant['qr_image_url'] = 'https://quickchart.io/qr?size=180&margin=1&text='.urlencode($participant['qr_token']);
 
         $participant['initials'] = $this->getInitials($participant['name']);
+
+        $htmlContent = view('emails.registration-success', [
+            'participant' => $participant,
+        ])->render();
 
         $response = Http::withHeaders([
             'api-key' => $apiKey,
@@ -46,13 +50,14 @@ class BrevoEmailService
                 ],
             ],
             'subject' => 'Registration Successful - CHED Events Registration System',
-            'htmlContent' => view('emails.registration-success', [
-                'participant' => $participant,
-            ])->render(),
+            'htmlContent' => $htmlContent,
+            'textContent' => $this->createTextContent($participant),
+            'tags' => ['registration'],
         ]);
 
         Log::info('Brevo email response.', [
             'status' => $response->status(),
+            'message_id' => $response->json('messageId'),
             'body' => $response->body(),
         ]);
 
@@ -86,7 +91,7 @@ class BrevoEmailService
                 ->implode('|')
         );
 
-        return 'CERS:VID:1:' . $fingerprint;
+        return 'CERS:VID:1:'.$fingerprint;
     }
 
     private function hashString(string $value): string
@@ -113,5 +118,25 @@ class BrevoEmailService
             ->implode('');
 
         return strtoupper(mb_substr($initials ?: 'ID', 0, 2));
+    }
+
+    private function createTextContent(array $participant): string
+    {
+        return implode("\n", array_filter([
+            'Registration Successful - CHED Events Registration System',
+            '',
+            'Hello '.$participant['name'].',',
+            '',
+            'Your registration in the CHED Events Registration System has been successfully completed.',
+            '',
+            'Participant ID: '.$participant['participant_id'],
+            empty($participant['organization']) ? null : 'Organization: '.$participant['organization'],
+            empty($participant['event_name']) ? null : 'Event: '.$participant['event_name'],
+            '',
+            'Please keep a copy of your virtual ID and present it during attendance scanning.',
+            '',
+            'Thank you,',
+            'CHED Events Registration System',
+        ]));
     }
 }

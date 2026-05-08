@@ -62,3 +62,68 @@ Artisan::command('brevo:diagnose {email? : Optional recipient for a test email}'
 
     return self::SUCCESS;
 })->purpose('Show Brevo config, server outbound IP, and optionally send a test email');
+
+Artisan::command('brevo:events {email : Recipient email to inspect} {--message-id= : Optional Brevo messageId filter}', function () {
+    $apiKey = config('services.brevo.api_key');
+
+    if (! $apiKey) {
+        $this->error('BREVO_API_KEY is not configured.');
+
+        return self::FAILURE;
+    }
+
+    $email = $this->argument('email');
+
+    if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $this->error('The recipient must be a valid email address.');
+
+        return self::FAILURE;
+    }
+
+    $query = [
+        'email' => $email,
+        'days' => 7,
+        'limit' => 25,
+        'sort' => 'desc',
+    ];
+
+    if ($this->option('message-id')) {
+        $query['messageId'] = $this->option('message-id');
+    }
+
+    $response = Http::withHeaders([
+        'api-key' => $apiKey,
+        'accept' => 'application/json',
+    ])
+        ->timeout(20)
+        ->get('https://api.brevo.com/v3/smtp/statistics/events', $query);
+
+    if ($response->failed()) {
+        $this->error('Unable to fetch Brevo events. HTTP '.$response->status());
+        $this->line($response->body());
+
+        return self::FAILURE;
+    }
+
+    $events = collect($response->json('events', []));
+
+    if ($events->isEmpty()) {
+        $this->warn('No Brevo events found for '.$email.' in the last 7 days.');
+
+        return self::SUCCESS;
+    }
+
+    $this->table(
+        ['Date', 'Event', 'Message ID', 'Reason'],
+        $events
+            ->map(fn (array $event) => [
+                $event['date'] ?? '',
+                $event['event'] ?? '',
+                $event['messageId'] ?? '',
+                $event['reason'] ?? '',
+            ])
+            ->all(),
+    );
+
+    return self::SUCCESS;
+})->purpose('Show recent Brevo transactional events for one recipient');
