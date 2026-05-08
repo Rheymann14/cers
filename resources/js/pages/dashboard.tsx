@@ -21,8 +21,15 @@ import {
     Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { ComponentProps } from 'react';
+import type {
+    ComponentProps,
+    CSSProperties,
+    FocusEvent,
+    MouseEvent,
+    ReactNode,
+} from 'react';
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -309,6 +316,112 @@ function formatLabel(value: string | null): string {
         .split('-')
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ');
+}
+
+function formatLookupLabel(
+    value: string | null,
+    labelsByValue: Map<string, string>,
+): string {
+    if (!value) {
+        return '-';
+    }
+
+    return labelsByValue.get(value) ?? formatLabel(value);
+}
+
+function formatParticipantCount(count: number): string {
+    return `${count.toLocaleString()} ${
+        count === 1 ? 'participant' : 'participants'
+    }`;
+}
+
+function formatRegistrationCount(count: number): string {
+    return `${count.toLocaleString()} ${
+        count === 1 ? 'registration' : 'registrations'
+    }`;
+}
+
+function statisticTooltipText(item: StatisticBreakdownItem): string {
+    const label = item.meta ? `${item.label} (${item.meta})` : item.label;
+
+    return `${label}: ${formatParticipantCount(item.count)}`;
+}
+
+function ChartTooltipTrigger({
+    text,
+    className = '',
+    style,
+    children,
+}: {
+    text: string;
+    className?: string;
+    style?: CSSProperties;
+    children?: ReactNode;
+}) {
+    const [position, setPosition] = useState<{
+        left: number;
+        top: number;
+    } | null>(null);
+
+    function updatePosition(
+        element: HTMLElement,
+        pointerX: number | null = null,
+    ) {
+        const rect = element.getBoundingClientRect();
+
+        setPosition({
+            left: pointerX ?? rect.left + rect.width / 2,
+            top: rect.top - 8,
+        });
+    }
+
+    function handleMouseEnter(event: MouseEvent<HTMLButtonElement>) {
+        updatePosition(event.currentTarget, event.clientX);
+    }
+
+    function handleMouseMove(event: MouseEvent<HTMLButtonElement>) {
+        updatePosition(event.currentTarget, event.clientX);
+    }
+
+    function handleFocus(event: FocusEvent<HTMLButtonElement>) {
+        updatePosition(event.currentTarget);
+    }
+
+    const tooltip =
+        position && typeof document !== 'undefined'
+            ? createPortal(
+                  <span
+                      className="pointer-events-none fixed z-[9999] max-w-72 -translate-x-1/2 -translate-y-full rounded-md bg-primary px-3 py-1.5 text-xs whitespace-pre-line text-primary-foreground shadow-lg"
+                      style={{
+                          left: position.left,
+                          top: position.top,
+                      }}
+                  >
+                      {text}
+                  </span>,
+                  document.body,
+              )
+            : null;
+
+    return (
+        <>
+            <button
+                type="button"
+                aria-label={text}
+                title={text}
+                className={className}
+                style={style}
+                onMouseEnter={handleMouseEnter}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={() => setPosition(null)}
+                onFocus={handleFocus}
+                onBlur={() => setPosition(null)}
+            >
+                {children}
+            </button>
+            {tooltip}
+        </>
+    );
 }
 
 function formatDate(value: string): string {
@@ -668,26 +781,31 @@ function BarBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
     return (
         <div className="min-h-56">
             <div className="flex h-44 items-end gap-2 border-b border-l px-2 pt-4">
-                {items.map((item, index) => (
-                    <div
-                        key={item.key}
-                        className="flex min-w-0 flex-1 flex-col items-center gap-2"
-                    >
-                        <span className="text-[11px] font-semibold">
-                            {item.count.toLocaleString()}
-                        </span>
-                        <div
-                            className="w-full max-w-10 rounded-t"
-                            style={{
-                                height: `${Math.max(8, (item.count / maxCount) * 120)}px`,
-                                backgroundColor:
-                                    statisticChartColors[
-                                        index % statisticChartColors.length
-                                    ],
-                            }}
-                        />
-                    </div>
-                ))}
+                {items.map((item, index) => {
+                    const tooltipText = statisticTooltipText(item);
+
+                    return (
+                        <ChartTooltipTrigger
+                            key={item.key}
+                            text={tooltipText}
+                            className="relative flex min-w-0 flex-1 cursor-default flex-col items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        >
+                            <span className="text-[11px] font-semibold">
+                                {item.count.toLocaleString()}
+                            </span>
+                            <span
+                                className="w-full max-w-10 rounded-t"
+                                style={{
+                                    height: `${Math.max(8, (item.count / maxCount) * 120)}px`,
+                                    backgroundColor:
+                                        statisticChartColors[
+                                            index % statisticChartColors.length
+                                        ],
+                                }}
+                            />
+                        </ChartTooltipTrigger>
+                    );
+                })}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                 {items.map((item, index) => (
@@ -714,31 +832,69 @@ function BarBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
 
 function PieBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
     const total = items.reduce((sum, item) => sum + item.count, 0);
-    const gradientStops = items.map((item, index) => {
+    const summaryTooltipText = items.map(statisticTooltipText).join('\n');
+    const radius = 36;
+    const center = 72;
+    const strokeWidth = 72;
+    const circumference = 2 * Math.PI * radius;
+    const segments = items.map((item, index) => {
         const previousCount = items
             .slice(0, index)
             .reduce((sum, previousItem) => sum + previousItem.count, 0);
-        const start = total > 0 ? (previousCount / total) * 100 : 0;
-        const end =
-            total > 0 ? ((previousCount + item.count) / total) * 100 : 0;
+        const length = total > 0 ? (item.count / total) * circumference : 0;
+        const offset = total > 0 ? -(previousCount / total) * circumference : 0;
         const color = statisticChartColors[index % statisticChartColors.length];
 
-        return `${color} ${start}% ${end}%`;
+        return { ...item, color, length, offset };
     });
 
     return (
         <div className="grid gap-4 sm:grid-cols-[9rem_1fr] sm:items-center">
-            <div
-                className="mx-auto size-36 rounded-full border shadow-inner"
-                style={{
-                    background:
-                        gradientStops.length > 0
-                            ? `conic-gradient(${gradientStops.join(', ')})`
-                            : 'var(--muted)',
-                }}
-                role="img"
-                aria-label="Participant statistics pie chart"
-            />
+            <ChartTooltipTrigger
+                text={summaryTooltipText}
+                className="relative mx-auto block size-36 cursor-default rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+                <svg
+                    viewBox="0 0 144 144"
+                    role="img"
+                    aria-label="Participant statistics pie chart"
+                    className="size-36 rounded-full border shadow-inner"
+                >
+                    {total === 0 ? (
+                        <circle
+                            cx={center}
+                            cy={center}
+                            r={radius}
+                            fill="none"
+                            className="stroke-muted"
+                            strokeWidth={strokeWidth}
+                        />
+                    ) : (
+                        segments.map((segment) => {
+                            const tooltipText = statisticTooltipText(segment);
+
+                            return (
+                                <circle
+                                    key={segment.key}
+                                    cx={center}
+                                    cy={center}
+                                    r={radius}
+                                    fill="none"
+                                    stroke={segment.color}
+                                    strokeDasharray={`${segment.length} ${
+                                        circumference - segment.length
+                                    }`}
+                                    strokeDashoffset={segment.offset}
+                                    strokeWidth={strokeWidth}
+                                    transform={`rotate(-90 ${center} ${center})`}
+                                >
+                                    <title>{tooltipText}</title>
+                                </circle>
+                            );
+                        })
+                    )}
+                </svg>
+            </ChartTooltipTrigger>
             <div className="space-y-2">
                 {items.map((item, index) => (
                     <div
@@ -796,67 +952,84 @@ function LineBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
 
     return (
         <div className="-mx-2 overflow-x-auto px-2">
-            <svg
-                viewBox={`0 0 ${width} ${height}`}
-                role="img"
-                aria-label="Participant statistics line chart"
-                className="h-auto w-full min-w-[360px]"
-            >
-                <line
-                    x1={paddingX}
-                    x2={width - paddingX}
-                    y1={paddingTop + chartHeight}
-                    y2={paddingTop + chartHeight}
-                    className="stroke-border"
-                    strokeWidth="1"
-                />
-                <line
-                    x1={paddingX}
-                    x2={width - paddingX}
-                    y1={paddingTop + chartHeight / 2}
-                    y2={paddingTop + chartHeight / 2}
-                    className="stroke-border/60"
-                    strokeDasharray="4 4"
-                    strokeWidth="1"
-                />
-                {linePath && (
-                    <path
-                        d={linePath}
-                        fill="none"
-                        className="stroke-[#0038A8]"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="3"
+            <div className="relative min-w-[360px]">
+                <svg
+                    viewBox={`0 0 ${width} ${height}`}
+                    role="img"
+                    aria-label="Participant statistics line chart"
+                    className="h-auto w-full"
+                >
+                    <line
+                        x1={paddingX}
+                        x2={width - paddingX}
+                        y1={paddingTop + chartHeight}
+                        y2={paddingTop + chartHeight}
+                        className="stroke-border"
+                        strokeWidth="1"
                     />
-                )}
-                {points.map((point, index) => (
-                    <g key={point.key}>
-                        <circle
-                            cx={point.x}
-                            cy={point.y}
-                            r="4"
-                            className="fill-background stroke-[#0038A8]"
-                            strokeWidth="2"
+                    <line
+                        x1={paddingX}
+                        x2={width - paddingX}
+                        y1={paddingTop + chartHeight / 2}
+                        y2={paddingTop + chartHeight / 2}
+                        className="stroke-border/60"
+                        strokeDasharray="4 4"
+                        strokeWidth="1"
+                    />
+                    {linePath && (
+                        <path
+                            d={linePath}
+                            fill="none"
+                            className="stroke-[#0038A8]"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="3"
                         />
-                        <text
-                            x={point.x}
-                            y={point.y - 10}
-                            textAnchor="middle"
-                            className="fill-foreground text-[10px] font-semibold"
-                        >
-                            {point.count}
-                        </text>
-                        <text
-                            x={point.x}
-                            y={height - 14}
-                            textAnchor="middle"
-                            className="fill-muted-foreground text-[10px]"
-                        >
-                            {String(index + 1)}
-                        </text>
-                    </g>
-                ))}
-            </svg>
+                    )}
+                    {points.map((point, index) => (
+                        <g key={point.key}>
+                            <circle
+                                cx={point.x}
+                                cy={point.y}
+                                r="4"
+                                className="fill-background stroke-[#0038A8]"
+                                strokeWidth="2"
+                            />
+                            <text
+                                x={point.x}
+                                y={point.y - 10}
+                                textAnchor="middle"
+                                className="fill-foreground text-[10px] font-semibold"
+                            >
+                                {point.count}
+                            </text>
+                            <text
+                                x={point.x}
+                                y={height - 14}
+                                textAnchor="middle"
+                                className="fill-muted-foreground text-[10px]"
+                            >
+                                {String(index + 1)}
+                            </text>
+                        </g>
+                    ))}
+                </svg>
+                {points.map((point) => {
+                    const tooltipText = statisticTooltipText(point);
+
+                    return (
+                        <ChartTooltipTrigger
+                            key={point.key}
+                            text={tooltipText}
+                            className="group absolute size-8 -translate-x-1/2 -translate-y-1/2 cursor-default rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            style={{
+                                left: `${(point.x / width) * 100}%`,
+                                top: `${(point.y / height) * 100}%`,
+                            }}
+                        />
+                    );
+                })}
+            </div>
             <div className="grid gap-2 text-xs sm:grid-cols-2">
                 {items.map((item, index) => (
                     <div key={item.key} className="flex min-w-0 gap-1.5">
@@ -896,7 +1069,7 @@ function StatisticChart({
               : LineChartIcon;
 
     return (
-        <section className="min-w-0 overflow-hidden rounded-lg border bg-background p-3 shadow-sm">
+        <section className="min-w-0 overflow-visible rounded-lg border bg-background p-3 shadow-sm">
             <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2">
                     <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -964,77 +1137,98 @@ function LineChart({ data }: { data: RegistrationTrend[] }) {
 
     return (
         <div className="-mx-2 overflow-x-auto px-2 sm:mx-0 sm:px-0">
-            <svg
-                viewBox={`0 0 ${width} ${height}`}
-                role="img"
-                aria-label="Daily registration line chart"
-                className="h-auto w-full min-w-[340px] sm:min-w-[560px]"
-            >
-                <line
-                    x1={paddingX}
-                    x2={width - paddingX}
-                    y1={paddingTop + chartHeight}
-                    y2={paddingTop + chartHeight}
-                    className="stroke-border"
-                    strokeWidth="1"
-                />
-                <line
-                    x1={paddingX}
-                    x2={width - paddingX}
-                    y1={paddingTop + chartHeight / 2}
-                    y2={paddingTop + chartHeight / 2}
-                    className="stroke-border/60"
-                    strokeDasharray="4 4"
-                    strokeWidth="1"
-                />
-                {areaPath && <path d={areaPath} className="fill-blue-500/10" />}
-                {linePath && (
-                    <path
-                        d={linePath}
-                        fill="none"
-                        className="stroke-[#0038A8]"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="3"
+            <div className="relative min-w-[340px] sm:min-w-[560px]">
+                <svg
+                    viewBox={`0 0 ${width} ${height}`}
+                    role="img"
+                    aria-label="Daily registration line chart"
+                    className="h-auto w-full"
+                >
+                    <line
+                        x1={paddingX}
+                        x2={width - paddingX}
+                        y1={paddingTop + chartHeight}
+                        y2={paddingTop + chartHeight}
+                        className="stroke-border"
+                        strokeWidth="1"
                     />
-                )}
-                {points.map((point, index) => {
-                    const showMobileLabel =
-                        index === 0 ||
-                        index === points.length - 1 ||
-                        index % 3 === 0;
+                    <line
+                        x1={paddingX}
+                        x2={width - paddingX}
+                        y1={paddingTop + chartHeight / 2}
+                        y2={paddingTop + chartHeight / 2}
+                        className="stroke-border/60"
+                        strokeDasharray="4 4"
+                        strokeWidth="1"
+                    />
+                    {areaPath && (
+                        <path d={areaPath} className="fill-blue-500/10" />
+                    )}
+                    {linePath && (
+                        <path
+                            d={linePath}
+                            fill="none"
+                            className="stroke-[#0038A8]"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="3"
+                        />
+                    )}
+                    {points.map((point, index) => {
+                        const showMobileLabel =
+                            index === 0 ||
+                            index === points.length - 1 ||
+                            index % 3 === 0;
 
-                    return (
-                        <g key={point.date}>
-                            <circle
-                                cx={point.x}
-                                cy={point.y}
-                                r="4"
-                                className="fill-background stroke-[#0038A8]"
-                                strokeWidth="2"
-                            />
-                            <text
-                                x={point.x}
-                                y={point.y - 10}
-                                textAnchor="middle"
-                                className="fill-foreground text-[10px] font-semibold"
-                            >
-                                {point.count}
-                            </text>
-                            {showMobileLabel && (
+                        return (
+                            <g key={point.date}>
+                                <circle
+                                    cx={point.x}
+                                    cy={point.y}
+                                    r="4"
+                                    className="fill-background stroke-[#0038A8]"
+                                    strokeWidth="2"
+                                />
                                 <text
                                     x={point.x}
-                                    y={height - 14}
+                                    y={point.y - 10}
                                     textAnchor="middle"
-                                    className="fill-muted-foreground text-[10px]"
+                                    className="fill-foreground text-[10px] font-semibold"
                                 >
-                                    {point.label}
+                                    {point.count}
                                 </text>
-                            )}
-                        </g>
+                                {showMobileLabel && (
+                                    <text
+                                        x={point.x}
+                                        y={height - 14}
+                                        textAnchor="middle"
+                                        className="fill-muted-foreground text-[10px]"
+                                    >
+                                        {point.label}
+                                    </text>
+                                )}
+                            </g>
+                        );
+                    })}
+                </svg>
+                {points.map((point) => {
+                    const tooltipText = `${point.label}: ${formatRegistrationCount(
+                        point.count,
+                    )}`;
+
+                    return (
+                        <ChartTooltipTrigger
+                            key={point.date}
+                            text={tooltipText}
+                            className="group absolute size-8 -translate-x-1/2 -translate-y-1/2 cursor-default rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            style={{
+                                left: `${(point.x / width) * 100}%`,
+                                top: `${(point.y / height) * 100}%`,
+                            }}
+                        />
                     );
                 })}
-            </svg>
+            </div>
         </div>
     );
 }
@@ -1252,6 +1446,18 @@ export default function Dashboard({
             attendanceStartIndex,
             attendanceEndIndex,
         );
+    const participantTypeLabelsBySlug = useMemo(
+        () =>
+            new Map(
+                participantStatistics.participantTypes.map(
+                    (participantType) => [
+                        participantType.slug,
+                        participantType.name,
+                    ],
+                ),
+            ),
+        [participantStatistics.participantTypes],
+    );
 
     const selectedAttendanceTitle =
         selectedAttendanceStatus === 'checked-in'
@@ -1809,8 +2015,9 @@ export default function Dashboard({
                                                 variant="outline"
                                                 className="shrink-0"
                                             >
-                                                {formatLabel(
+                                                {formatLookupLabel(
                                                     participant.participant_type,
+                                                    participantTypeLabelsBySlug,
                                                 )}
                                             </Badge>
                                         </div>
@@ -1912,8 +2119,9 @@ export default function Dashboard({
                                                             variant="outline"
                                                             className="text-center break-words whitespace-normal"
                                                         >
-                                                            {formatLabel(
+                                                            {formatLookupLabel(
                                                                 participant.participant_type,
+                                                                participantTypeLabelsBySlug,
                                                             )}
                                                         </Badge>
                                                     </TableCell>
@@ -1998,7 +2206,7 @@ export default function Dashboard({
                 </div>
 
                 <TooltipProvider>
-                    <section className="min-w-0 overflow-hidden rounded-lg border bg-card p-3 text-card-foreground shadow-sm sm:p-4">
+                    <section className="min-w-0 overflow-visible rounded-lg border bg-card p-3 text-card-foreground shadow-sm sm:p-4">
                         <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                             <div className="flex items-start gap-2">
                                 <Filter className="mt-1 size-4 shrink-0 text-muted-foreground" />

@@ -81,6 +81,11 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useInitials } from '@/hooks/use-initials';
 import { normalizeContactNumber } from '@/lib/phone';
 import { cn } from '@/lib/utils';
@@ -989,13 +994,28 @@ function ParticipantsTableSkeleton() {
     );
 }
 
+function FilterCountBadge({ count }: { count: number }) {
+    return (
+        <Badge
+            variant="secondary"
+            className="ml-auto shrink-0 px-1.5 py-0 text-[10px]"
+        >
+            {count}
+        </Badge>
+    );
+}
+
 function AddedByFilter({
     value,
     options,
+    counts,
+    totalCount,
     onChange,
 }: {
     value: string;
     options: Option[];
+    counts: Map<string, number>;
+    totalCount: number;
     onChange: (value: string) => void;
 }) {
     const [open, setOpen] = useState(false);
@@ -1043,6 +1063,7 @@ function AddedByFilter({
                                     )}
                                 />
                                 <span>All</span>
+                                <FilterCountBadge count={totalCount} />
                             </CommandItem>
                             {options.map((option) => (
                                 <CommandItem
@@ -1062,7 +1083,7 @@ function AddedByFilter({
                                                 : 'opacity-0',
                                         )}
                                     />
-                                    <div className="min-w-0">
+                                    <div className="min-w-0 flex-1">
                                         <p className="text-sm leading-snug break-words whitespace-normal">
                                             {option.label}
                                         </p>
@@ -1072,6 +1093,9 @@ function AddedByFilter({
                                                 : 'Administrator'}
                                         </p>
                                     </div>
+                                    <FilterCountBadge
+                                        count={counts.get(option.value) ?? 0}
+                                    />
                                 </CommandItem>
                             ))}
                         </CommandGroup>
@@ -1079,6 +1103,131 @@ function AddedByFilter({
                 </Command>
             </PopoverContent>
         </Popover>
+    );
+}
+
+function ParticipantTypeFilter({
+    value,
+    options,
+    counts,
+    totalCount,
+    onChange,
+}: {
+    value: string;
+    options: Option[];
+    counts: Map<string, number>;
+    totalCount: number;
+    onChange: (value: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const selectedOption = options.find((option) => option.value === value);
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="h-auto min-h-8 justify-between px-2 py-1 text-xs"
+                >
+                    <span className="max-w-44 text-left leading-tight break-words whitespace-normal">
+                        {selectedOption?.label ?? 'Type'}
+                    </span>
+                    <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="end"
+                className="w-[min(calc(100vw-2rem),20rem)] p-0"
+            >
+                <Command>
+                    <CommandInput placeholder="Search type..." />
+                    <CommandList>
+                        <CommandEmpty>No type found.</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem
+                                value="All types"
+                                onSelect={() => {
+                                    onChange('all');
+                                    setOpen(false);
+                                }}
+                            >
+                                <Check
+                                    className={cn(
+                                        'mr-2 size-4',
+                                        value === 'all'
+                                            ? 'opacity-100'
+                                            : 'opacity-0',
+                                    )}
+                                />
+                                <span>All</span>
+                                <FilterCountBadge count={totalCount} />
+                            </CommandItem>
+                            {options.map((option) => (
+                                <CommandItem
+                                    key={option.value}
+                                    value={`${option.label} ${option.type ?? ''}`}
+                                    onSelect={() => {
+                                        onChange(option.value);
+                                        setOpen(false);
+                                    }}
+                                    className="items-start"
+                                >
+                                    <Check
+                                        className={cn(
+                                            'mt-0.5 mr-2 size-4 shrink-0',
+                                            value === option.value
+                                                ? 'opacity-100'
+                                                : 'opacity-0',
+                                        )}
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm leading-snug break-words whitespace-normal">
+                                            {option.label}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {option.type
+                                                ?.trim()
+                                                .toLowerCase() === '4ps'
+                                                ? '4Ps'
+                                                : 'General'}
+                                        </p>
+                                    </div>
+                                    <FilterCountBadge
+                                        count={counts.get(option.value) ?? 0}
+                                    />
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
+function ContactEmail({ email }: { email: string | null }) {
+    if (!email) {
+        return <p className="truncate font-medium text-foreground">-</p>;
+    }
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <span
+                    tabIndex={0}
+                    className="block truncate font-medium text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                    {email}
+                </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[min(20rem,calc(100vw-2rem))] break-all">
+                {email}
+            </TooltipContent>
+        </Tooltip>
     );
 }
 
@@ -1094,6 +1243,7 @@ export default function Participants({
     const getInitials = useInitials();
     const [search, setSearch] = useState('');
     const [addedByFilter, setAddedByFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState('all');
     const [sortKey, setSortKey] = useState<SortKey>('created_at');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const [pageSize, setPageSize] = useState(10);
@@ -1211,6 +1361,35 @@ export default function Participants({
             return true;
         });
     }, [addedByOptions]);
+
+    const addedByCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+
+        participants.forEach((participant) => {
+            const value = getAddedByFilterValue(participant);
+
+            counts.set(value, (counts.get(value) ?? 0) + 1);
+        });
+
+        return counts;
+    }, [participants]);
+
+    const participantTypeCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+
+        participants.forEach((participant) => {
+            if (!participant.participant_type) {
+                return;
+            }
+
+            counts.set(
+                participant.participant_type,
+                (counts.get(participant.participant_type) ?? 0) + 1,
+            );
+        });
+
+        return counts;
+    }, [participants]);
 
     useEffect(() => {
         if (!addData.province) {
@@ -1335,8 +1514,16 @@ export default function Participants({
                           getAddedByFilterValue(participant) === addedByFilter,
                   );
 
+        const typeFiltered =
+            typeFilter === 'all'
+                ? addedByFiltered
+                : addedByFiltered.filter(
+                      (participant) =>
+                          participant.participant_type === typeFilter,
+                  );
+
         const filtered = normalizedSearch
-            ? addedByFiltered.filter((participant) =>
+            ? typeFiltered.filter((participant) =>
                   [
                       participant.name,
                       participant.participant_id,
@@ -1356,7 +1543,7 @@ export default function Participants({
                       .toLowerCase()
                       .includes(normalizedSearch),
               )
-            : addedByFiltered;
+            : typeFiltered;
 
         return [...filtered].sort((a, b) => {
             const aValue = getSortValue(a, sortKey);
@@ -1373,7 +1560,14 @@ export default function Participants({
 
             return sortDirection === 'asc' ? comparison : -comparison;
         });
-    }, [addedByFilter, participants, search, sortDirection, sortKey]);
+    }, [
+        addedByFilter,
+        participants,
+        search,
+        sortDirection,
+        sortKey,
+        typeFilter,
+    ]);
 
     const totalPages = Math.max(
         1,
@@ -1406,6 +1600,11 @@ export default function Participants({
 
     function updateAddedByFilter(value: string) {
         setAddedByFilter(value);
+        setPage(1);
+    }
+
+    function updateTypeFilter(value: string) {
+        setTypeFilter(value);
         setPage(1);
     }
 
@@ -1764,7 +1963,16 @@ export default function Participants({
                                 <AddedByFilter
                                     value={addedByFilter}
                                     options={normalizedAddedByOptions}
+                                    counts={addedByCounts}
+                                    totalCount={participants.length}
                                     onChange={updateAddedByFilter}
+                                />
+                                <ParticipantTypeFilter
+                                    value={typeFilter}
+                                    options={participantTypes}
+                                    counts={participantTypeCounts}
+                                    totalCount={participants.length}
+                                    onChange={updateTypeFilter}
                                 />
                                 <Button
                                     type="button"
@@ -2103,10 +2311,11 @@ export default function Participants({
                                                     </TableCell>
                                                     <TableCell className="px-2 py-2">
                                                         <div className="min-w-0 leading-5">
-                                                            <p className="truncate font-medium text-foreground">
-                                                                {participant.email ??
-                                                                    '-'}
-                                                            </p>
+                                                            <ContactEmail
+                                                                email={
+                                                                    participant.email
+                                                                }
+                                                            />
                                                             <p className="truncate text-muted-foreground">
                                                                 {participant.phone ??
                                                                     '-'}

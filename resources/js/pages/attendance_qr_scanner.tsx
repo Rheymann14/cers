@@ -1,4 +1,5 @@
 import { Head } from '@inertiajs/react';
+import jsQR from 'jsqr';
 import {
     AlertCircle,
     Camera,
@@ -10,7 +11,6 @@ import {
     QrCode,
     RotateCcw,
 } from 'lucide-react';
-import jsQR from 'jsqr';
 import { QRCodeSVG } from 'qrcode.react';
 import type { FormEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -293,20 +293,30 @@ function isCersVirtualIdQr(value: string) {
     return value.trim().startsWith('CERS:VID:1:');
 }
 
+const closedEventScanError =
+    'Selected event is closed and cannot accept attendance check-ins.';
+
 export default function AttendanceQrScanner({ events }: Props) {
+    const initialSelectedEvent = events[0] ?? null;
+    const initialSelectedEventStatus = initialSelectedEvent
+        ? getEventStatus(initialSelectedEvent)
+        : null;
+    const initialEventClosed = initialSelectedEventStatus === 'closed';
     const [eventOpen, setEventOpen] = useState(false);
     const [selectedEventId, setSelectedEventId] = useState(
-        events[0]?.id ? String(events[0].id) : '',
+        initialSelectedEvent?.id ? String(initialSelectedEvent.id) : '',
     );
     const [cameraState, setCameraState] = useState<
         'idle' | 'starting' | 'scanning' | 'error'
-    >('idle');
-    const [scanError, setScanError] = useState('');
+    >(initialEventClosed ? 'error' : 'idle');
+    const [scanError, setScanError] = useState(
+        initialEventClosed ? closedEventScanError : '',
+    );
     const [scanErrorTitle, setScanErrorTitle] = useState(
-        'Scan Validation Failed',
+        initialEventClosed ? 'Event Closed' : 'Scan Validation Failed',
     );
     const [scanErrorDialogOpen, setScanErrorDialogOpen] = useState(false);
-    const [scanPaused, setScanPaused] = useState(false);
+    const [scanPaused, setScanPaused] = useState(initialEventClosed);
     const [manualParticipantId, setManualParticipantId] = useState('');
     const [checkingIn, setCheckingIn] = useState(false);
     const [checkInResult, setCheckInResult] = useState<CheckInResult | null>(
@@ -496,31 +506,21 @@ export default function AttendanceQrScanner({ events }: Props) {
 
     useEffect(() => {
         if (!selectedEventId) {
-            setCameraState('idle');
-            setScanError('Select an event before scanning attendance.');
-
             return;
         }
 
         if (selectedEventStatus === 'closed') {
-            setCameraState('error');
-            pauseScannerWithError(
-                'Selected event is closed and cannot accept attendance check-ins.',
-                'Event Closed',
-            );
-
             return;
         }
 
         if (!scannerEnabled) {
-            setCameraState('idle');
-
             return;
         }
 
         let stopped = false;
         let frame = 0;
         let stream: MediaStream | null = null;
+        const videoElement = videoRef.current;
         const detector = window.BarcodeDetector
             ? new window.BarcodeDetector({
                   formats: ['qr_code'],
@@ -644,8 +644,8 @@ export default function AttendanceQrScanner({ events }: Props) {
             window.cancelAnimationFrame(frame);
             stream?.getTracks().forEach((track) => track.stop());
 
-            if (videoRef.current) {
-                videoRef.current.srcObject = null;
+            if (videoElement) {
+                videoElement.srcObject = null;
             }
         };
     }, [
@@ -718,7 +718,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                                             'text-muted-foreground',
                                     )}
                                 >
-                                    <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug sm:truncate">
+                                    <span className="min-w-0 flex-1 leading-snug break-words whitespace-normal sm:truncate">
                                         {selectedEvent?.name ??
                                             'Search and select event'}
                                     </span>
@@ -757,6 +757,30 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                             setCheckInResult(
                                                                 null,
                                                             );
+
+                                                            if (
+                                                                status ===
+                                                                'closed'
+                                                            ) {
+                                                                setCameraState(
+                                                                    'error',
+                                                                );
+                                                                setScanError(
+                                                                    closedEventScanError,
+                                                                );
+                                                                setScanErrorTitle(
+                                                                    'Event Closed',
+                                                                );
+                                                                setScanPaused(
+                                                                    true,
+                                                                );
+                                                                setScanErrorDialogOpen(
+                                                                    true,
+                                                                );
+
+                                                                return;
+                                                            }
+
                                                             restartScanner();
                                                         }}
                                                         className="items-start gap-2 py-2.5 sm:gap-3"
@@ -774,7 +798,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                         />
                                                         <div className="min-w-0 flex-1">
                                                             <div className="grid min-w-0 gap-1 sm:flex sm:items-center sm:gap-2">
-                                                                <span className="min-w-0 whitespace-normal break-words leading-snug font-medium sm:truncate">
+                                                                <span className="min-w-0 leading-snug font-medium break-words whitespace-normal sm:truncate">
                                                                     {event.name}
                                                                 </span>
                                                                 <div className="shrink-0">
