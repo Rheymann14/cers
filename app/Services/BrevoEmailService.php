@@ -30,10 +30,6 @@ class BrevoEmailService
 
         $participant['initials'] = $this->getInitials($participant['name']);
 
-        $htmlContent = view('emails.registration-success', [
-            'participant' => $participant,
-        ])->render();
-
         $response = Http::withHeaders([
             'api-key' => $apiKey,
             'accept' => 'application/json',
@@ -50,9 +46,9 @@ class BrevoEmailService
                 ],
             ],
             'subject' => 'Registration Successful - CHED Events Registration System',
-            'htmlContent' => $htmlContent,
-            'textContent' => $this->createTextContent($participant),
-            'tags' => ['registration'],
+            'htmlContent' => view('emails.registration-success', [
+                'participant' => $participant,
+            ])->render(),
         ]);
 
         Log::info('Brevo email response.', [
@@ -118,25 +114,5 @@ class BrevoEmailService
             ->implode('');
 
         return strtoupper(mb_substr($initials ?: 'ID', 0, 2));
-    }
-
-    private function createTextContent(array $participant): string
-    {
-        return implode("\n", array_filter([
-            'Registration Successful - CHED Events Registration System',
-            '',
-            'Hello '.$participant['name'].',',
-            '',
-            'Your registration in the CHED Events Registration System has been successfully completed.',
-            '',
-            'Participant ID: '.$participant['participant_id'],
-            empty($participant['organization']) ? null : 'Organization: '.$participant['organization'],
-            empty($participant['event_name']) ? null : 'Event: '.$participant['event_name'],
-            '',
-            'Please keep a copy of your virtual ID and present it during attendance scanning.',
-            '',
-            'Thank you,',
-            'CHED Events Registration System',
-        ]));
     }
 }
