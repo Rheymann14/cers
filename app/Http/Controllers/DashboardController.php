@@ -32,6 +32,9 @@ class DashboardController extends Controller
 
         $checkedInByEvent = EventAttendance::query()
             ->selectRaw('event_id, count(distinct user_id) as checked_in_count')
+            ->whereHas('participant', function ($query) {
+                $query->whereColumn('users.event_id', 'event_attendances.event_id');
+            })
             ->groupBy('event_id')
             ->pluck('checked_in_count', 'event_id');
 
@@ -72,6 +75,9 @@ class DashboardController extends Controller
             });
 
         $checkedInParticipantsList = EventAttendance::query()
+            ->whereHas('participant', function ($query) {
+                $query->whereColumn('users.event_id', 'event_attendances.event_id');
+            })
             ->with([
                 'event:id,name,slug',
                 'participant:id,participant_id,name,given_name,middle_name,surname,email,phone,organization,participant_type,sex,event_id,event_name,province_id,municipality_id,is_active,created_at',
@@ -110,14 +116,12 @@ class DashboardController extends Controller
             })
             ->values();
 
-        $checkedInUserIds = EventAttendance::query()
-            ->select('user_id')
-            ->distinct();
-
         $notCheckedInParticipantsList = User::query()
             ->with(['province:id,name', 'municipality:id,name'])
             ->whereNotNull('event_id')
-            ->whereNotIn('id', $checkedInUserIds)
+            ->whereDoesntHave('attendances', function ($query) {
+                $query->whereColumn('event_attendances.event_id', 'users.event_id');
+            })
             ->latest()
             ->get([
                 'id',
@@ -167,7 +171,7 @@ class DashboardController extends Controller
 
         return Inertia::render('dashboard', [
             'stats' => [
-                'participants' => User::query()->count(),
+                'participants' => $registeredEventParticipants,
                 'checkedInParticipants' => $checkedInParticipants,
                 'notCheckedInParticipants' => $notCheckedInParticipants,
             ],

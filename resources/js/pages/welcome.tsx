@@ -2553,8 +2553,8 @@ export default function Welcome() {
                                                 className="mt-0.5 size-5 rounded border-[#d9e5f5] text-[#0038A8] focus:ring-[#0038A8]/20 dark:border-neutral-700 dark:bg-neutral-950"
                                             />
                                             I consent to CERS sharing my full
-                                            name, designation, institution, and
-                                            email address if provided with other
+                                            name, designation, institution,
+                                            email address, and all other details if provided with other
                                             event attendees to support
                                             networking among institutions with
                                             shared interests. <RequiredMark />

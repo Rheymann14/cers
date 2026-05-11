@@ -35,6 +35,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'event_id',
     'is_active',
     'created_by_user_id',
+    'deleted_by_user_id',
     'registration_consent_accepted_at',
     'password',
 ])]
@@ -70,6 +71,11 @@ class User extends Authenticatable
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id')->withTrashed();
+    }
+
+    public function deletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by_user_id')->withTrashed();
     }
 
     public function province(): BelongsTo

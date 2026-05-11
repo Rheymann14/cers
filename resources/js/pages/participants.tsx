@@ -1,4 +1,5 @@
 import { Head, useForm } from '@inertiajs/react';
+import ExcelJS from 'exceljs';
 import {
     ArrowDown,
     ArrowUp,
@@ -8,6 +9,7 @@ import {
     ChevronLeft,
     ChevronRight,
     ChevronsUpDown,
+    Download,
     ImagePlus,
     KeyRound,
     MoreHorizontal,
@@ -109,6 +111,7 @@ type Participant = {
     event_name: string | null;
     is_active: boolean;
     created_by: CreatedByUser | null;
+    deleted_by: CreatedByUser | null;
     created_at: string;
     deleted_at: string | null;
 };
@@ -187,6 +190,34 @@ const columns: {
 ];
 
 const pageSizeOptions = [5, 10, 25];
+const excelMimeType =
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+type ParticipantExportColumn = {
+    header: string;
+    key: string;
+    width: number;
+};
+
+const participantExportColumns: ParticipantExportColumn[] = [
+    { header: 'Participant ID', key: 'participant_id', width: 22 },
+    { header: 'Full Name', key: 'name', width: 28 },
+    { header: 'Given Name', key: 'given_name', width: 20 },
+    { header: 'Middle Name', key: 'middle_name', width: 18 },
+    { header: 'Surname', key: 'surname', width: 20 },
+    { header: 'Email', key: 'email', width: 30 },
+    { header: 'Phone', key: 'phone', width: 16 },
+    { header: 'Sex', key: 'sex', width: 12 },
+    { header: 'Participant Type', key: 'participant_type', width: 22 },
+    { header: 'Organization', key: 'organization', width: 34 },
+    { header: 'Province', key: 'province', width: 22 },
+    { header: 'Municipality / City', key: 'municipality', width: 24 },
+    { header: 'Event', key: 'event_name', width: 36 },
+    { header: 'Added By Type', key: 'added_by_type', width: 16 },
+    { header: 'Added By', key: 'added_by', width: 24 },
+    { header: 'Registered At', key: 'created_at', width: 24 },
+    { header: 'Account Status', key: 'account_status', width: 18 },
+];
 
 const sexOptions = [
     { value: 'male', label: 'Male' },
@@ -295,8 +326,38 @@ function formatDate(value: string): string {
     }).format(new Date(value));
 }
 
+function formatFileDate(value: Date): string {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
+function sanitizeFilePart(value: string): string {
+    const sanitized = value
+        .replace(/[<>:"/\\|?*]+/g, ' ')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .toLowerCase();
+
+    return sanitized || 'all-events';
+}
+
 function getOptionLabel(options: Option[], value: string | null): string {
     return options.find((option) => option.value === value)?.label ?? '-';
+}
+
+function getExportOptionLabel(
+    options: Option[],
+    value: string | null,
+): string {
+    if (!value) {
+        return '-';
+    }
+
+    return options.find((option) => option.value === value)?.label ?? value;
 }
 
 function getLocationLabel(participant: Participant): string {
@@ -319,6 +380,124 @@ function getAddedByFilterValue(participant: Participant): string {
     return participant.created_by
         ? `admin:${participant.created_by.id}`
         : 'system';
+}
+
+function getDeletedByLabel(participant: Participant): string {
+    return participant.deleted_by?.name ?? 'System';
+}
+
+function getParticipantsExportFileName(
+    participants: Participant[],
+    events: Option[],
+    addedByFilter: string,
+    addedByOptions: Option[],
+    typeFilter: string,
+    participantTypes: Option[],
+): string {
+    const eventNames = [
+        ...new Set(
+            participants
+                .map((participant) =>
+                    getExportOptionLabel(events, participant.event_name),
+                )
+                .filter((eventName) => eventName !== '-'),
+        ),
+    ];
+    const eventName = eventNames.length === 1 ? eventNames[0] : 'all-events';
+    const addedByLabel =
+        addedByFilter === 'all'
+            ? 'all-added-by'
+            : getExportOptionLabel(addedByOptions, addedByFilter);
+    const typeLabel =
+        typeFilter === 'all'
+            ? 'all-types'
+            : getExportOptionLabel(participantTypes, typeFilter);
+
+    return `cers-${formatFileDate(new Date())}-${sanitizeFilePart(eventName)}-participants-filtered-by-${sanitizeFilePart(addedByLabel)}-${sanitizeFilePart(typeLabel)}.xlsx`;
+}
+
+function participantExportRow(
+    participant: Participant,
+    participantTypes: Option[],
+    events: Option[],
+) {
+    return {
+        participant_id: participant.participant_id ?? '-',
+        name: participant.name || '-',
+        given_name: participant.given_name ?? '-',
+        middle_name: participant.middle_name ?? '-',
+        surname: participant.surname ?? '-',
+        email: participant.email ?? '-',
+        phone: participant.phone ?? '-',
+        sex: formatLabel(participant.sex),
+        participant_type: getExportOptionLabel(
+            participantTypes,
+            participant.participant_type,
+        ),
+        organization: participant.organization ?? '-',
+        province: participant.province?.name ?? '-',
+        municipality: participant.municipality?.name ?? '-',
+        event_name: getExportOptionLabel(events, participant.event_name),
+        added_by_type: getAddedByType(participant),
+        added_by: getAddedByLabel(participant),
+        created_at: formatDate(participant.created_at),
+        account_status: participant.is_active ? 'Active' : 'Inactive',
+    };
+}
+
+function styleParticipantsWorksheet(worksheet: ExcelJS.Worksheet) {
+    worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+    worksheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: worksheet.columns.length },
+    };
+    worksheet.properties.defaultRowHeight = 22;
+
+    const headerBorder = {
+        top: { style: 'thin' as const, color: { argb: 'FF475569' } },
+        left: { style: 'thin' as const, color: { argb: 'FF475569' } },
+        bottom: { style: 'thin' as const, color: { argb: 'FF475569' } },
+        right: { style: 'thin' as const, color: { argb: 'FF475569' } },
+    };
+    const bodyBorder = {
+        top: { style: 'thin' as const, color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin' as const, color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin' as const, color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin' as const, color: { argb: 'FFE2E8F0' } },
+    };
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 26;
+    headerRow.eachCell((cell) => {
+        cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF0038A8' },
+        };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.alignment = {
+            horizontal: 'center',
+            vertical: 'middle',
+            wrapText: true,
+        };
+        cell.border = headerBorder;
+    });
+
+    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        if (rowNumber > 1) {
+            row.height = 34;
+        }
+
+        row.eachCell({ includeEmpty: true }, (cell) => {
+            if (rowNumber > 1) {
+                cell.alignment = {
+                    vertical: 'top',
+                    wrapText: true,
+                };
+                cell.border = bodyBorder;
+            }
+        });
+    });
 }
 
 function getSortValue(participant: Participant, key: SortKey): string {
@@ -1281,6 +1460,8 @@ export default function Participants({
         useState<Participant | null>(null);
     const [viewingIdParticipant, setViewingIdParticipant] =
         useState<Participant | null>(null);
+    const [isExportingParticipants, setIsExportingParticipants] =
+        useState(false);
     const {
         data,
         setData,
@@ -1611,6 +1792,53 @@ export default function Participants({
     function updatePageSize(value: number) {
         setPageSize(value);
         setPage(1);
+    }
+
+    async function downloadParticipantsExcel() {
+        setIsExportingParticipants(true);
+
+        try {
+            const workbook = new ExcelJS.Workbook();
+            workbook.creator = 'CERS';
+            workbook.created = new Date();
+            workbook.modified = new Date();
+
+            const worksheet = workbook.addWorksheet('Participants');
+            worksheet.columns = participantExportColumns;
+            worksheet.addRows(
+                filteredParticipants.map((participant) =>
+                    participantExportRow(participant, participantTypes, events),
+                ),
+            );
+            styleParticipantsWorksheet(worksheet);
+
+            const workbookArrayBuffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([workbookArrayBuffer], {
+                type: excelMimeType,
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+
+            link.href = url;
+            link.download = getParticipantsExportFileName(
+                filteredParticipants,
+                events,
+                addedByFilter,
+                normalizedAddedByOptions,
+                typeFilter,
+                participantTypes,
+            );
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            toast.success('Participants Excel downloaded.');
+        } catch (error) {
+            console.error(error);
+            toast.error('Unable to download participants Excel.');
+        } finally {
+            setIsExportingParticipants(false);
+        }
     }
 
     function openAddDialog() {
@@ -1974,6 +2202,22 @@ export default function Participants({
                                     totalCount={participants.length}
                                     onChange={updateTypeFilter}
                                 />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={downloadParticipantsExcel}
+                                    disabled={
+                                        isExportingParticipants ||
+                                        filteredParticipants.length === 0
+                                    }
+                                    className="h-8 justify-center px-2 text-xs"
+                                >
+                                    <Download className="size-3.5" />
+                                    {isExportingParticipants
+                                        ? 'Exporting...'
+                                        : 'Export Excel'}
+                                </Button>
                                 <Button
                                     type="button"
                                     size="sm"
@@ -3392,6 +3636,14 @@ export default function Participants({
                                                           participant.deleted_at,
                                                       )
                                                     : '-'}
+                                            </p>
+                                            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                                                Deleted by{' '}
+                                                <span className="font-medium text-foreground">
+                                                    {getDeletedByLabel(
+                                                        participant,
+                                                    )}
+                                                </span>
                                             </p>
                                         </div>
                                     </div>

@@ -42,6 +42,7 @@ class ParticipantsController extends Controller
             'created_by_user_id',
             'created_at',
             'deleted_at',
+            'deleted_by_user_id',
         ];
 
         return Inertia::render('participants', [
@@ -51,7 +52,7 @@ class ParticipantsController extends Controller
                 ->get($columns),
             'deletedParticipants' => User::query()
                 ->onlyTrashed()
-                ->with(['province:id,code,name', 'municipality:id,code,name', 'createdBy:id,name'])
+                ->with(['province:id,code,name', 'municipality:id,code,name', 'createdBy:id,name', 'deletedBy:id,name'])
                 ->latest('deleted_at')
                 ->get($columns),
             'organizations' => Organization::query()
@@ -230,7 +231,7 @@ class ParticipantsController extends Controller
             'middle_name' => ['nullable', 'string', 'max:255'],
             'surname' => ['required', 'string', 'max:255'],
             'email' => [
-                'required',
+                'nullable',
                 'string',
                 'email',
                 'max:255',
@@ -332,8 +333,12 @@ class ParticipantsController extends Controller
         return back();
     }
 
-    public function destroy(User $participant): RedirectResponse
+    public function destroy(Request $request, User $participant): RedirectResponse
     {
+        $participant->update([
+            'deleted_by_user_id' => $request->user()?->id,
+        ]);
+
         $participant->delete();
 
         Inertia::flash('toast', [
