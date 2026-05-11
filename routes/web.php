@@ -37,35 +37,13 @@ Route::middleware(['auth', 'active', 'verified', 'participant'])->group(function
 
 Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
-    Route::get('events-management', EventsManagementController::class)->name('events-management');
     Route::get('attendance-qr-scanner', AttendanceQrScannerController::class)
         ->name('attendance-qr-scanner');
     Route::post('attendance-qr-scanner/check-in', [AttendanceQrScannerController::class, 'checkIn'])
         ->name('attendance-qr-scanner.check-in');
-    Route::post('events-management', [EventsManagementController::class, 'store'])
-        ->name('events-management.store');
-    Route::patch('events-management/{event}', [EventsManagementController::class, 'update'])
-        ->name('events-management.update');
-    Route::patch('events-management/{event}/status', [EventsManagementController::class, 'toggleStatus'])
-        ->name('events-management.status');
-    Route::patch('events-management/{event}/venue', [EventsManagementController::class, 'updateVenue'])
-        ->name('events-management.venue');
-    Route::delete('events-management/{event}', [EventsManagementController::class, 'destroy'])
-        ->name('events-management.destroy');
-    Route::delete('events-management/materials/{material}', [EventsManagementController::class, 'destroyMaterial'])
-        ->name('events-management.materials.destroy');
     Route::get('participants', ParticipantsController::class)->name('participants');
     Route::post('participants', [ParticipantsController::class, 'store'])
         ->name('participants.store');
-    Route::get('page-settings', PageSettingsController::class)->name('page-settings');
-    Route::post('page-settings/{table}', [PageSettingsController::class, 'store'])
-        ->name('page-settings.store');
-    Route::patch('page-settings/{table}/{id}', [PageSettingsController::class, 'update'])
-        ->name('page-settings.update');
-    Route::patch('page-settings/{table}/{id}/status', [PageSettingsController::class, 'toggleStatus'])
-        ->name('page-settings.status');
-    Route::delete('page-settings/{table}/{id}', [PageSettingsController::class, 'destroy'])
-        ->name('page-settings.destroy');
     Route::patch('participants/{participant}', [ParticipantsController::class, 'update'])
         ->name('participants.update');
     Route::delete('participants/{participant}', [ParticipantsController::class, 'destroy'])
@@ -76,6 +54,34 @@ Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
         ->name('participants.password-reset');
     Route::patch('participants/{participant}/restore', [ParticipantsController::class, 'restore'])
         ->name('participants.restore');
+
+    Route::middleware('ched-admin')->group(function () {
+        Route::get('events-management', EventsManagementController::class)->name('events-management');
+        Route::post('events-management', [EventsManagementController::class, 'store'])
+            ->name('events-management.store');
+        Route::patch('events-management/{event}', [EventsManagementController::class, 'update'])
+            ->name('events-management.update');
+        Route::patch('events-management/{event}/status', [EventsManagementController::class, 'toggleStatus'])
+            ->name('events-management.status');
+        Route::patch('events-management/{event}/registration-status', [EventsManagementController::class, 'toggleRegistrationStatus'])
+            ->name('events-management.registration-status');
+        Route::patch('events-management/{event}/venue', [EventsManagementController::class, 'updateVenue'])
+            ->name('events-management.venue');
+        Route::delete('events-management/{event}', [EventsManagementController::class, 'destroy'])
+            ->name('events-management.destroy');
+        Route::delete('events-management/materials/{material}', [EventsManagementController::class, 'destroyMaterial'])
+            ->name('events-management.materials.destroy');
+
+        Route::get('page-settings', PageSettingsController::class)->name('page-settings');
+        Route::post('page-settings/{table}', [PageSettingsController::class, 'store'])
+            ->name('page-settings.store');
+        Route::patch('page-settings/{table}/{id}', [PageSettingsController::class, 'update'])
+            ->name('page-settings.update');
+        Route::patch('page-settings/{table}/{id}/status', [PageSettingsController::class, 'toggleStatus'])
+            ->name('page-settings.status');
+        Route::delete('page-settings/{table}/{id}', [PageSettingsController::class, 'destroy'])
+            ->name('page-settings.destroy');
+    });
 });
 
 require __DIR__.'/settings.php';

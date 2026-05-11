@@ -52,7 +52,25 @@ type Props = {
     breadcrumbs?: BreadcrumbItem[];
 };
 
-const mainNavItems: NavItem[] = [
+const standardAdminNavItems: NavItem[] = [
+    {
+        title: 'Dashboard',
+        href: dashboard(),
+        icon: LayoutDashboard,
+    },
+    {
+        title: 'Participants',
+        href: participants(),
+        icon: Users,
+    },
+    {
+        title: 'QR Scanner',
+        href: attendanceQrScanner(),
+        icon: QrCode,
+    },
+];
+
+const chedAdminNavItems: NavItem[] = [
     {
         title: 'Dashboard',
         href: dashboard(),
@@ -99,6 +117,9 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
     const { auth } = page.props;
     const getInitials = useInitials();
     const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
+    const adminNavItems = auth.isChedAdmin
+        ? chedAdminNavItems
+        : standardAdminNavItems;
 
     return (
         <>
@@ -130,7 +151,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                     <div className="flex h-full flex-col justify-between text-sm">
                                         <div className="flex flex-col space-y-4">
                                             {(auth.isAdmin
-                                                ? mainNavItems
+                                                ? adminNavItems
                                                 : participantNavItems
                                             ).map((item) => (
                                                 <Link
@@ -147,7 +168,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                         </div>
 
                                         <div className="flex flex-col space-y-4">
-                                            {auth.isAdmin &&
+                                            {auth.isChedAdmin &&
                                                 rightNavItems.map((item) => (
                                                     <Link
                                                         key={item.title}
@@ -183,7 +204,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                         <NavigationMenu className="flex h-full items-stretch">
                             <NavigationMenuList className="flex h-full items-stretch space-x-2">
                                 {(auth.isAdmin
-                                    ? mainNavItems
+                                    ? adminNavItems
                                     : participantNavItems
                                 ).map((item, index) => (
                                     <NavigationMenuItem
@@ -218,7 +239,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                     <div className="ml-auto flex items-center space-x-2">
                         <div className="relative flex items-center space-x-1">
                             <div className="ml-1 hidden gap-1 lg:flex">
-                                {auth.isAdmin &&
+                                {auth.isChedAdmin &&
                                     rightNavItems.map((item) => (
                                         <Tooltip key={item.title}>
                                             <TooltipTrigger asChild>

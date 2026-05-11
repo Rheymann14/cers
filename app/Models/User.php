@@ -50,7 +50,24 @@ class User extends Authenticatable
      */
     public function isAdministrator(): bool
     {
-        return in_array($this->normalizeParticipantType($this->participant_type), ['admin', 'administrator'], true);
+        return $this->normalizeParticipantType($this->participant_type) === 'admin';
+    }
+
+    /**
+     * Determine if the user has the full CHED administrator scope.
+     */
+    public function isChedAdministrator(): bool
+    {
+        if (! $this->isAdministrator()) {
+            return false;
+        }
+
+        return in_array(Str::slug((string) $this->organization), [
+            'commission-on-higher-education',
+            'commission-on-higher-education-ched',
+            'commission-on-higher-edcuation',
+            'ched',
+        ], true);
     }
 
     public function setParticipantTypeAttribute(?string $value): void

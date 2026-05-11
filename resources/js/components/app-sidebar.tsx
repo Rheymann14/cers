@@ -28,7 +28,25 @@ import {
 } from '@/routes';
 import type { NavItem } from '@/types';
 
-const mainNavItems: NavItem[] = [
+const standardAdminNavItems: NavItem[] = [
+    {
+        title: 'Dashboard',
+        href: dashboard(),
+        icon: LayoutDashboard,
+    },
+    {
+        title: 'Participants',
+        href: participants(),
+        icon: Users,
+    },
+    {
+        title: 'QR Scanner',
+        href: attendanceQrScanner(),
+        icon: QrCode,
+    },
+];
+
+const chedAdminNavItems: NavItem[] = [
     {
         title: 'Dashboard',
         href: dashboard(),
@@ -69,6 +87,9 @@ const participantNavItems: NavItem[] = [
 
 export function AppSidebar() {
     const { auth } = usePage().props;
+    const adminNavItems = auth.isChedAdmin
+        ? chedAdminNavItems
+        : standardAdminNavItems;
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -92,12 +113,12 @@ export function AppSidebar() {
 
             <SidebarContent>
                 <NavMain
-                    items={auth.isAdmin ? mainNavItems : participantNavItems}
+                    items={auth.isAdmin ? adminNavItems : participantNavItems}
                 />
             </SidebarContent>
 
             <SidebarFooter>
-                {auth.isAdmin && (
+                {auth.isChedAdmin && (
                     <NavFooter items={footerNavItems} className="mt-auto" />
                 )}
                 <NavUser />

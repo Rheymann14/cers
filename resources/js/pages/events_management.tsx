@@ -7,6 +7,7 @@ import {
     ExternalLink,
     FileText,
     ImagePlus,
+    Lock,
     MapPin,
     MoreHorizontal,
     Pencil,
@@ -15,6 +16,7 @@ import {
     ToggleLeft,
     ToggleRight,
     Trash2,
+    Unlock,
     X,
 } from 'lucide-react';
 import type { ComponentProps, FormEvent } from 'react';
@@ -84,6 +86,7 @@ type ManagedEvent = {
     pdf_url: string | null;
     materials: EventMaterial[];
     is_active: boolean;
+    is_registration_closed: boolean;
     users_count: number;
     created_at: string | null;
     creator: {
@@ -363,6 +366,8 @@ export default function EventsManagement({ events }: Props) {
         null,
     );
     const [statusEvent, setStatusEvent] = useState<ManagedEvent | null>(null);
+    const [registrationStatusEvent, setRegistrationStatusEvent] =
+        useState<ManagedEvent | null>(null);
     const [venueEvent, setVenueEvent] = useState<ManagedEvent | null>(null);
     const [venueMapLink, setVenueMapLink] = useState('');
     const [dialogMode, setDialogMode] = useState<'add' | 'edit' | null>(null);
@@ -387,8 +392,9 @@ export default function EventsManagement({ events }: Props) {
         clearErrors: clearVenueErrors,
     } = useForm<EventVenueForm>(defaultVenueForm);
     const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
-    const [viewingPdfEvent, setViewingPdfEvent] =
-        useState<ManagedEvent | null>(null);
+    const [viewingPdfEvent, setViewingPdfEvent] = useState<ManagedEvent | null>(
+        null,
+    );
     const venueMapSrc = getVenueMapSrc(venueData);
 
     const filteredEvents = useMemo(() => {
@@ -406,6 +412,9 @@ export default function EventsManagement({ events }: Props) {
                 event.venue_address,
                 ...event.materials.map((material) => material.original_name),
                 event.is_active ? 'active' : 'inactive',
+                event.is_registration_closed
+                    ? 'registration closed'
+                    : 'registration open',
                 event.creator?.name,
             ]
                 .filter(Boolean)
@@ -545,6 +554,21 @@ export default function EventsManagement({ events }: Props) {
             {
                 preserveScroll: true,
                 onSuccess: () => setStatusEvent(null),
+            },
+        );
+    }
+
+    function submitRegistrationStatusToggle() {
+        if (!registrationStatusEvent) {
+            return;
+        }
+
+        router.patch(
+            `/events-management/${registrationStatusEvent.id}/registration-status`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => setRegistrationStatusEvent(null),
             },
         );
     }
@@ -699,11 +723,17 @@ export default function EventsManagement({ events }: Props) {
                                             onEdit={openEditDialog}
                                             onVenue={openVenueDialog}
                                             onStatus={setStatusEvent}
+                                            onRegistrationStatus={
+                                                setRegistrationStatusEvent
+                                            }
                                             onDelete={setDeletingEvent}
                                         />
                                     </div>
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         <EventDateStatusBadge event={event} />
+                                        <EventRegistrationStatusBadge
+                                            event={event}
+                                        />
                                         <Badge variant="outline">
                                             {formatDateTime(event.starts_at)}
                                         </Badge>
@@ -905,9 +935,14 @@ export default function EventsManagement({ events }: Props) {
                                             )}
                                         </TableCell>
                                         <TableCell className="px-2 py-2">
-                                            <EventDateStatusBadge
-                                                event={event}
-                                            />
+                                            <div className="flex flex-wrap gap-1.5">
+                                                <EventDateStatusBadge
+                                                    event={event}
+                                                />
+                                                <EventRegistrationStatusBadge
+                                                    event={event}
+                                                />
+                                            </div>
                                         </TableCell>
                                         <TableCell className="px-2 py-2">
                                             <div className="flex justify-end">
@@ -916,6 +951,9 @@ export default function EventsManagement({ events }: Props) {
                                                     onEdit={openEditDialog}
                                                     onVenue={openVenueDialog}
                                                     onStatus={setStatusEvent}
+                                                    onRegistrationStatus={
+                                                        setRegistrationStatusEvent
+                                                    }
                                                     onDelete={setDeletingEvent}
                                                 />
                                             </div>
@@ -1176,9 +1214,7 @@ export default function EventsManagement({ events }: Props) {
                                             size="sm"
                                             type="button"
                                             onClick={() =>
-                                                setViewingPdfEvent(
-                                                    editingEvent,
-                                                )
+                                                setViewingPdfEvent(editingEvent)
                                             }
                                         >
                                             <ExternalLink className="size-3.5" />
@@ -1467,9 +1503,7 @@ export default function EventsManagement({ events }: Props) {
                                         )
                                     }
                                     inputMode="decimal"
-                                    aria-invalid={
-                                        !!venueErrors.venue_latitude
-                                    }
+                                    aria-invalid={!!venueErrors.venue_latitude}
                                 />
                                 <InputError
                                     message={venueErrors.venue_latitude}
@@ -1489,9 +1523,7 @@ export default function EventsManagement({ events }: Props) {
                                         )
                                     }
                                     inputMode="decimal"
-                                    aria-invalid={
-                                        !!venueErrors.venue_longitude
-                                    }
+                                    aria-invalid={!!venueErrors.venue_longitude}
                                 />
                                 <InputError
                                     message={venueErrors.venue_longitude}
@@ -1585,6 +1617,60 @@ export default function EventsManagement({ events }: Props) {
                             type="button"
                             size="sm"
                             onClick={submitStatusToggle}
+                        >
+                            Confirm
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={registrationStatusEvent !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setRegistrationStatusEvent(null);
+                    }
+                }}
+            >
+                <DialogContent
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-sm"
+                    onPointerDownOutside={preventDialogOutsideClose}
+                >
+                    <DialogHeader className="gap-1">
+                        <DialogTitle className="inline-flex items-center gap-2 text-base">
+                            {registrationStatusEvent?.is_registration_closed ? (
+                                <Unlock className="size-4 text-emerald-600" />
+                            ) : (
+                                <Lock className="size-4 text-amber-500" />
+                            )}
+                            {registrationStatusEvent?.is_registration_closed
+                                ? 'Open registration?'
+                                : 'Close registration?'}
+                        </DialogTitle>
+                        <DialogDescription className="text-xs leading-5">
+                            {registrationStatusEvent?.is_registration_closed
+                                ? 'Allow new registrations for '
+                                : 'Stop new registrations for '}
+                            <span className="font-medium text-foreground">
+                                {registrationStatusEvent?.name}
+                            </span>
+                            .
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setRegistrationStatusEvent(null)}
+                        >
+                            <X className="size-3.5" />
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={submitRegistrationStatusToggle}
                         >
                             Confirm
                         </Button>
@@ -1725,12 +1811,14 @@ function ActionButtons({
     onEdit,
     onVenue,
     onStatus,
+    onRegistrationStatus,
     onDelete,
 }: {
     event: ManagedEvent;
     onEdit: (event: ManagedEvent) => void;
     onVenue: (event: ManagedEvent) => void;
     onStatus: (event: ManagedEvent) => void;
+    onRegistrationStatus: (event: ManagedEvent) => void;
     onDelete: (event: ManagedEvent) => void;
 }) {
     return (
@@ -1763,6 +1851,16 @@ function ActionButtons({
                     )}
                     {event.is_active ? 'Set inactive' : 'Set active'}
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onRegistrationStatus(event)}>
+                    {event.is_registration_closed ? (
+                        <Unlock className="size-4" />
+                    ) : (
+                        <Lock className="size-4" />
+                    )}
+                    {event.is_registration_closed
+                        ? 'Open registration'
+                        : 'Close registration'}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                     variant="destructive"
@@ -1792,6 +1890,23 @@ function EventDateStatusBadge({ event }: { event: ManagedEvent }) {
             )}
         >
             {status}
+        </Badge>
+    );
+}
+
+function EventRegistrationStatusBadge({ event }: { event: ManagedEvent }) {
+    return (
+        <Badge
+            className={cn(
+                'border-transparent capitalize',
+                event.is_registration_closed
+                    ? 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
+            )}
+        >
+            {event.is_registration_closed
+                ? 'Registration closed'
+                : 'Registration open'}
         </Badge>
     );
 }

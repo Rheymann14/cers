@@ -15,7 +15,7 @@ class WelcomeLookupController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-           'organizations' => Organization::query()
+            'organizations' => Organization::query()
                 ->where('is_active', true)
                 ->orderBy('type')
                 ->orderBy('name')
@@ -47,6 +47,7 @@ class WelcomeLookupController extends Controller
                     'name as label',
                     'starts_at',
                     'ends_at',
+                    'is_registration_closed',
                 ]),
         ]);
     }

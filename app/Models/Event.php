@@ -24,6 +24,7 @@ class Event extends Model
         'image_path',
         'pdf_path',
         'is_active',
+        'is_registration_closed',
         'created_by_user_id',
     ];
 
@@ -36,6 +37,7 @@ class Event extends Model
     {
         return [
             'is_active' => 'boolean',
+            'is_registration_closed' => 'boolean',
             'venue_latitude' => 'decimal:7',
             'venue_longitude' => 'decimal:7',
             'starts_at' => 'datetime',

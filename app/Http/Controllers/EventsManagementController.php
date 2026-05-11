@@ -32,6 +32,7 @@ class EventsManagementController extends Controller
                     'image_path',
                     'pdf_path',
                     'is_active',
+                    'is_registration_closed',
                     'created_by_user_id',
                     'created_at',
                 ])
@@ -125,6 +126,22 @@ class EventsManagementController extends Controller
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => 'Event status updated.',
+        ]);
+
+        return back();
+    }
+
+    public function toggleRegistrationStatus(Event $event): RedirectResponse
+    {
+        $event->update([
+            'is_registration_closed' => ! $event->is_registration_closed,
+        ]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $event->is_registration_closed
+                ? 'Event registration closed.'
+                : 'Event registration reopened.',
         ]);
 
         return back();

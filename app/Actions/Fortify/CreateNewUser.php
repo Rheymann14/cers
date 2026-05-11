@@ -64,6 +64,7 @@ class CreateNewUser implements CreatesNewUsers
                     'string',
                     Rule::exists('events', 'slug')->where(fn ($query) => $query
                         ->where('is_active', true)
+                        ->where('is_registration_closed', false)
                         ->whereNotNull('starts_at')
                         ->whereNotNull('ends_at')
                         ->where('ends_at', '>=', now())),
@@ -73,6 +74,7 @@ class CreateNewUser implements CreatesNewUsers
             ],
             [
                 'email.unique' => 'This account is already registered.',
+                'event_name.exists' => 'Registration for the selected event is closed.',
             ],
         );
 
@@ -158,6 +160,7 @@ class CreateNewUser implements CreatesNewUsers
         $event = Event::query()
             ->where('slug', $input['event_name'])
             ->where('is_active', true)
+            ->where('is_registration_closed', false)
             ->whereNotNull('starts_at')
             ->whereNotNull('ends_at')
             ->where('ends_at', '>=', now())

@@ -77,6 +77,7 @@ type LookupOption = {
 type EventOption = LookupOption & {
     starts_at: string | null;
     ends_at: string | null;
+    is_registration_closed: boolean;
 };
 
 type WelcomeProps = {
@@ -529,6 +530,10 @@ function toDateTime(value: string | null) {
 }
 
 function getEventStatus(event: EventOption) {
+    if (event.is_registration_closed) {
+        return 'registration closed';
+    }
+
     const today = new Date();
     const todayDate = new Date(
         today.getFullYear(),
@@ -560,6 +565,8 @@ function EventStatusBadge({ event }: { event: EventOption }) {
                     'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
                 status === 'closed' &&
                     'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+                status === 'registration closed' &&
+                    'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
                 status === 'upcoming' &&
                     'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
             )}
@@ -568,6 +575,12 @@ function EventStatusBadge({ event }: { event: EventOption }) {
             {status}
         </Badge>
     );
+}
+
+function isEventRegistrationClosed(event: EventOption | null) {
+    return event
+        ? event.is_registration_closed || getEventStatus(event) === 'closed'
+        : false;
 }
 
 function getSectionPath(sectionId: string) {
@@ -723,6 +736,8 @@ export default function Welcome() {
         [events, selectedEvent],
     );
     const selectedEventLabel = selectedEventOption?.label ?? '';
+    const selectedEventRegistrationClosed =
+        isEventRegistrationClosed(selectedEventOption);
     const selectedOrganizationLabel = useMemo(
         () =>
             selectedOrganization === otherOrganizationValue
@@ -2487,6 +2502,12 @@ export default function Welcome() {
                                                 <InputError
                                                     message={errors.event_name}
                                                 />
+                                                {selectedEventRegistrationClosed ? (
+                                                    <p className="text-sm font-medium text-[#CE1126] dark:text-red-300">
+                                                        Registration for this
+                                                        event is closed.
+                                                    </p>
+                                                ) : null}
                                             </div>
                                         </section>
 
@@ -2554,16 +2575,20 @@ export default function Welcome() {
                                             />
                                             I consent to CERS sharing my full
                                             name, designation, institution,
-                                            email address, and all other details if provided with other
-                                            event attendees to support
-                                            networking among institutions with
-                                            shared interests. <RequiredMark />
+                                            email address, and all other details
+                                            if provided with other event
+                                            attendees to support networking
+                                            among institutions with shared
+                                            interests. <RequiredMark />
                                         </label>
                                         <InputError message={errors.consent} />
                                         {/* </section>  */}
 
                                         <Button
                                             type="submit"
+                                            disabled={
+                                                selectedEventRegistrationClosed
+                                            }
                                             className="h-11 w-full rounded-xl bg-[#0038A8] font-semibold text-white shadow-sm shadow-[#0038A8]/15 hover:bg-[#002f8f] focus-visible:ring-[#0038A8]/20"
                                         >
                                             {processing ? (
@@ -2571,7 +2596,9 @@ export default function Welcome() {
                                             ) : (
                                                 <ClipboardCheck className="size-4" />
                                             )}
-                                            Submit registration
+                                            {selectedEventRegistrationClosed
+                                                ? 'Registration closed'
+                                                : 'Submit registration'}
                                         </Button>
                                     </div>
                                 )}

@@ -3,6 +3,7 @@
 use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdministrator;
+use App\Http\Middleware\EnsureUserIsChedAdministrator;
 use App\Http\Middleware\EnsureUserIsParticipant;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
             'admin' => EnsureUserIsAdministrator::class,
+            'ched-admin' => EnsureUserIsChedAdministrator::class,
             'participant' => EnsureUserIsParticipant::class,
         ]);
 
