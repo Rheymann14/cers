@@ -247,6 +247,8 @@ const statisticChartColors = [
 ];
 const excelMimeType =
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const unspecifiedStatisticKey = 'not-specified';
+const overflowStatisticKey = 'other';
 
 type AttendanceExportColumn = {
     header: string;
@@ -345,6 +347,36 @@ function statisticTooltipText(item: StatisticBreakdownItem): string {
     const label = item.meta ? `${item.label} (${item.meta})` : item.label;
 
     return `${label}: ${formatParticipantCount(item.count)}`;
+}
+
+function groupStatisticItemsForChart(
+    items: StatisticBreakdownItem[],
+    limit: number,
+): StatisticBreakdownItem[] {
+    const sortedItems = items
+        .filter((item) => item.count > 0)
+        .sort((first, second) => second.count - first.count);
+
+    if (sortedItems.length <= limit) {
+        return sortedItems;
+    }
+
+    const visibleItems = sortedItems.slice(0, limit - 1);
+    const overflowItems = sortedItems.slice(limit - 1);
+    const overflowCount = overflowItems.reduce(
+        (sum, item) => sum + item.count,
+        0,
+    );
+
+    return [
+        ...visibleItems,
+        {
+            key: overflowStatisticKey,
+            label: 'Other',
+            meta: `${overflowItems.length.toLocaleString()} more categories`,
+            count: overflowCount,
+        },
+    ];
 }
 
 function ChartTooltipTrigger({
@@ -599,10 +631,116 @@ function optionIdValue(id: number): string {
     return String(id);
 }
 
+function normalizeStatisticText(value: string | null): string {
+    return (value ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+}
+
+function statisticOrganizationKey(label: string | null): string | null {
+    const normalizedLabel = normalizeStatisticText(label);
+
+    return normalizedLabel ? `organization:${normalizedLabel}` : null;
+}
+
+function participantOrganizationLabel(
+    participant: StatisticParticipant,
+    organizationsById: Map<number, StatisticOrganization>,
+): string | null {
+    const organization = participant.organization_id
+        ? organizationsById.get(participant.organization_id)
+        : undefined;
+
+    return organization?.name ?? participant.organization;
+}
+
+function participantOrganizationKey(
+    participant: StatisticParticipant,
+    organizationsById: Map<number, StatisticOrganization>,
+): string | null {
+    return (
+        statisticOrganizationKey(
+            participantOrganizationLabel(participant, organizationsById),
+        ) ?? statisticOrganizationKey('Not specified')
+    );
+}
+
+function buildOrganizationGroups(
+    participants: StatisticParticipant[],
+    organizations: StatisticOrganization[],
+    organizationsById: Map<number, StatisticOrganization>,
+): StatisticBreakdownItem[] {
+    const groups = new Map<
+        string,
+        {
+            key: string;
+            label: string;
+            types: Set<string>;
+            count: number;
+        }
+    >();
+
+    function ensureGroup(label: string | null, type: string | null = null) {
+        const trimmedLabel = label?.trim();
+        const key = statisticOrganizationKey(trimmedLabel ?? null);
+
+        if (!key || !trimmedLabel) {
+            return null;
+        }
+
+        const group = groups.get(key) ?? {
+            key,
+            label: trimmedLabel,
+            types: new Set<string>(),
+            count: 0,
+        };
+
+        if (type) {
+            group.types.add(type);
+        }
+
+        groups.set(key, group);
+
+        return group;
+    }
+
+    organizations.forEach((organization) => {
+        ensureGroup(organization.name, organization.type);
+    });
+
+    participants.forEach((participant) => {
+        const organization = participant.organization_id
+            ? organizationsById.get(participant.organization_id)
+            : undefined;
+        const label = organization?.name ?? participant.organization;
+        const group =
+            ensureGroup(label, organization?.type ?? null) ??
+            ensureGroup('Not specified');
+
+        if (group) {
+            group.count += 1;
+        }
+    });
+
+    return [...groups.values()]
+        .map((group) => ({
+            key: group.key,
+            label: group.label,
+            meta: [...group.types].filter(Boolean).sort().join(', ') || null,
+            count: group.count,
+        }))
+        .sort((first, second) => first.label.localeCompare(second.label));
+}
+
 function matchesStatisticFilters(
     participant: StatisticParticipant,
     filters: StatisticFilters,
-    organizations: StatisticOrganization[],
+    organizationsById: Map<number, StatisticOrganization>,
 ): boolean {
     if (
         filters.provinceId !== allStatisticFilterValue &&
@@ -636,13 +774,9 @@ function matchesStatisticFilters(
         return true;
     }
 
-    const organization = organizations.find(
-        (option) => optionIdValue(option.id) === filters.organizationId,
-    );
-
     return (
-        participant.organization_id === Number(filters.organizationId) ||
-        (!!organization && participant.organization === organization.name)
+        participantOrganizationKey(participant, organizationsById) ===
+        filters.organizationId
     );
 }
 
@@ -1057,10 +1191,10 @@ function StatisticChart({
     emptyText: string;
     chartType: StatisticChartType;
 }) {
-    const visibleItems = items
-        .filter((item) => item.count > 0)
-        .sort((first, second) => second.count - first.count)
-        .slice(0, chartType === 'pie' ? 6 : 7);
+    const visibleItems = groupStatisticItemsForChart(
+        items,
+        chartType === 'pie' ? 6 : 7,
+    );
     const ChartIcon =
         chartType === 'bar'
             ? BarChart3
@@ -1479,19 +1613,42 @@ export default function Dashboard({
                 Number(statisticFilters.provinceId),
         );
     }, [participantStatistics.municipalities, statisticFilters.provinceId]);
+    const organizationsById = useMemo(
+        () =>
+            new Map(
+                participantStatistics.organizations.map((organization) => [
+                    organization.id,
+                    organization,
+                ]),
+            ),
+        [participantStatistics.organizations],
+    );
     const filteredStatisticParticipants = useMemo(
         () =>
             participantStatistics.participants.filter((participant) =>
                 matchesStatisticFilters(
                     participant,
                     statisticFilters,
-                    participantStatistics.organizations,
+                    organizationsById,
                 ),
             ),
         [
-            participantStatistics.organizations,
+            organizationsById,
             participantStatistics.participants,
             statisticFilters,
+        ],
+    );
+    const organizationGroups = useMemo(
+        () =>
+            buildOrganizationGroups(
+                participantStatistics.participants,
+                participantStatistics.organizations,
+                organizationsById,
+            ),
+        [
+            organizationsById,
+            participantStatistics.organizations,
+            participantStatistics.participants,
         ],
     );
     const sexFilterOptions = useMemo(
@@ -1523,9 +1680,19 @@ export default function Dashboard({
             count,
         }));
     }, [filteredStatisticParticipants]);
-    const provinceBreakdown = useMemo(
-        () =>
-            participantStatistics.provinces.map((province) => ({
+    const provinceBreakdown = useMemo(() => {
+        const knownProvinceIds = new Set(
+            participantStatistics.provinces.map((province) => province.id),
+        );
+        const locationMissingCount = countStatisticParticipants(
+            filteredStatisticParticipants,
+            (participant) =>
+                !participant.province_id ||
+                !knownProvinceIds.has(participant.province_id),
+        );
+
+        return [
+            ...participantStatistics.provinces.map((province) => ({
                 key: optionIdValue(province.id),
                 label: province.name,
                 meta: province.code,
@@ -1534,11 +1701,28 @@ export default function Dashboard({
                     (participant) => participant.province_id === province.id,
                 ),
             })),
-        [filteredStatisticParticipants, participantStatistics.provinces],
-    );
-    const municipalityBreakdown = useMemo(
-        () =>
-            filteredStatisticMunicipalities.map((municipality) => ({
+            {
+                key: unspecifiedStatisticKey,
+                label: 'Not specified',
+                count: locationMissingCount,
+            },
+        ];
+    }, [filteredStatisticParticipants, participantStatistics.provinces]);
+    const municipalityBreakdown = useMemo(() => {
+        const knownMunicipalityIds = new Set(
+            filteredStatisticMunicipalities.map(
+                (municipality) => municipality.id,
+            ),
+        );
+        const locationMissingCount = countStatisticParticipants(
+            filteredStatisticParticipants,
+            (participant) =>
+                !participant.municipality_id ||
+                !knownMunicipalityIds.has(participant.municipality_id),
+        );
+
+        return [
+            ...filteredStatisticMunicipalities.map((municipality) => ({
                 key: optionIdValue(municipality.id),
                 label: municipality.name,
                 meta: formatLabel(municipality.type),
@@ -1548,36 +1732,68 @@ export default function Dashboard({
                         participant.municipality_id === municipality.id,
                 ),
             })),
-        [filteredStatisticMunicipalities, filteredStatisticParticipants],
-    );
-    const participantTypeBreakdown = useMemo(
-        () =>
-            participantStatistics.participantTypes.map((participantType) => ({
-                key: participantType.slug,
-                label: participantType.name,
-                meta: formatLabel(participantType.type),
-                count: countStatisticParticipants(
-                    filteredStatisticParticipants,
-                    (participant) =>
-                        participant.participant_type === participantType.slug,
-                ),
-            })),
-        [filteredStatisticParticipants, participantStatistics.participantTypes],
-    );
+            {
+                key: unspecifiedStatisticKey,
+                label: 'Not specified',
+                count: locationMissingCount,
+            },
+        ];
+    }, [filteredStatisticMunicipalities, filteredStatisticParticipants]);
+    const participantTypeBreakdown = useMemo(() => {
+        const knownParticipantTypeSlugs = new Set(
+            participantStatistics.participantTypes.map(
+                (participantType) => participantType.slug,
+            ),
+        );
+        const unlistedParticipantTypeCount = countStatisticParticipants(
+            filteredStatisticParticipants,
+            (participant) =>
+                !!participant.participant_type &&
+                !knownParticipantTypeSlugs.has(participant.participant_type),
+        );
+        const missingParticipantTypeCount = countStatisticParticipants(
+            filteredStatisticParticipants,
+            (participant) => !participant.participant_type,
+        );
+
+        return [
+            ...participantStatistics.participantTypes.map(
+                (participantType) => ({
+                    key: participantType.slug,
+                    label: participantType.name,
+                    meta: formatLabel(participantType.type),
+                    count: countStatisticParticipants(
+                        filteredStatisticParticipants,
+                        (participant) =>
+                            participant.participant_type ===
+                            participantType.slug,
+                    ),
+                }),
+            ),
+            {
+                key: 'unlisted-participant-type',
+                label: 'Unlisted participant type',
+                count: unlistedParticipantTypeCount,
+            },
+            {
+                key: unspecifiedStatisticKey,
+                label: 'Not specified',
+                count: missingParticipantTypeCount,
+            },
+        ];
+    }, [filteredStatisticParticipants, participantStatistics.participantTypes]);
     const organizationBreakdown = useMemo(
         () =>
-            participantStatistics.organizations.map((organization) => ({
-                key: optionIdValue(organization.id),
-                label: organization.name,
-                meta: organization.type,
-                count: countStatisticParticipants(
-                    filteredStatisticParticipants,
-                    (participant) =>
-                        participant.organization_id === organization.id ||
-                        participant.organization === organization.name,
-                ),
-            })),
-        [filteredStatisticParticipants, participantStatistics.organizations],
+            buildOrganizationGroups(
+                filteredStatisticParticipants,
+                participantStatistics.organizations,
+                organizationsById,
+            ),
+        [
+            filteredStatisticParticipants,
+            organizationsById,
+            participantStatistics.organizations,
+        ],
     );
     const provinceFilterOptions = useMemo(
         () => [
@@ -1673,17 +1889,16 @@ export default function Dashboard({
                 count: participantStatistics.participants.length,
                 description: 'Include every school and partner organization.',
             },
-            ...participantStatistics.organizations.map((organization) => ({
-                value: optionIdValue(organization.id),
-                label: organization.name,
-                count: organization.users_count,
-                description: organization.type,
-            })),
+            ...organizationGroups
+                .filter((organization) => organization.count > 0)
+                .map((organization) => ({
+                    value: organization.key,
+                    label: organization.label,
+                    count: organization.count,
+                    description: organization.meta,
+                })),
         ],
-        [
-            participantStatistics.organizations,
-            participantStatistics.participants.length,
-        ],
+        [organizationGroups, participantStatistics.participants.length],
     );
     const statisticFiltersActive = Object.values(statisticFilters).some(
         (value) => value !== allStatisticFilterValue,
