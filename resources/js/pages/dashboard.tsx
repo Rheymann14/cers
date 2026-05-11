@@ -192,6 +192,7 @@ type StatisticBreakdownItem = {
     label: string;
     count: number;
     meta?: string | null;
+    children?: StatisticBreakdownItem[];
 };
 
 type StatisticFilterOption = {
@@ -375,6 +376,7 @@ function groupStatisticItemsForChart(
             label: 'Other',
             meta: `${overflowItems.length.toLocaleString()} more categories`,
             count: overflowCount,
+            children: overflowItems,
         },
     ];
 }
@@ -383,11 +385,13 @@ function ChartTooltipTrigger({
     text,
     className = '',
     style,
+    onClick,
     children,
 }: {
     text: string;
     className?: string;
     style?: CSSProperties;
+    onClick?: () => void;
     children?: ReactNode;
 }) {
     const [position, setPosition] = useState<{
@@ -448,6 +452,7 @@ function ChartTooltipTrigger({
                 onMouseLeave={() => setPosition(null)}
                 onFocus={handleFocus}
                 onBlur={() => setPosition(null)}
+                onClick={onClick}
             >
                 {children}
             </button>
@@ -793,16 +798,23 @@ function countStatisticParticipants(
 function TruncatedTooltipText({
     text,
     className = '',
+    onClick,
 }: {
     text: string;
     className?: string;
+    onClick?: () => void;
 }) {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
                 <button
                     type="button"
-                    className={`block max-w-full min-w-0 truncate text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${className}`}
+                    className={`block max-w-full min-w-0 truncate text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+                        onClick
+                            ? 'cursor-pointer underline-offset-2 hover:underline'
+                            : ''
+                    } ${className}`}
+                    onClick={onClick}
                 >
                     {text}
                 </button>
@@ -909,7 +921,13 @@ function SearchableStatisticFilter({
     );
 }
 
-function BarBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
+function BarBreakdownChart({
+    items,
+    onSelectItem,
+}: {
+    items: StatisticBreakdownItem[];
+    onSelectItem: (item: StatisticBreakdownItem) => void;
+}) {
     const maxCount = Math.max(1, ...items.map((item) => item.count));
 
     return (
@@ -922,7 +940,16 @@ function BarBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
                         <ChartTooltipTrigger
                             key={item.key}
                             text={tooltipText}
-                            className="relative flex min-w-0 flex-1 cursor-default flex-col items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            className={`relative flex min-w-0 flex-1 flex-col items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+                                item.children
+                                    ? 'cursor-pointer'
+                                    : 'cursor-default'
+                            }`}
+                            onClick={
+                                item.children
+                                    ? () => onSelectItem(item)
+                                    : undefined
+                            }
                         >
                             <span className="text-[11px] font-semibold">
                                 {item.count.toLocaleString()}
@@ -956,7 +983,14 @@ function BarBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
                                     ],
                             }}
                         />
-                        <TruncatedTooltipText text={item.label} />
+                        <TruncatedTooltipText
+                            text={item.label}
+                            onClick={
+                                item.children
+                                    ? () => onSelectItem(item)
+                                    : undefined
+                            }
+                        />
                     </div>
                 ))}
             </div>
@@ -964,7 +998,13 @@ function BarBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
     );
 }
 
-function PieBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
+function PieBreakdownChart({
+    items,
+    onSelectItem,
+}: {
+    items: StatisticBreakdownItem[];
+    onSelectItem: (item: StatisticBreakdownItem) => void;
+}) {
     const total = items.reduce((sum, item) => sum + item.count, 0);
     const summaryTooltipText = items.map(statisticTooltipText).join('\n');
     const radius = 36;
@@ -1045,7 +1085,14 @@ function PieBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
                                         ],
                                 }}
                             />
-                            <TruncatedTooltipText text={item.label} />
+                            <TruncatedTooltipText
+                                text={item.label}
+                                onClick={
+                                    item.children
+                                        ? () => onSelectItem(item)
+                                        : undefined
+                                }
+                            />
                         </div>
                         <span className="shrink-0 text-right text-xs font-medium">
                             {item.count.toLocaleString()}
@@ -1057,7 +1104,13 @@ function PieBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
     );
 }
 
-function LineBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
+function LineBreakdownChart({
+    items,
+    onSelectItem,
+}: {
+    items: StatisticBreakdownItem[];
+    onSelectItem: (item: StatisticBreakdownItem) => void;
+}) {
     const width = 520;
     const height = 200;
     const paddingX = 30;
@@ -1155,11 +1208,20 @@ function LineBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
                         <ChartTooltipTrigger
                             key={point.key}
                             text={tooltipText}
-                            className="group absolute size-8 -translate-x-1/2 -translate-y-1/2 cursor-default rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            className={`group absolute size-8 -translate-x-1/2 -translate-y-1/2 rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+                                point.children
+                                    ? 'cursor-pointer'
+                                    : 'cursor-default'
+                            }`}
                             style={{
                                 left: `${(point.x / width) * 100}%`,
                                 top: `${(point.y / height) * 100}%`,
                             }}
+                            onClick={
+                                point.children
+                                    ? () => onSelectItem(point)
+                                    : undefined
+                            }
                         />
                     );
                 })}
@@ -1168,7 +1230,14 @@ function LineBreakdownChart({ items }: { items: StatisticBreakdownItem[] }) {
                 {items.map((item, index) => (
                     <div key={item.key} className="flex min-w-0 gap-1.5">
                         <span className="font-semibold">{index + 1}.</span>
-                        <TruncatedTooltipText text={item.label} />
+                        <TruncatedTooltipText
+                            text={item.label}
+                            onClick={
+                                item.children
+                                    ? () => onSelectItem(item)
+                                    : undefined
+                            }
+                        />
                     </div>
                 ))}
             </div>
@@ -1195,6 +1264,9 @@ function StatisticChart({
         items,
         chartType === 'pie' ? 6 : 7,
     );
+    const [selectedItem, setSelectedItem] =
+        useState<StatisticBreakdownItem | null>(null);
+    const selectedChildren = selectedItem?.children ?? [];
     const ChartIcon =
         chartType === 'bar'
             ? BarChart3
@@ -1203,36 +1275,95 @@ function StatisticChart({
               : LineChartIcon;
 
     return (
-        <section className="min-w-0 overflow-visible rounded-lg border bg-background p-3 shadow-sm">
-            <div className="mb-3 flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2">
-                    <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    <div>
-                        <h3 className="text-sm font-semibold text-foreground">
-                            {title}
-                        </h3>
-                        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                            {description}
-                        </p>
+        <>
+            <section className="min-w-0 overflow-visible rounded-lg border bg-background p-3 shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2">
+                        <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                        <div>
+                            <h3 className="text-sm font-semibold text-foreground">
+                                {title}
+                            </h3>
+                            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                                {description}
+                            </p>
+                        </div>
                     </div>
+                    <ChartIcon className="size-4 shrink-0 text-muted-foreground" />
                 </div>
-                <ChartIcon className="size-4 shrink-0 text-muted-foreground" />
-            </div>
 
-            {visibleItems.length > 0 ? (
-                chartType === 'bar' ? (
-                    <BarBreakdownChart items={visibleItems} />
-                ) : chartType === 'pie' ? (
-                    <PieBreakdownChart items={visibleItems} />
+                {visibleItems.length > 0 ? (
+                    chartType === 'bar' ? (
+                        <BarBreakdownChart
+                            items={visibleItems}
+                            onSelectItem={setSelectedItem}
+                        />
+                    ) : chartType === 'pie' ? (
+                        <PieBreakdownChart
+                            items={visibleItems}
+                            onSelectItem={setSelectedItem}
+                        />
+                    ) : (
+                        <LineBreakdownChart
+                            items={visibleItems}
+                            onSelectItem={setSelectedItem}
+                        />
+                    )
                 ) : (
-                    <LineBreakdownChart items={visibleItems} />
-                )
-            ) : (
-                <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">
-                    {emptyText}
-                </div>
-            )}
-        </section>
+                    <div className="rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground">
+                        {emptyText}
+                    </div>
+                )}
+            </section>
+
+            <Dialog
+                open={!!selectedItem}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setSelectedItem(null);
+                    }
+                }}
+            >
+                <DialogContent
+                    className="grid max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden p-4 sm:max-h-[min(36rem,calc(100dvh-2rem))] sm:max-w-lg sm:gap-4 sm:p-6"
+                    onPointerDownOutside={preventDialogOutsideClose}
+                    onInteractOutside={preventDialogInteractOutside}
+                >
+                    <DialogHeader className="pr-8 text-left">
+                        <DialogTitle className="leading-6">
+                            {title} Other Categories
+                        </DialogTitle>
+                        <DialogDescription>
+                            {selectedItem
+                                ? `${selectedItem.count.toLocaleString()} participants across ${selectedChildren.length.toLocaleString()} categories.`
+                                : null}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="min-h-0 overflow-y-auto overscroll-contain rounded-md border">
+                        {selectedChildren.map((item) => (
+                            <div
+                                key={item.key}
+                                className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b px-3 py-2 text-sm last:border-b-0"
+                            >
+                                <div className="min-w-0">
+                                    <p className="font-medium break-words">
+                                        {item.label}
+                                    </p>
+                                    {item.meta && (
+                                        <p className="mt-0.5 text-xs break-words text-muted-foreground">
+                                            {item.meta}
+                                        </p>
+                                    )}
+                                </div>
+                                <span className="shrink-0 font-semibold">
+                                    {item.count.toLocaleString()}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
 
