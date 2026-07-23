@@ -10,7 +10,8 @@ import {
     Search,
     Sun,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,11 @@ import {
 } from '@/components/ui/dialog';
 import { useAppearance } from '@/hooks/use-appearance';
 import { cn } from '@/lib/utils';
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+).toString();
 
 type EventMaterial = {
     id: number;
@@ -543,9 +549,34 @@ function EventPdfDialog({
     event: PublicEvent | null;
     onOpenChange: (open: boolean) => void;
 }) {
+    const previewRef = useRef<HTMLDivElement>(null);
+    const [previewWidth, setPreviewWidth] = useState(0);
+    const [loadedPdf, setLoadedPdf] = useState({
+        url: '',
+        pageCount: 0,
+    });
+    const pageCount =
+        loadedPdf.url === event?.pdf_url ? loadedPdf.pageCount : 0;
+
+    useEffect(() => {
+        const preview = previewRef.current;
+
+        if (!preview) {
+            return;
+        }
+
+        const updateWidth = () => setPreviewWidth(preview.clientWidth);
+        const observer = new ResizeObserver(updateWidth);
+
+        updateWidth();
+        observer.observe(preview);
+
+        return () => observer.disconnect();
+    }, [event]);
+
     return (
         <Dialog open={event !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-3 p-4 sm:h-[92dvh] sm:max-h-[92dvh] sm:w-[94vw]">
+            <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-3 overflow-hidden p-3 sm:h-[92dvh] sm:max-h-[92dvh] sm:w-[94vw] sm:p-4">
                 <DialogHeader className="shrink-0 text-left">
                     <DialogTitle className="inline-flex items-center gap-2 text-base">
                         <FileText className="size-4 text-slate-500 dark:text-neutral-400" />
@@ -557,11 +588,55 @@ function EventPdfDialog({
                 </DialogHeader>
 
                 {event?.pdf_url ? (
-                    <iframe
-                        src={event.pdf_url}
-                        title={`${event.name} PDF preview`}
-                        className="min-h-0 flex-1 rounded-xl border border-[#d9e5f5] bg-white dark:border-neutral-800"
-                    />
+                    <div
+                        ref={previewRef}
+                        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-xl border border-[#d9e5f5] bg-slate-100 p-1.5 sm:p-3 dark:border-neutral-800 dark:bg-neutral-950"
+                    >
+                        <Document
+                            key={event.pdf_url}
+                            file={event.pdf_url}
+                            onLoadSuccess={({ numPages }) =>
+                                setLoadedPdf({
+                                    url: event.pdf_url ?? '',
+                                    pageCount: numPages,
+                                })
+                            }
+                            loading={
+                                <p className="p-6 text-center text-sm text-slate-500 dark:text-neutral-400">
+                                    Loading PDF…
+                                </p>
+                            }
+                            error={
+                                <p className="p-6 text-center text-sm text-red-600 dark:text-red-400">
+                                    The PDF preview could not be loaded. You can
+                                    still download it below.
+                                </p>
+                            }
+                            className="grid justify-items-center gap-2 sm:gap-3"
+                        >
+                            {previewWidth > 0
+                                ? Array.from(
+                                      { length: pageCount },
+                                      (_, index) => (
+                                          <Page
+                                              key={index + 1}
+                                              pageNumber={index + 1}
+                                              width={Math.max(
+                                                  1,
+                                                  previewWidth -
+                                                      (previewWidth >= 640
+                                                          ? 24
+                                                          : 12),
+                                              )}
+                                              renderAnnotationLayer={false}
+                                              renderTextLayer={false}
+                                              className="overflow-hidden rounded bg-white shadow-sm [&_canvas]:!h-auto [&_canvas]:!max-w-full"
+                                          />
+                                      ),
+                                  )
+                                : null}
+                        </Document>
+                    </div>
                 ) : null}
 
                 <DialogFooter className="shrink-0">
