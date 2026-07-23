@@ -26,7 +26,11 @@ class EventsController extends Controller
                     'pdf_path',
                     'is_active',
                 ])
-                ->where('is_active', true)
+                ->where(function ($query) {
+                    $query
+                        ->where('is_active', true)
+                        ->orWhere('ends_at', '<', now());
+                })
                 ->with(['materials' => fn ($query) => $query
                     ->select(['id', 'event_id', 'original_name', 'path', 'mime_type', 'size', 'created_at'])
                     ->latest()])

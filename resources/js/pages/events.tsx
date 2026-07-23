@@ -317,20 +317,36 @@ function EventCard({
     onViewPdf: (event: PublicEvent) => void;
 }) {
     const status = getEventStatus(event);
+    const isClosed = status === 'closed';
     const mapUrl = getMapUrl(event);
     const mapEmbedUrl = getMapEmbedUrl(event);
     const previewMaterials = event.materials.slice(0, 2);
     const hiddenMaterialsCount = Math.max(0, event.materials.length - 2);
 
     return (
-        <article className="flex min-w-0 flex-col rounded-2xl border border-[#d9e5f5] bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-[#0038A8]/30 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-blue-400/40">
-            <div className="relative aspect-[2.25/1] overflow-hidden rounded-xl border border-[#d9e5f5] bg-[#eef5ff] dark:border-neutral-800 dark:bg-neutral-950">
+        <article
+            className={cn(
+                'flex min-w-0 flex-col rounded-2xl border p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md',
+                isClosed
+                    ? 'border-slate-400 bg-slate-200/90 hover:border-slate-500 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:border-neutral-500'
+                    : 'border-[#d9e5f5] bg-white hover:border-[#0038A8]/30 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-blue-400/40',
+            )}
+        >
+            <div
+                className={cn(
+                    'relative aspect-[2.25/1] overflow-hidden rounded-xl border',
+                    isClosed
+                        ? 'border-slate-400 bg-slate-300 dark:border-neutral-600 dark:bg-neutral-900'
+                        : 'border-[#d9e5f5] bg-[#eef5ff] dark:border-neutral-800 dark:bg-neutral-950',
+                )}
+            >
                 <img
                     src={event.image_url ?? '/ched_logo-128.png'}
                     alt=""
                     className={cn(
                         'size-full object-cover',
                         !event.image_url && 'object-contain p-9',
+                        isClosed && 'opacity-60 grayscale',
                     )}
                     loading="lazy"
                     decoding="async"
@@ -348,7 +364,12 @@ function EventCard({
                 </button>
             </div>
 
-            <div className="grid flex-1 content-start gap-3 pt-3">
+            <div
+                className={cn(
+                    'grid flex-1 content-start gap-3 pt-3',
+                    isClosed && 'opacity-75 grayscale',
+                )}
+            >
                 <div className="flex min-w-0 flex-wrap gap-2">
                     <EventDatePill event={event} />
                 </div>
@@ -567,8 +588,9 @@ export default function Events({ events }: Props) {
     const [search, setSearch] = useState('');
     const [viewingImageEvent, setViewingImageEvent] =
         useState<PublicEvent | null>(null);
-    const [viewingPdfEvent, setViewingPdfEvent] =
-        useState<PublicEvent | null>(null);
+    const [viewingPdfEvent, setViewingPdfEvent] = useState<PublicEvent | null>(
+        null,
+    );
     const filteredEvents = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
 
