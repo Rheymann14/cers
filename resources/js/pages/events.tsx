@@ -156,6 +156,20 @@ function getProgramFlowFileName(event: PublicEvent) {
     return toDownloadFileName(`${event.name} Program Flow`, 'pdf');
 }
 
+function getSameOriginStorageUrl(url: string) {
+    try {
+        const parsedUrl = new URL(url, 'http://localhost');
+
+        if (parsedUrl.pathname.startsWith('/storage/')) {
+            return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+        }
+    } catch {
+        return url;
+    }
+
+    return url;
+}
+
 function getMapQuery(event: PublicEvent) {
     return [event.venue_name, event.venue_address]
         .filter(Boolean)
@@ -557,6 +571,9 @@ function EventPdfDialog({
     });
     const pageCount =
         loadedPdf.url === event?.pdf_url ? loadedPdf.pageCount : 0;
+    const pdfPreviewUrl = event?.pdf_url
+        ? getSameOriginStorageUrl(event.pdf_url)
+        : '';
 
     useEffect(() => {
         const preview = previewRef.current;
@@ -593,8 +610,8 @@ function EventPdfDialog({
                         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-xl border border-[#d9e5f5] bg-slate-100 p-1.5 sm:p-3 dark:border-neutral-800 dark:bg-neutral-950"
                     >
                         <Document
-                            key={event.pdf_url}
-                            file={event.pdf_url}
+                            key={pdfPreviewUrl}
+                            file={pdfPreviewUrl}
                             onLoadSuccess={({ numPages }) =>
                                 setLoadedPdf({
                                     url: event.pdf_url ?? '',
@@ -643,7 +660,7 @@ function EventPdfDialog({
                     {event?.pdf_url ? (
                         <Button asChild>
                             <a
-                                href={event.pdf_url}
+                                href={pdfPreviewUrl}
                                 download={getProgramFlowFileName(event)}
                             >
                                 <Download className="size-4" />
