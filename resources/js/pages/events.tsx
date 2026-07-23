@@ -10,6 +10,7 @@ import {
     Search,
     Sun,
 } from 'lucide-react';
+import pdfWorkerSource from 'pdfjs-dist/build/pdf.worker.min.mjs?raw';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
@@ -26,10 +27,11 @@ import {
 import { useAppearance } from '@/hooks/use-appearance';
 import { cn } from '@/lib/utils';
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-).toString();
+if (typeof window !== 'undefined') {
+    pdfjs.GlobalWorkerOptions.workerSrc = URL.createObjectURL(
+        new Blob([pdfWorkerSource], { type: 'text/javascript' }),
+    );
+}
 
 type EventMaterial = {
     id: number;
