@@ -2833,10 +2833,14 @@ export default function Participants({
                                                                 '-'}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="px-2 py-2">
+                                                    <TableCell className="overflow-hidden px-2 py-2">
                                                         <span
+                                                            title={getOptionLabel(
+                                                                participantTypes,
+                                                                participant.participant_type,
+                                                            )}
                                                             className={cn(
-                                                                'inline-flex rounded-full border px-2 py-1 text-[11px] font-medium',
+                                                                'inline-block max-w-full truncate rounded-full border px-2 py-1 align-middle text-[11px] font-medium',
                                                                 getParticipantTypeBadgeClassName(
                                                                     participant.participant_type,
                                                                     participantTypes,
