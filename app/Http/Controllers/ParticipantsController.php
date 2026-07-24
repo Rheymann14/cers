@@ -71,8 +71,15 @@ class ParticipantsController extends Controller
                 ->get(['slug as value', 'name as label', 'type']),
             'events' => Event::query()
                 ->where('is_active', true)
+                ->orderByRaw('starts_at is null')
+                ->orderBy('starts_at')
                 ->orderBy('name')
-                ->get(['slug as value', 'name as label']),
+                ->get([
+                    'slug as value',
+                    'name as label',
+                    'starts_at',
+                    'ends_at',
+                ]),
             'addedByOptions' => collect([
                 ['value' => 'system', 'label' => 'System', 'type' => 'system'],
             ])->concat(

@@ -126,7 +126,7 @@ type Props = {
     deletedParticipants: Participant[];
     organizations: Option[];
     participantTypes: Option[];
-    events: Option[];
+    events: EventOption[];
     addedByOptions: Option[];
     provinces: Option[];
 };
@@ -148,6 +148,13 @@ type Option = {
     value: string;
     label: string;
     type?: string | null;
+};
+
+type EventStatus = 'ongoing' | 'upcoming' | 'closed';
+
+type EventOption = Option & {
+    starts_at: string | null;
+    ends_at: string | null;
 };
 
 type LocationOption = {
@@ -326,6 +333,91 @@ function formatDate(value: string): string {
     }).format(new Date(value));
 }
 
+function toDate(value: string | null): Date | null {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getEventStatus(event: EventOption, now = new Date()): EventStatus {
+    const startsAt = toDate(event.starts_at);
+    const endsAt = toDate(event.ends_at);
+
+    if (endsAt && now > endsAt) {
+        return 'closed';
+    }
+
+    if (startsAt && now < startsAt) {
+        return 'upcoming';
+    }
+
+    return 'ongoing';
+}
+
+function getEventDistance(event: EventOption, now: Date): number {
+    const startsAt = toDate(event.starts_at);
+    const endsAt = toDate(event.ends_at);
+
+    if (startsAt && now < startsAt) {
+        return startsAt.getTime() - now.getTime();
+    }
+
+    if (endsAt && now > endsAt) {
+        return now.getTime() - endsAt.getTime();
+    }
+
+    if (startsAt || endsAt) {
+        return 0;
+    }
+
+    return Number.POSITIVE_INFINITY;
+}
+
+function getNearestEventValue(events: EventOption[]): string {
+    if (events.length === 0) {
+        return 'all';
+    }
+
+    const now = new Date();
+
+    return [...events].sort((a, b) => {
+        const aDistance = getEventDistance(a, now);
+        const bDistance = getEventDistance(b, now);
+
+        if (aDistance !== bDistance) {
+            return aDistance < bDistance ? -1 : 1;
+        }
+
+        const statusOrder: Record<EventStatus, number> = {
+            ongoing: 0,
+            upcoming: 1,
+            closed: 2,
+        };
+        const statusDifference =
+            statusOrder[getEventStatus(a, now)] -
+            statusOrder[getEventStatus(b, now)];
+
+        if (statusDifference !== 0) {
+            return statusDifference;
+        }
+
+        const aStartsAt =
+            toDate(a.starts_at)?.getTime() ?? Number.POSITIVE_INFINITY;
+        const bStartsAt =
+            toDate(b.starts_at)?.getTime() ?? Number.POSITIVE_INFINITY;
+
+        if (aStartsAt === bStartsAt) {
+            return a.label.localeCompare(b.label);
+        }
+
+        return aStartsAt < bStartsAt ? -1 : 1;
+    })[0].value;
+}
+
 function formatFileDate(value: Date): string {
     const year = value.getFullYear();
     const month = String(value.getMonth() + 1).padStart(2, '0');
@@ -349,10 +441,7 @@ function getOptionLabel(options: Option[], value: string | null): string {
     return options.find((option) => option.value === value)?.label ?? '-';
 }
 
-function getExportOptionLabel(
-    options: Option[],
-    value: string | null,
-): string {
+function getExportOptionLabel(options: Option[], value: string | null): string {
     if (!value) {
         return '-';
     }
@@ -1184,6 +1273,131 @@ function FilterCountBadge({ count }: { count: number }) {
     );
 }
 
+function EventStatusBadge({ status }: { status: EventStatus }) {
+    return (
+        <Badge
+            className={cn(
+                'shrink-0 border-transparent px-1.5 py-0 text-[10px] capitalize',
+                status === 'ongoing' &&
+                    'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
+                status === 'upcoming' &&
+                    'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
+                status === 'closed' &&
+                    'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300',
+            )}
+        >
+            {status}
+        </Badge>
+    );
+}
+
+function EventFilter({
+    value,
+    options,
+    counts,
+    totalCount,
+    onChange,
+}: {
+    value: string;
+    options: EventOption[];
+    counts: Map<string, number>;
+    totalCount: number;
+    onChange: (value: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const selectedOption = options.find((option) => option.value === value);
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    role="combobox"
+                    aria-expanded={open}
+                    aria-label="Filter participants by event"
+                    className="h-auto min-h-8 justify-between gap-2 px-2 py-1 text-xs"
+                >
+                    <span className="max-w-44 truncate text-left">
+                        {selectedOption?.label ?? 'All events'}
+                    </span>
+                    {selectedOption && (
+                        <EventStatusBadge
+                            status={getEventStatus(selectedOption)}
+                        />
+                    )}
+                    <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="end"
+                className="w-[min(calc(100vw-2rem),24rem)] p-0"
+            >
+                <Command>
+                    <CommandInput placeholder="Search events..." />
+                    <CommandList>
+                        <CommandEmpty>No event found.</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem
+                                value="All events"
+                                onSelect={() => {
+                                    onChange('all');
+                                    setOpen(false);
+                                }}
+                            >
+                                <Check
+                                    className={cn(
+                                        'mr-2 size-4',
+                                        value === 'all'
+                                            ? 'opacity-100'
+                                            : 'opacity-0',
+                                    )}
+                                />
+                                <span>All events</span>
+                                <FilterCountBadge count={totalCount} />
+                            </CommandItem>
+                            {options.map((option) => {
+                                const status = getEventStatus(option);
+
+                                return (
+                                    <CommandItem
+                                        key={option.value}
+                                        value={`${option.label} ${status} ${option.starts_at ?? ''} ${option.ends_at ?? ''}`}
+                                        onSelect={() => {
+                                            onChange(option.value);
+                                            setOpen(false);
+                                        }}
+                                        className="items-start"
+                                    >
+                                        <Check
+                                            className={cn(
+                                                'mt-0.5 mr-2 size-4 shrink-0',
+                                                value === option.value
+                                                    ? 'opacity-100'
+                                                    : 'opacity-0',
+                                            )}
+                                        />
+                                        <span className="min-w-0 flex-1 break-words whitespace-normal">
+                                            {option.label}
+                                        </span>
+                                        <EventStatusBadge status={status} />
+                                        <FilterCountBadge
+                                            count={
+                                                counts.get(option.value) ?? 0
+                                            }
+                                        />
+                                    </CommandItem>
+                                );
+                            })}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 function AddedByFilter({
     value,
     options,
@@ -1421,6 +1635,9 @@ export default function Participants({
 }: Props) {
     const getInitials = useInitials();
     const [search, setSearch] = useState('');
+    const [eventFilter, setEventFilter] = useState(() =>
+        getNearestEventValue(events),
+    );
     const [addedByFilter, setAddedByFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
     const [sortKey, setSortKey] = useState<SortKey>('created_at');
@@ -1572,6 +1789,23 @@ export default function Participants({
         return counts;
     }, [participants]);
 
+    const eventCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+
+        participants.forEach((participant) => {
+            if (!participant.event_name) {
+                return;
+            }
+
+            counts.set(
+                participant.event_name,
+                (counts.get(participant.event_name) ?? 0) + 1,
+            );
+        });
+
+        return counts;
+    }, [participants]);
+
     useEffect(() => {
         if (!addData.province) {
             return;
@@ -1687,10 +1921,17 @@ export default function Participants({
     const filteredParticipants = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
 
-        const addedByFiltered =
-            addedByFilter === 'all'
+        const eventFiltered =
+            eventFilter === 'all'
                 ? participants
                 : participants.filter(
+                      (participant) => participant.event_name === eventFilter,
+                  );
+
+        const addedByFiltered =
+            addedByFilter === 'all'
+                ? eventFiltered
+                : eventFiltered.filter(
                       (participant) =>
                           getAddedByFilterValue(participant) === addedByFilter,
                   );
@@ -1743,6 +1984,7 @@ export default function Participants({
         });
     }, [
         addedByFilter,
+        eventFilter,
         participants,
         search,
         sortDirection,
@@ -1781,6 +2023,11 @@ export default function Participants({
 
     function updateAddedByFilter(value: string) {
         setAddedByFilter(value);
+        setPage(1);
+    }
+
+    function updateEventFilter(value: string) {
+        setEventFilter(value);
         setPage(1);
     }
 
@@ -2188,6 +2435,13 @@ export default function Participants({
                             </div>
 
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                                <EventFilter
+                                    value={eventFilter}
+                                    options={events}
+                                    counts={eventCounts}
+                                    totalCount={participants.length}
+                                    onChange={updateEventFilter}
+                                />
                                 <AddedByFilter
                                     value={addedByFilter}
                                     options={normalizedAddedByOptions}
