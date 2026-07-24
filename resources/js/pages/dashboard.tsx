@@ -107,11 +107,14 @@ type EventAttendanceSummary = {
     name: string;
     slug: string;
     starts_at: string | null;
+    ends_at: string | null;
     participants_count: number;
     checked_in_count: number;
     not_checked_in_count: number;
     attendance_rate: number;
 };
+
+type EventStatus = 'ongoing' | 'upcoming' | 'closed';
 
 type AttendanceParticipant = {
     id: number;
@@ -497,6 +500,94 @@ function formatDateTime(value: string | null): string {
     }).format(new Date(value));
 }
 
+function toEventDate(value: string | null): Date | null {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getEventStatus(
+    event: EventAttendanceSummary,
+    now = new Date(),
+): EventStatus {
+    const startsAt = toEventDate(event.starts_at);
+    const endsAt = toEventDate(event.ends_at);
+
+    if (endsAt && now > endsAt) {
+        return 'closed';
+    }
+
+    if (startsAt && now < startsAt) {
+        return 'upcoming';
+    }
+
+    return 'ongoing';
+}
+
+function getEventDistance(event: EventAttendanceSummary, now: Date): number {
+    const startsAt = toEventDate(event.starts_at);
+    const endsAt = toEventDate(event.ends_at);
+
+    if (startsAt && now < startsAt) {
+        return startsAt.getTime() - now.getTime();
+    }
+
+    if (endsAt && now > endsAt) {
+        return now.getTime() - endsAt.getTime();
+    }
+
+    if (startsAt || endsAt) {
+        return 0;
+    }
+
+    return Number.POSITIVE_INFINITY;
+}
+
+function getNearestEventSlug(events: EventAttendanceSummary[]): string {
+    if (events.length === 0) {
+        return 'all';
+    }
+
+    const now = new Date();
+    const statusOrder: Record<EventStatus, number> = {
+        ongoing: 0,
+        upcoming: 1,
+        closed: 2,
+    };
+
+    return [...events].sort((a, b) => {
+        const aDistance = getEventDistance(a, now);
+        const bDistance = getEventDistance(b, now);
+
+        if (aDistance !== bDistance) {
+            return aDistance < bDistance ? -1 : 1;
+        }
+
+        const statusDifference =
+            statusOrder[getEventStatus(a, now)] -
+            statusOrder[getEventStatus(b, now)];
+
+        if (statusDifference !== 0) {
+            return statusDifference;
+        }
+
+        const aStartsAt =
+            toEventDate(a.starts_at)?.getTime() ?? Number.POSITIVE_INFINITY;
+        const bStartsAt =
+            toEventDate(b.starts_at)?.getTime() ?? Number.POSITIVE_INFINITY;
+
+        if (aStartsAt === bStartsAt) {
+            return a.name.localeCompare(b.name);
+        }
+
+        return aStartsAt < bStartsAt ? -1 : 1;
+    })[0].slug;
+}
+
 function formatFileDate(value: Date): string {
     const year = value.getFullYear();
     const month = String(value.getMonth() + 1).padStart(2, '0');
@@ -823,6 +914,133 @@ function TruncatedTooltipText({
                 {text}
             </TooltipContent>
         </Tooltip>
+    );
+}
+
+function EventStatusBadge({ status }: { status: EventStatus }) {
+    return (
+        <Badge
+            className={`shrink-0 border-transparent px-1.5 py-0 text-[10px] capitalize ${
+                status === 'ongoing'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                    : status === 'upcoming'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                      : 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+            }`}
+        >
+            {status}
+        </Badge>
+    );
+}
+
+function DashboardEventFilter({
+    value,
+    options,
+    onChange,
+}: {
+    value: string;
+    options: EventAttendanceSummary[];
+    onChange: (value: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const selectedOption = options.find((option) => option.slug === value);
+    const totalCount = options.reduce(
+        (count, option) => count + option.participants_count,
+        0,
+    );
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    role="combobox"
+                    aria-expanded={open}
+                    aria-label="Filter recent registrations by event"
+                    className="flex min-h-9 max-w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-1.5 text-xs font-medium shadow-sm transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:max-w-80"
+                >
+                    <span className="min-w-0 truncate">
+                        {selectedOption?.name ?? 'All events'}
+                    </span>
+                    {selectedOption && (
+                        <EventStatusBadge
+                            status={getEventStatus(selectedOption)}
+                        />
+                    )}
+                    <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="end"
+                className="w-[min(calc(100vw-2rem),24rem)] p-0"
+            >
+                <Command>
+                    <CommandInput placeholder="Search events..." />
+                    <CommandList>
+                        <CommandEmpty>No event found.</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem
+                                value="All events"
+                                onSelect={() => {
+                                    onChange('all');
+                                    setOpen(false);
+                                }}
+                            >
+                                <Check
+                                    className={`mr-2 size-4 ${
+                                        value === 'all'
+                                            ? 'opacity-100'
+                                            : 'opacity-0'
+                                    }`}
+                                />
+                                <span className="min-w-0 flex-1">
+                                    All events
+                                </span>
+                                <Badge
+                                    variant="secondary"
+                                    className="shrink-0 px-1.5 py-0 text-[10px]"
+                                >
+                                    {totalCount.toLocaleString()}
+                                </Badge>
+                            </CommandItem>
+                            {options.map((option) => {
+                                const status = getEventStatus(option);
+
+                                return (
+                                    <CommandItem
+                                        key={option.id}
+                                        value={`${option.name} ${status} ${option.starts_at ?? ''} ${option.ends_at ?? ''}`}
+                                        onSelect={() => {
+                                            onChange(option.slug);
+                                            setOpen(false);
+                                        }}
+                                        className="items-start"
+                                    >
+                                        <Check
+                                            className={`mt-0.5 mr-2 size-4 shrink-0 ${
+                                                value === option.slug
+                                                    ? 'opacity-100'
+                                                    : 'opacity-0'
+                                            }`}
+                                        />
+                                        <span className="min-w-0 flex-1 leading-5 break-words">
+                                            {option.name}
+                                        </span>
+                                        <EventStatusBadge status={status} />
+                                        <Badge
+                                            variant="secondary"
+                                            className="shrink-0 px-1.5 py-0 text-[10px]"
+                                        >
+                                            {option.participants_count.toLocaleString()}
+                                        </Badge>
+                                    </CommandItem>
+                                );
+                            })}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
     );
 }
 
@@ -1674,6 +1892,9 @@ export default function Dashboard({
     const [attendancePageSize, setAttendancePageSize] =
         useState<(typeof attendancePageSizeOptions)[number]>(25);
     const [isExportingAttendance, setIsExportingAttendance] = useState(false);
+    const [recentEventFilter, setRecentEventFilter] = useState(() =>
+        getNearestEventSlug(eventAttendanceSummary),
+    );
     const [statisticFilters, setStatisticFilters] = useState<StatisticFilters>({
         provinceId: allStatisticFilterValue,
         municipalityId: allStatisticFilterValue,
@@ -1681,6 +1902,17 @@ export default function Dashboard({
         participantType: allStatisticFilterValue,
         organizationId: allStatisticFilterValue,
     });
+
+    const filteredRecentParticipants = useMemo(
+        () =>
+            recentEventFilter === 'all'
+                ? recentParticipants
+                : recentParticipants.filter(
+                      (participant) =>
+                          participant.event_name === recentEventFilter,
+                  ),
+        [recentEventFilter, recentParticipants],
+    );
 
     const selectedAttendanceRawParticipants =
         selectedAttendanceStatus === 'checked-in'
@@ -2330,84 +2562,93 @@ export default function Dashboard({
 
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
                     <section className="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
-                        <div className="border-b p-4">
-                            <h2 className="text-base font-semibold">
-                                Recent Registrations
-                            </h2>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                Latest participants added to CERS.
-                            </p>
+                        <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h2 className="text-base font-semibold">
+                                    Recent Registrations
+                                </h2>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Latest participants added to CERS.
+                                </p>
+                            </div>
+                            <DashboardEventFilter
+                                value={recentEventFilter}
+                                options={eventAttendanceSummary}
+                                onChange={setRecentEventFilter}
+                            />
                         </div>
 
                         {/* Mobile card layout */}
                         <div className="space-y-3 p-3 md:hidden">
-                            {recentParticipants.length > 0 ? (
-                                recentParticipants.map((participant) => (
-                                    <article
-                                        key={participant.id}
-                                        className="rounded-lg border bg-background p-3 text-sm shadow-sm"
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <p className="font-semibold text-foreground">
-                                                    {participant.name}
-                                                </p>
-                                                <p className="mt-0.5 text-xs break-all text-muted-foreground">
-                                                    {participant.email}
-                                                </p>
+                            {filteredRecentParticipants.length > 0 ? (
+                                filteredRecentParticipants.map(
+                                    (participant) => (
+                                        <article
+                                            key={participant.id}
+                                            className="rounded-lg border bg-background p-3 text-sm shadow-sm"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-foreground">
+                                                        {participant.name}
+                                                    </p>
+                                                    <p className="mt-0.5 text-xs break-all text-muted-foreground">
+                                                        {participant.email}
+                                                    </p>
+                                                </div>
+
+                                                <Badge
+                                                    variant="outline"
+                                                    className="shrink-0"
+                                                >
+                                                    {formatLookupLabel(
+                                                        participant.participant_type,
+                                                        participantTypeLabelsBySlug,
+                                                    )}
+                                                </Badge>
                                             </div>
 
-                                            <Badge
-                                                variant="outline"
-                                                className="shrink-0"
-                                            >
-                                                {formatLookupLabel(
-                                                    participant.participant_type,
-                                                    participantTypeLabelsBySlug,
-                                                )}
-                                            </Badge>
-                                        </div>
-
-                                        <div className="mt-3 space-y-2 text-xs">
-                                            <div>
-                                                <p className="font-medium text-muted-foreground">
-                                                    Organization
-                                                </p>
-                                                <p className="mt-0.5 break-words text-foreground">
-                                                    {participant.organization ??
-                                                        '-'}
-                                                </p>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-3">
+                                            <div className="mt-3 space-y-2 text-xs">
                                                 <div>
                                                     <p className="font-medium text-muted-foreground">
-                                                        Event
+                                                        Organization
                                                     </p>
                                                     <p className="mt-0.5 break-words text-foreground">
-                                                        {formatLabel(
-                                                            participant.event_name,
-                                                        )}
+                                                        {participant.organization ??
+                                                            '-'}
                                                     </p>
                                                 </div>
 
-                                                <div>
-                                                    <p className="font-medium text-muted-foreground">
-                                                        Date
-                                                    </p>
-                                                    <p className="mt-0.5 text-foreground">
-                                                        {formatDate(
-                                                            participant.created_at,
-                                                        )}
-                                                    </p>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <p className="font-medium text-muted-foreground">
+                                                            Event
+                                                        </p>
+                                                        <p className="mt-0.5 break-words text-foreground">
+                                                            {formatLabel(
+                                                                participant.event_name,
+                                                            )}
+                                                        </p>
+                                                    </div>
+
+                                                    <div>
+                                                        <p className="font-medium text-muted-foreground">
+                                                            Date
+                                                        </p>
+                                                        <p className="mt-0.5 text-foreground">
+                                                            {formatDate(
+                                                                participant.created_at,
+                                                            )}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </article>
-                                ))
+                                        </article>
+                                    ),
+                                )
                             ) : (
                                 <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                                    No registrations found.
+                                    No registrations found for this event.
                                 </div>
                             )}
                         </div>
@@ -2436,8 +2677,8 @@ export default function Dashboard({
                                 </TableHeader>
 
                                 <TableBody>
-                                    {recentParticipants.length > 0 ? (
-                                        recentParticipants.map(
+                                    {filteredRecentParticipants.length > 0 ? (
+                                        filteredRecentParticipants.map(
                                             (participant) => (
                                                 <TableRow key={participant.id}>
                                                     <TableCell className="align-top">
@@ -2492,7 +2733,8 @@ export default function Dashboard({
                                                 colSpan={5}
                                                 className="h-24 text-center text-sm text-muted-foreground"
                                             >
-                                                No registrations found.
+                                                No registrations found for this
+                                                event.
                                             </TableCell>
                                         </TableRow>
                                     )}

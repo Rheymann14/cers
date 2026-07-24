@@ -26,6 +26,7 @@ class DashboardController extends Controller
                 'name',
                 'slug',
                 'starts_at',
+                'ends_at',
             ]);
 
         $eventsById = $events->keyBy('id');
@@ -48,6 +49,7 @@ class DashboardController extends Controller
                 'name' => $event->name,
                 'slug' => $event->slug,
                 'starts_at' => $event->starts_at ? Carbon::parse($event->starts_at)->toIso8601String() : null,
+                'ends_at' => $event->ends_at ? Carbon::parse($event->ends_at)->toIso8601String() : null,
                 'participants_count' => $participantsCount,
                 'checked_in_count' => $checkedInCount,
                 'not_checked_in_count' => $notCheckedInCount,
