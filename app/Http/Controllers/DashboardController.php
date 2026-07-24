@@ -178,8 +178,8 @@ class DashboardController extends Controller
                 'notCheckedInParticipants' => $notCheckedInParticipants,
             ],
             'recentParticipants' => User::query()
+                ->whereNotNull('event_name')
                 ->latest()
-                ->limit(5)
                 ->get([
                     'id',
                     'participant_id',
@@ -220,6 +220,7 @@ class DashboardController extends Controller
                         'participant_type',
                         'organization_id',
                         'organization',
+                        'event_name',
                     ]),
                 'provinces' => Province::query()
                     ->select(['id', 'name', 'code'])

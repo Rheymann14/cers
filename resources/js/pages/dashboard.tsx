@@ -146,6 +146,7 @@ type StatisticParticipant = {
     participant_type: string | null;
     organization_id: number | null;
     organization: string | null;
+    event_name: string | null;
 };
 
 type StatisticOption = {
@@ -956,7 +957,7 @@ function DashboardEventFilter({
                     type="button"
                     role="combobox"
                     aria-expanded={open}
-                    aria-label="Filter recent registrations by event"
+                    aria-label="Filter dashboard by event"
                     className="flex min-h-9 max-w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-1.5 text-xs font-medium shadow-sm transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:max-w-80"
                 >
                     <span className="min-w-0 truncate">
@@ -1874,11 +1875,9 @@ function AttendanceParticipantCard({
 }
 
 export default function Dashboard({
-    stats,
     recentParticipants,
     eventSummary,
     registrationTrend,
-    attendanceStatus,
     eventAttendanceSummary,
     checkedInParticipants,
     notCheckedInParticipants,
@@ -1892,7 +1891,7 @@ export default function Dashboard({
     const [attendancePageSize, setAttendancePageSize] =
         useState<(typeof attendancePageSizeOptions)[number]>(25);
     const [isExportingAttendance, setIsExportingAttendance] = useState(false);
-    const [recentEventFilter, setRecentEventFilter] = useState(() =>
+    const [eventFilter, setEventFilter] = useState(() =>
         getNearestEventSlug(eventAttendanceSummary),
     );
     const [statisticFilters, setStatisticFilters] = useState<StatisticFilters>({
@@ -1903,21 +1902,56 @@ export default function Dashboard({
         organizationId: allStatisticFilterValue,
     });
 
+    const eventCheckedInParticipants = useMemo(
+        () =>
+            eventFilter === 'all'
+                ? checkedInParticipants
+                : checkedInParticipants.filter(
+                      (participant) => participant.event_slug === eventFilter,
+                  ),
+        [checkedInParticipants, eventFilter],
+    );
+    const eventNotCheckedInParticipants = useMemo(
+        () =>
+            eventFilter === 'all'
+                ? notCheckedInParticipants
+                : notCheckedInParticipants.filter(
+                      (participant) => participant.event_slug === eventFilter,
+                  ),
+        [eventFilter, notCheckedInParticipants],
+    );
+    const filteredStats: Stats = {
+        participants:
+            eventCheckedInParticipants.length +
+            eventNotCheckedInParticipants.length,
+        checkedInParticipants: eventCheckedInParticipants.length,
+        notCheckedInParticipants: eventNotCheckedInParticipants.length,
+    };
+    const filteredAttendanceStatus: AttendanceStatus[] = [
+        {
+            label: 'Checked In',
+            count: eventCheckedInParticipants.length,
+        },
+        {
+            label: 'Not Checked In',
+            count: eventNotCheckedInParticipants.length,
+        },
+    ];
     const filteredRecentParticipants = useMemo(
         () =>
-            recentEventFilter === 'all'
+            (eventFilter === 'all'
                 ? recentParticipants
                 : recentParticipants.filter(
-                      (participant) =>
-                          participant.event_name === recentEventFilter,
-                  ),
-        [recentEventFilter, recentParticipants],
+                      (participant) => participant.event_name === eventFilter,
+                  )
+            ).slice(0, 5),
+        [eventFilter, recentParticipants],
     );
 
     const selectedAttendanceRawParticipants =
         selectedAttendanceStatus === 'checked-in'
-            ? checkedInParticipants
-            : notCheckedInParticipants;
+            ? eventCheckedInParticipants
+            : eventNotCheckedInParticipants;
 
     const selectedAttendanceParticipants = useMemo(
         () =>
@@ -1986,39 +2020,44 @@ export default function Dashboard({
             ),
         [participantStatistics.organizations],
     );
+    const eventStatisticParticipants = useMemo(
+        () =>
+            eventFilter === 'all'
+                ? participantStatistics.participants
+                : participantStatistics.participants.filter(
+                      (participant) => participant.event_name === eventFilter,
+                  ),
+        [eventFilter, participantStatistics.participants],
+    );
     const filteredStatisticParticipants = useMemo(
         () =>
-            participantStatistics.participants.filter((participant) =>
+            eventStatisticParticipants.filter((participant) =>
                 matchesStatisticFilters(
                     participant,
                     statisticFilters,
                     organizationsById,
                 ),
             ),
-        [
-            organizationsById,
-            participantStatistics.participants,
-            statisticFilters,
-        ],
+        [eventStatisticParticipants, organizationsById, statisticFilters],
     );
     const organizationGroups = useMemo(
         () =>
             buildOrganizationGroups(
-                participantStatistics.participants,
+                eventStatisticParticipants,
                 participantStatistics.organizations,
                 organizationsById,
             ),
         [
+            eventStatisticParticipants,
             organizationsById,
             participantStatistics.organizations,
-            participantStatistics.participants,
         ],
     );
     const sexFilterOptions = useMemo(
         () =>
             [
                 ...new Set(
-                    participantStatistics.participants.map(
+                    eventStatisticParticipants.map(
                         (participant) => participant.sex,
                     ),
                 ),
@@ -2027,7 +2066,7 @@ export default function Dashboard({
                 .sort((first, second) =>
                     formatLabel(first).localeCompare(formatLabel(second)),
                 ),
-        [participantStatistics.participants],
+        [eventStatisticParticipants],
     );
     const sexBreakdown = useMemo(() => {
         const counts = new Map<string, number>();
@@ -2163,20 +2202,20 @@ export default function Dashboard({
             {
                 value: allStatisticFilterValue,
                 label: 'All provinces',
-                count: participantStatistics.participants.length,
+                count: eventStatisticParticipants.length,
                 description: 'Include every province.',
             },
             ...participantStatistics.provinces.map((province) => ({
                 value: optionIdValue(province.id),
                 label: province.name,
-                count: province.users_count,
+                count: countStatisticParticipants(
+                    eventStatisticParticipants,
+                    (participant) => participant.province_id === province.id,
+                ),
                 description: `Province code ${province.code}`,
             })),
         ],
-        [
-            participantStatistics.participants.length,
-            participantStatistics.provinces,
-        ],
+        [eventStatisticParticipants, participantStatistics.provinces],
     );
     const municipalityFilterOptions = useMemo(
         () => [
@@ -2192,13 +2231,18 @@ export default function Dashboard({
             ...filteredStatisticMunicipalities.map((municipality) => ({
                 value: optionIdValue(municipality.id),
                 label: municipality.name,
-                count: municipality.users_count,
+                count: countStatisticParticipants(
+                    eventStatisticParticipants,
+                    (participant) =>
+                        participant.municipality_id === municipality.id,
+                ),
                 description: formatLabel(municipality.type),
             })),
         ],
         [
             filteredStatisticMunicipalities,
             filteredStatisticParticipants.length,
+            eventStatisticParticipants,
             statisticFilters.provinceId,
         ],
     );
@@ -2207,49 +2251,51 @@ export default function Dashboard({
             {
                 value: allStatisticFilterValue,
                 label: 'All sex values',
-                count: participantStatistics.participants.length,
+                count: eventStatisticParticipants.length,
                 description: 'Include every recorded sex value.',
             },
             ...sexFilterOptions.map((sex) => ({
                 value: sex,
                 label: formatLabel(sex),
                 count: countStatisticParticipants(
-                    participantStatistics.participants,
+                    eventStatisticParticipants,
                     (participant) => participant.sex === sex,
                 ),
                 description: 'Recorded participant sex.',
             })),
         ],
-        [participantStatistics.participants, sexFilterOptions],
+        [eventStatisticParticipants, sexFilterOptions],
     );
     const participantTypeFilterOptions = useMemo(
         () => [
             {
                 value: allStatisticFilterValue,
                 label: 'All participant types',
-                count: participantStatistics.participants.length,
+                count: eventStatisticParticipants.length,
                 description: 'Include every participant category.',
             },
             ...participantStatistics.participantTypes.map(
                 (participantType) => ({
                     value: participantType.slug,
                     label: participantType.name,
-                    count: participantType.users_count,
+                    count: countStatisticParticipants(
+                        eventStatisticParticipants,
+                        (participant) =>
+                            participant.participant_type ===
+                            participantType.slug,
+                    ),
                     description: formatLabel(participantType.type),
                 }),
             ),
         ],
-        [
-            participantStatistics.participantTypes,
-            participantStatistics.participants.length,
-        ],
+        [eventStatisticParticipants, participantStatistics.participantTypes],
     );
     const organizationFilterOptions = useMemo(
         () => [
             {
                 value: allStatisticFilterValue,
                 label: 'All schools and organizations',
-                count: participantStatistics.participants.length,
+                count: eventStatisticParticipants.length,
                 description: 'Include every school and partner organization.',
             },
             ...organizationGroups
@@ -2261,7 +2307,7 @@ export default function Dashboard({
                     description: organization.meta,
                 })),
         ],
-        [organizationGroups, participantStatistics.participants.length],
+        [eventStatisticParticipants.length, organizationGroups],
     );
     const statisticFiltersActive = Object.values(statisticFilters).some(
         (value) => value !== allStatisticFilterValue,
@@ -2323,7 +2369,7 @@ export default function Dashboard({
             const checkedInSheet = workbook.addWorksheet('Checked In');
             checkedInSheet.columns = checkedInAttendanceExportColumns;
             checkedInSheet.addRows(
-                checkedInParticipants.map((participant) =>
+                eventCheckedInParticipants.map((participant) =>
                     attendanceExportRow(participant, 'Checked In'),
                 ),
             );
@@ -2332,7 +2378,7 @@ export default function Dashboard({
             const notCheckedInSheet = workbook.addWorksheet('Not Checked In');
             notCheckedInSheet.columns = attendanceExportColumns;
             notCheckedInSheet.addRows(
-                notCheckedInParticipants.map((participant) =>
+                eventNotCheckedInParticipants.map((participant) =>
                     attendanceExportRow(participant, 'Not Checked In'),
                 ),
             );
@@ -2347,8 +2393,8 @@ export default function Dashboard({
 
             link.href = url;
             link.download = getAttendanceExportFileName(
-                checkedInParticipants,
-                notCheckedInParticipants,
+                eventCheckedInParticipants,
+                eventNotCheckedInParticipants,
             );
             document.body.appendChild(link);
             link.click();
@@ -2368,14 +2414,21 @@ export default function Dashboard({
             <Head title="Dashboard" />
 
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-hidden p-3 sm:p-4">
-                <div>
-                    <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-                        Dashboard
-                    </h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        Monitor participant registration, event attendance, and
-                        setup coverage.
-                    </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                            Dashboard
+                        </h1>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Monitor participant registration, event attendance,
+                            and setup coverage.
+                        </p>
+                    </div>
+                    <DashboardEventFilter
+                        value={eventFilter}
+                        options={eventAttendanceSummary}
+                        onChange={setEventFilter}
+                    />
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -2405,7 +2458,7 @@ export default function Dashboard({
                                 <card.icon className="size-4 text-muted-foreground" />
                             </div>
                             <p className="mt-3 text-2xl font-semibold tracking-tight">
-                                {stats[card.key].toLocaleString()}
+                                {filteredStats[card.key].toLocaleString()}
                             </p>
                         </button>
                     ))}
@@ -2460,7 +2513,7 @@ export default function Dashboard({
                             </button>
                         </div>
                         <DoughnutChart
-                            data={attendanceStatus}
+                            data={filteredAttendanceStatus}
                             onSelectStatus={openAttendanceDialog}
                         />
                     </section>
@@ -2562,7 +2615,7 @@ export default function Dashboard({
 
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
                     <section className="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
-                        <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="border-b p-4">
                             <div>
                                 <h2 className="text-base font-semibold">
                                     Recent Registrations
@@ -2571,11 +2624,6 @@ export default function Dashboard({
                                     Latest participants added to CERS.
                                 </p>
                             </div>
-                            <DashboardEventFilter
-                                value={recentEventFilter}
-                                options={eventAttendanceSummary}
-                                onChange={setRecentEventFilter}
-                            />
                         </div>
 
                         {/* Mobile card layout */}
