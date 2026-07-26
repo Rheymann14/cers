@@ -22,7 +22,6 @@ class BrevoEmailService
         $participant['qr_token'] = $participant['qr_token'] ?? $this->createQrToken(
             email: $participant['email'],
             fullName: $participant['name'],
-            organization: $participant['organization'],
             participantId: $participant['participant_id'],
         );
 
@@ -71,7 +70,6 @@ class BrevoEmailService
     private function createQrToken(
         string $email,
         string $fullName,
-        string $organization,
         string $participantId,
     ): string {
         $fingerprint = $this->hashString(
@@ -80,27 +78,52 @@ class BrevoEmailService
                 $participantId,
                 $fullName,
                 $email,
-                $organization,
             ])
                 ->map(fn ($value) => trim(strtolower($value)))
                 ->implode('|')
         );
 
-        return 'CERS:VID:1:'.$fingerprint;
+        return 'CERS:VID:2:'.$fingerprint;
     }
 
     private function hashString(string $value): string
     {
-        $hash = 2166136261;
+        $high = 0x811C;
+        $low = 0x9DC5;
+        $utf16 = mb_convert_encoding($value, 'UTF-16LE', 'UTF-8');
+        $codeUnits = unpack('v*', $utf16) ?: [];
 
-        $length = strlen($value);
+        foreach ($codeUnits as $codeUnit) {
+            $low ^= $codeUnit;
 
-        for ($i = 0; $i < $length; $i++) {
-            $hash ^= ord($value[$i]);
-            $hash = ($hash * 16777619) & 0xffffffff;
+            $oldLow = $low;
+            $lowProduct = $oldLow * 0x0193;
+            $carry = intdiv($lowProduct, 0x10000);
+            $low = $lowProduct % 0x10000;
+            $high = (($high * 0x0193) + ($oldLow * 0x0100) + $carry) % 0x10000;
         }
 
-        return strtoupper(base_convert((string) $hash, 10, 36));
+        return $this->base36FromUint32($high, $low);
+    }
+
+    private function base36FromUint32(int $high, int $low): string
+    {
+        $alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $digits = '';
+
+        do {
+            $quotientHigh = intdiv($high, 36);
+            $remainderHigh = $high % 36;
+            $combined = ($remainderHigh * 0x10000) + $low;
+            $quotientLow = intdiv($combined, 36);
+            $remainder = $combined % 36;
+
+            $digits = $alphabet[$remainder].$digits;
+            $high = $quotientHigh;
+            $low = $quotientLow;
+        } while ($high > 0 || $low > 0);
+
+        return $digits;
     }
 
     private function getInitials(string $name): string

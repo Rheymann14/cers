@@ -26,6 +26,12 @@ class ParticipantType extends Model
             ->whereColumn('users.event_id', 'participant_types.event_id');
     }
 
+    public function registrations(): HasMany
+    {
+        return $this->hasMany(EventRegistration::class, 'participant_type', 'slug')
+            ->whereColumn('event_registrations.event_id', 'participant_types.event_id');
+    }
+
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);

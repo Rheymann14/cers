@@ -17,7 +17,7 @@ class AttendanceQrScannerController extends Controller
     {
         return Inertia::render('attendance_qr_scanner', [
             'events' => Event::query()
-                ->withCount('users')
+                ->withCount(['registrations as users_count'])
                 ->orderBy('starts_at')
                 ->orderBy('name')
                 ->get([
@@ -73,7 +73,11 @@ class AttendanceQrScannerController extends Controller
             ], 422);
         }
 
-        if ((int) $participant->event_id !== (int) $event->id) {
+        $registration = $participant->eventRegistrations()
+            ->where('event_id', $event->id)
+            ->first();
+
+        if (! $registration) {
             return response()->json([
                 'message' => 'This participant is not registered for the selected event.',
             ], 422);
@@ -102,7 +106,7 @@ class AttendanceQrScannerController extends Controller
                 'name' => $participant->name,
                 'email' => $participant->email,
                 'avatar' => $participant->avatar,
-                'organization' => $participant->organization,
+                'organization' => $registration->organization,
                 'qr_token' => $this->createQrToken($participant),
             ],
             'event' => [
@@ -123,8 +127,9 @@ class AttendanceQrScannerController extends Controller
         return User::query()
             ->whereNotNull('participant_id')
             ->whereNull('deleted_at')
-            ->get(['id', 'participant_id', 'name', 'email', 'avatar', 'organization', 'event_id', 'is_active'])
-            ->first(fn (User $participant) => hash_equals($this->createQrToken($participant), $qrToken));
+            ->get(['id', 'participant_id', 'name', 'email', 'avatar', 'organization', 'is_active'])
+            ->first(fn (User $participant) => hash_equals($this->createQrToken($participant), $qrToken)
+                || hash_equals($this->createLegacyQrToken($participant), $qrToken));
     }
 
     private function isClosedEvent(Event $event): bool
@@ -134,10 +139,23 @@ class AttendanceQrScannerController extends Controller
 
     private function isCersVirtualIdToken(string $qrToken): bool
     {
-        return str_starts_with(trim($qrToken), 'CERS:VID:1:');
+        return str_starts_with(trim($qrToken), 'CERS:VID:1:')
+            || str_starts_with(trim($qrToken), 'CERS:VID:2:');
     }
 
     private function createQrToken(User $participant): string
+    {
+        $fingerprint = $this->hashString(collect([
+            'CERS-VIRTUAL-ID',
+            (string) $participant->participant_id,
+            (string) ($participant->name ?: 'Participant'),
+            (string) $participant->email,
+        ])->map(fn (string $value) => trim(mb_strtolower($value)))->implode('|'));
+
+        return 'CERS:VID:2:'.$fingerprint;
+    }
+
+    private function createLegacyQrToken(User $participant): string
     {
         $fingerprint = $this->hashString(collect([
             'CERS-VIRTUAL-ID',

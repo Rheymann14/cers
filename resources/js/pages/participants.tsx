@@ -667,7 +667,6 @@ function hashString(value: string) {
 function createQrToken({
     email,
     fullName,
-    organization,
     participantId,
 }: {
     email: string;
@@ -676,12 +675,12 @@ function createQrToken({
     participantId: string;
 }) {
     const fingerprint = hashString(
-        ['CERS-VIRTUAL-ID', participantId, fullName, email, organization]
+        ['CERS-VIRTUAL-ID', participantId, fullName, email]
             .map((value) => value.trim().toLowerCase())
             .join('|'),
     );
 
-    return `CERS:VID:1:${fingerprint}`;
+    return `CERS:VID:2:${fingerprint}`;
 }
 
 const preventDialogOutsideClose: NonNullable<

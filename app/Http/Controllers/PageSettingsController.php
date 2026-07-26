@@ -22,7 +22,7 @@ class PageSettingsController extends Controller
             'participantTypes' => ParticipantType::query()
                 ->select(['id', 'event_id', 'name', 'slug', 'type', 'is_active', 'created_by_user_id', 'created_at'])
                 ->with('creator:id,name')
-                ->withCount('users')
+                ->withCount(['registrations as users_count'])
                 ->orderBy('name')
                 ->get(),
             'events' => Event::query()
@@ -34,7 +34,7 @@ class PageSettingsController extends Controller
                 ->whereNull('event_id')
                 ->select(['id', 'name', 'slug', 'type', 'is_active', 'created_by_user_id', 'created_at'])
                 ->with('creator:id,name')
-                ->withCount('users')
+                ->withCount(['registrations as users_count'])
                 ->orderBy('name')
                 ->get(),
             'provinces' => Province::query()

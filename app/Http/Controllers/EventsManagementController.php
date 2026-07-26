@@ -40,7 +40,7 @@ class EventsManagementController extends Controller
                 ->with(['materials' => fn ($query) => $query
                     ->select(['id', 'event_id', 'original_name', 'path', 'mime_type', 'size', 'created_at'])
                     ->latest()])
-                ->withCount('users')
+                ->withCount(['registrations as users_count'])
                 ->orderBy('name')
                 ->get(),
         ]);

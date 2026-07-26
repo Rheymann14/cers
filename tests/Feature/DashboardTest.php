@@ -2,6 +2,7 @@
 
 use App\Models\Event;
 use App\Models\EventAttendance;
+use App\Models\EventRegistration;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -34,17 +35,21 @@ test('dashboard attendance totals use event registered participants', function (
     ]);
     $checkedInParticipant = User::factory()->create([
         'participant_type' => 'participant',
+    ]);
+    EventRegistration::query()->create([
+        'user_id' => $checkedInParticipant->id,
         'event_id' => $event->id,
-        'event_name' => $event->slug,
+        'participant_type' => 'participant',
     ]);
 
-    User::factory()
+    $participants = User::factory()
         ->count(6)
-        ->create([
-            'participant_type' => 'participant',
-            'event_id' => $event->id,
-            'event_name' => $event->slug,
-        ]);
+        ->create(['participant_type' => 'participant']);
+    $participants->each(fn (User $participant) => EventRegistration::query()->create([
+        'user_id' => $participant->id,
+        'event_id' => $event->id,
+        'participant_type' => 'participant',
+    ]));
     User::factory()->count(3)->create([
         'participant_type' => 'participant',
     ]);

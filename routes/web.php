@@ -25,7 +25,7 @@ Route::get('/welcome-lookups/municipalities', [WelcomeLookupController::class, '
     ->name('welcome.lookups.municipalities');
 
 Route::post('event-registration', [EventRegistrationController::class, 'store'])
-    ->middleware(['guest', 'throttle:10,1'])
+    ->middleware('throttle:10,1')
     ->name('event-registration.store');
 
 Route::middleware(['auth', 'active', 'verified', 'participant'])->group(function () {

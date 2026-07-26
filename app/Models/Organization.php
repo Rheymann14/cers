@@ -25,6 +25,11 @@ class Organization extends Model
         return $this->hasMany(User::class);
     }
 
+    public function registrations(): HasMany
+    {
+        return $this->hasMany(EventRegistration::class);
+    }
+
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);

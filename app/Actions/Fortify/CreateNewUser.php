@@ -5,15 +5,18 @@ namespace App\Actions\Fortify;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\Event;
+use App\Models\EventRegistration;
 use App\Models\Municipality;
 use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\Province;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
 class CreateNewUser implements CreatesNewUsers
@@ -33,7 +36,7 @@ class CreateNewUser implements CreatesNewUsers
                 'given_name' => ['required', 'string', 'max:255'],
                 'middle_name' => ['nullable', 'string', 'max:255'],
                 'surname' => ['required', 'string', 'max:255'],
-                'email' => ['nullable', 'string', 'email', 'max:255', Rule::unique(User::class)],
+                'email' => ['nullable', 'string', 'email', 'max:255'],
                 'avatar' => ['nullable', 'string'],
                 'website' => ['prohibited'],
                 'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/'],
@@ -73,7 +76,6 @@ class CreateNewUser implements CreatesNewUsers
                 'password' => $this->passwordRules(),
             ],
             [
-                'email.unique' => 'This account is already registered.',
                 'event_name.exists' => 'Registration for the selected event is closed.',
             ],
         );
@@ -137,8 +139,6 @@ class CreateNewUser implements CreatesNewUsers
 
         $validator->validate();
 
-        $avatar = $this->storeAvatar($input['avatar'] ?? null);
-
         $name = trim(collect([
             $input['given_name'],
             $input['middle_name'] ?? null,
@@ -161,6 +161,27 @@ class CreateNewUser implements CreatesNewUsers
             ->whereNotNull('ends_at')
             ->where('ends_at', '>=', now())
             ->firstOrFail();
+        $normalizedEmail = filled($input['email'] ?? null)
+            ? mb_strtolower(trim($input['email']))
+            : null;
+        $existingUser = $normalizedEmail
+            ? User::query()
+                ->whereRaw('LOWER(email) = ?', [$normalizedEmail])
+                ->first()
+            : null;
+
+        if (
+            $existingUser
+            && EventRegistration::query()
+                ->where('user_id', $existingUser->id)
+                ->where('event_id', $event->id)
+                ->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'email' => 'This account is already registered for the selected event.',
+            ]);
+        }
+
         $organizationSlug = Str::slug($input['organization']);
         $organization = Organization::query()
             ->where('slug', $organizationSlug)
@@ -190,28 +211,72 @@ class CreateNewUser implements CreatesNewUsers
             ],
         );
 
-        return User::create([
-            'name' => $name,
-            'participant_id' => $this->generateParticipantId(),
-            'given_name' => $input['given_name'],
-            'middle_name' => $input['middle_name'] ?? null,
-            'surname' => $input['surname'],
-            'email' => $input['email'] ?? null,
-            'avatar' => $avatar,
-            'phone' => $input['phone'] ?? null,
-            'province_id' => $province->id,
-            'municipality_id' => $municipality->id,
-            'organization_id' => $organization->id,
-            'organization' => $input['organization'],
-            'position' => $input['position'] ?? null,
-            'participant_type' => $participantType->slug,
-            'sex' => $input['sex'],
-            'event_id' => $event->id,
-            'event_name' => $event->slug,
-            'is_active' => true,
-            'registration_consent_accepted_at' => now(),
-            'password' => $input['password'],
-        ]);
+        return DB::transaction(function () use (
+            $event,
+            $input,
+            $municipality,
+            $name,
+            $organization,
+            $participantType,
+            $province,
+            $normalizedEmail,
+        ): User {
+            $user = $normalizedEmail
+                ? User::query()
+                    ->whereRaw('LOWER(email) = ?', [$normalizedEmail])
+                    ->lockForUpdate()
+                    ->first()
+                : null;
+
+            if (
+                $user
+                && EventRegistration::query()
+                    ->where('user_id', $user->id)
+                    ->where('event_id', $event->id)
+                    ->exists()
+            ) {
+                throw ValidationException::withMessages([
+                    'email' => 'This account is already registered for the selected event.',
+                ]);
+            }
+
+            if (! $user) {
+                $user = User::query()->create([
+                    'name' => $name,
+                    'participant_id' => $this->generateParticipantId(),
+                    'given_name' => $input['given_name'],
+                    'middle_name' => $input['middle_name'] ?? null,
+                    'surname' => $input['surname'],
+                    'email' => $normalizedEmail,
+                    'avatar' => $this->storeAvatar($input['avatar'] ?? null),
+                    'phone' => $input['phone'] ?? null,
+                    'province_id' => $province->id,
+                    'municipality_id' => $municipality->id,
+                    'organization_id' => $organization->id,
+                    'organization' => $input['organization'],
+                    'position' => $input['position'] ?? null,
+                    'participant_type' => $participantType->slug,
+                    'sex' => $input['sex'],
+                    'event_id' => $event->id,
+                    'event_name' => $event->slug,
+                    'is_active' => true,
+                    'registration_consent_accepted_at' => now(),
+                    'password' => $input['password'],
+                ]);
+            }
+
+            EventRegistration::query()->create([
+                'user_id' => $user->id,
+                'event_id' => $event->id,
+                'organization_id' => $organization->id,
+                'organization' => $input['organization'],
+                'position' => $input['position'] ?? null,
+                'participant_type' => $participantType->slug,
+                'registration_consent_accepted_at' => now(),
+            ]);
+
+            return $user;
+        });
     }
 
     private function generateParticipantId(): string

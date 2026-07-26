@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Fortify\CreateNewUser;
-use App\Models\Event;
 use App\Services\BrevoEmailService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -23,12 +22,16 @@ class EventRegistrationController extends Controller
         ]);
 
         $user = $creator->create($request->all());
+        $registration = $user->eventRegistrations()
+            ->with('event:id,name')
+            ->whereHas('event', fn ($query) => $query
+                ->where('slug', (string) $request->string('event_name')))
+            ->firstOrFail();
+        $eventName = $registration->event->name;
 
-        $eventName = Event::query()
-            ->where('slug', $user->event_name)
-            ->value('name') ?? $user->event_name;
-
-        event(new Registered($user));
+        if ($user->wasRecentlyCreated) {
+            event(new Registered($user));
+        }
 
         if (filled($user->email)) {
             try {
@@ -41,7 +44,7 @@ class EventRegistrationController extends Controller
                     'participant_id' => $user->participant_id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'organization' => $user->organization,
+                    'organization' => $registration->organization,
                     'event_name' => $eventName,
                     'qr_token' => $user->qr_token,
                 ]);
@@ -63,7 +66,7 @@ class EventRegistrationController extends Controller
             'participant_id' => $user->participant_id,
             'name' => $user->name,
             'email' => $user->email,
-            'organization' => $user->organization,
+            'organization' => $registration->organization,
             'avatar' => $user->avatar,
         ]);
 

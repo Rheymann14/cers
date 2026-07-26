@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\EventAttendance;
+use App\Models\EventRegistration;
 use App\Models\Municipality;
 use App\Models\Organization;
 use App\Models\ParticipantType;
@@ -115,7 +116,7 @@ class ParticipantsController extends Controller
             'given_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'surname' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'string', 'email', 'max:255', Rule::unique(User::class)],
+            'email' => ['nullable', 'string', 'email', 'max:255'],
             'avatar' => ['nullable', 'string'],
             'website' => ['prohibited'],
             'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/'],
@@ -223,13 +224,32 @@ class ParticipantsController extends Controller
                 ->withInput();
         }
 
-        $participant = User::query()->create([
+        $email = filled($validated['email'] ?? null)
+            ? mb_strtolower(trim($validated['email']))
+            : null;
+        $participant = $email
+            ? User::query()->whereRaw('LOWER(email) = ?', [$email])->first()
+            : null;
+
+        if (
+            $participant
+            && EventRegistration::query()
+                ->where('user_id', $participant->id)
+                ->where('event_id', $event?->id)
+                ->exists()
+        ) {
+            return back()
+                ->withErrors(['email' => 'This account is already registered for the selected event.'])
+                ->withInput();
+        }
+
+        $participant ??= User::query()->create([
             'name' => $name,
             'participant_id' => $this->generateParticipantId(),
             'given_name' => $validated['given_name'],
             'middle_name' => $validated['middle_name'] ?? null,
             'surname' => $validated['surname'],
-            'email' => $validated['email'] ?? null,
+            'email' => $email,
             'avatar' => $this->storeAvatar($validated['avatar'] ?? null),
             'phone' => $validated['phone'] ?? null,
             'province_id' => $province->id,
@@ -244,6 +264,16 @@ class ParticipantsController extends Controller
             'created_by_user_id' => $request->user()?->id,
             'registration_consent_accepted_at' => now(),
             'password' => 'cers2026',
+        ]);
+
+        $registration = EventRegistration::query()->create([
+            'user_id' => $participant->id,
+            'event_id' => $event->id,
+            'organization_id' => $organization?->id,
+            'organization' => $validated['organization'] ?? null,
+            'participant_type' => $validated['participant_type'],
+            'created_by_user_id' => $request->user()?->id,
+            'registration_consent_accepted_at' => now(),
         ]);
 
         if ($validated['check_in'] ?? false) {
@@ -266,8 +296,8 @@ class ParticipantsController extends Controller
                     'participant_id' => $participant->participant_id,
                     'name' => $participant->name,
                     'email' => $participant->email,
-                    'organization' => $participant->organization,
-                    'event_name' => $event?->name ?? $participant->event_name,
+                    'organization' => $registration->organization,
+                    'event_name' => $event->name,
                 ]);
             } catch (\Throwable $e) {
                 Log::error('Brevo registration email failed from ParticipantsController.', [
@@ -409,6 +439,27 @@ class ParticipantsController extends Controller
         $validated['organization_id'] = $organization->id;
         $validated['event_id'] = $event->id;
         $validated['event_name'] = $event->slug;
+
+        $registration = $participant->eventRegistrations()
+            ->where('event_id', $participant->event_id)
+            ->first();
+
+        if (
+            $registration
+            && (int) $registration->event_id !== (int) $event->id
+            && $participant->eventRegistrations()->where('event_id', $event->id)->exists()
+        ) {
+            return back()
+                ->withErrors(['event_name' => 'This participant is already registered for the selected event.'])
+                ->withInput();
+        }
+
+        $registration?->update([
+            'event_id' => $event->id,
+            'organization_id' => $organization->id,
+            'organization' => $validated['organization'],
+            'participant_type' => $validated['participant_type'],
+        ]);
 
         $participant->update($validated);
 

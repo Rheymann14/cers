@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\EventRegistration;
 use App\Models\Organization;
 use App\Models\ParticipantType;
 use Illuminate\Http\RedirectResponse;
@@ -31,7 +32,8 @@ class ParticipantProfileController extends Controller
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label']),
             'events' => Event::query()
-                ->where('is_active', true)
+                ->whereHas('registrations', fn ($query) => $query
+                    ->where('user_id', $request->user()?->id))
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label']),
         ]);
@@ -97,11 +99,23 @@ class ParticipantProfileController extends Controller
         $event = Event::query()
             ->where('slug', $validated['event_name'])
             ->firstOrFail();
+        $registration = EventRegistration::query()
+            ->where('user_id', $user->id)
+            ->where('event_id', $event->id)
+            ->first();
+
+        if (! $registration) {
+            return back()
+                ->withErrors([
+                    'event_name' => 'You are not registered for the selected event.',
+                ])
+                ->withInput();
+        }
 
         if (
-            filled($user->participant_type)
+            filled($registration->participant_type)
             && ! $event->participantTypes()
-                ->where('slug', $user->participant_type)
+                ->where('slug', $registration->participant_type)
                 ->where('is_active', true)
                 ->exists()
         ) {
@@ -114,6 +128,12 @@ class ParticipantProfileController extends Controller
 
         $validated['event_id'] = $event->id;
         $validated['event_name'] = $event->slug;
+
+        $registration->update([
+            'organization_id' => $organization->id,
+            'organization' => $validated['organization'],
+            'position' => $validated['position'] ?? null,
+        ]);
 
         $user->fill($validated);
 

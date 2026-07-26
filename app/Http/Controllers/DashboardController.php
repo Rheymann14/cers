@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\EventAttendance;
+use App\Models\EventRegistration;
 use App\Models\Municipality;
 use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\Province;
-use App\Models\User;
 use Carbon\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,7 +18,7 @@ class DashboardController extends Controller
     public function __invoke(): Response
     {
         $events = Event::query()
-            ->withCount('users')
+            ->withCount(['registrations as users_count'])
             ->orderBy('starts_at')
             ->orderBy('name')
             ->get([
@@ -29,12 +29,12 @@ class DashboardController extends Controller
                 'ends_at',
             ]);
 
-        $eventsById = $events->keyBy('id');
-
         $checkedInByEvent = EventAttendance::query()
             ->selectRaw('event_id, count(distinct user_id) as checked_in_count')
             ->whereHas('participant', function ($query) {
-                $query->whereColumn('users.event_id', 'event_attendances.event_id');
+                $query->whereHas('eventRegistrations', function ($query) {
+                    $query->whereColumn('event_registrations.event_id', 'event_attendances.event_id');
+                });
             })
             ->groupBy('event_id')
             ->pluck('checked_in_count', 'event_id');
@@ -70,7 +70,7 @@ class DashboardController extends Controller
                 return [
                     'date' => $date->toDateString(),
                     'label' => $date->format('M j'),
-                    'count' => User::query()
+                    'count' => EventRegistration::query()
                         ->whereDate('created_at', $date->toDateString())
                         ->count(),
                 ];
@@ -78,11 +78,14 @@ class DashboardController extends Controller
 
         $checkedInParticipantsList = EventAttendance::query()
             ->whereHas('participant', function ($query) {
-                $query->whereColumn('users.event_id', 'event_attendances.event_id');
+                $query->whereHas('eventRegistrations', function ($query) {
+                    $query->whereColumn('event_registrations.event_id', 'event_attendances.event_id');
+                });
             })
             ->with([
                 'event:id,name,slug',
-                'participant:id,participant_id,name,given_name,middle_name,surname,email,phone,organization,participant_type,sex,event_id,event_name,province_id,municipality_id,is_active,created_at',
+                'participant:id,participant_id,name,given_name,middle_name,surname,email,phone,sex,province_id,municipality_id,is_active',
+                'participant.eventRegistrations',
                 'participant.province:id,name',
                 'participant.municipality:id,name',
                 'checkedInBy:id,name',
@@ -93,6 +96,8 @@ class DashboardController extends Controller
             ->map(function (EventAttendance $attendance) {
                 $participant = $attendance->participant;
                 $event = $attendance->event;
+                $registration = $participant->eventRegistrations
+                    ->firstWhere('event_id', $event->id);
 
                 return [
                     'id' => $attendance->id,
@@ -103,52 +108,44 @@ class DashboardController extends Controller
                     'surname' => $participant->surname,
                     'email' => $participant->email,
                     'phone' => $participant->phone,
-                    'organization' => $participant->organization,
-                    'participant_type' => $participant->participant_type,
+                    'organization' => $registration?->organization,
+                    'participant_type' => $registration?->participant_type,
                     'sex' => $participant->sex,
                     'province' => $participant->province?->name,
                     'municipality' => $participant->municipality?->name,
                     'is_active' => $participant->is_active,
                     'event_name' => $event->name,
                     'event_slug' => $event->slug,
-                    'registered_at' => $participant->created_at?->toIso8601String(),
+                    'registered_at' => $registration?->created_at?->toIso8601String(),
                     'checked_in_at' => $attendance->checked_in_at?->toIso8601String(),
                     'scanned_by' => $attendance->checkedInBy?->name,
                 ];
             })
             ->values();
 
-        $notCheckedInParticipantsList = User::query()
-            ->with(['province:id,name', 'municipality:id,name'])
-            ->whereNotNull('event_id')
-            ->whereDoesntHave('attendances', function ($query) {
-                $query->whereColumn('event_attendances.event_id', 'users.event_id');
-            })
-            ->latest()
-            ->get([
-                'id',
-                'participant_id',
-                'name',
-                'given_name',
-                'middle_name',
-                'surname',
-                'email',
-                'phone',
-                'organization',
-                'participant_type',
-                'sex',
-                'event_id',
-                'event_name',
-                'province_id',
-                'municipality_id',
-                'is_active',
-                'created_at',
+        $checkedInKeys = EventAttendance::query()
+            ->get(['event_id', 'user_id'])
+            ->mapWithKeys(fn (EventAttendance $attendance) => [
+                $attendance->event_id.':'.$attendance->user_id => true,
+            ]);
+        $notCheckedInParticipantsList = EventRegistration::query()
+            ->with([
+                'event:id,name,slug',
+                'user:id,participant_id,name,given_name,middle_name,surname,email,phone,sex,province_id,municipality_id,is_active',
+                'user.province:id,name',
+                'user.municipality:id,name',
             ])
-            ->map(function (User $participant) use ($eventsById) {
-                $event = $eventsById->get($participant->event_id);
+            ->latest()
+            ->get()
+            ->reject(fn (EventRegistration $registration) => $checkedInKeys->has(
+                $registration->event_id.':'.$registration->user_id,
+            ))
+            ->map(function (EventRegistration $registration) {
+                $participant = $registration->user;
+                $event = $registration->event;
 
                 return [
-                    'id' => $participant->id,
+                    'id' => $registration->id,
                     'participant_id' => $participant->participant_id,
                     'name' => $participant->name,
                     'given_name' => $participant->given_name,
@@ -156,15 +153,15 @@ class DashboardController extends Controller
                     'surname' => $participant->surname,
                     'email' => $participant->email,
                     'phone' => $participant->phone,
-                    'organization' => $participant->organization,
-                    'participant_type' => $participant->participant_type,
+                    'organization' => $registration->organization,
+                    'participant_type' => $registration->participant_type,
                     'sex' => $participant->sex,
                     'province' => $participant->province?->name,
                     'municipality' => $participant->municipality?->name,
                     'is_active' => $participant->is_active,
-                    'event_name' => $event?->name ?? $participant->event_name,
-                    'event_slug' => $event?->slug ?? $participant->event_name,
-                    'registered_at' => $participant->created_at?->toIso8601String(),
+                    'event_name' => $event?->name,
+                    'event_slug' => $event?->slug,
+                    'registered_at' => $registration->created_at?->toIso8601String(),
                     'checked_in_at' => null,
                     'scanned_by' => null,
                 ];
@@ -177,23 +174,24 @@ class DashboardController extends Controller
                 'checkedInParticipants' => $checkedInParticipants,
                 'notCheckedInParticipants' => $notCheckedInParticipants,
             ],
-            'recentParticipants' => User::query()
-                ->whereNotNull('event_name')
+            'recentParticipants' => EventRegistration::query()
+                ->with(['user:id,participant_id,name,email', 'event:id,name,slug'])
                 ->latest()
-                ->get([
-                    'id',
-                    'participant_id',
-                    'name',
-                    'email',
-                    'organization',
-                    'participant_type',
-                    'event_name',
-                    'created_at',
+                ->get()
+                ->map(fn (EventRegistration $registration) => [
+                    'id' => $registration->id,
+                    'participant_id' => $registration->user?->participant_id,
+                    'name' => $registration->user?->name,
+                    'email' => $registration->user?->email,
+                    'organization' => $registration->organization,
+                    'participant_type' => $registration->participant_type,
+                    'event_name' => $registration->event?->slug,
+                    'created_at' => $registration->created_at,
                 ]),
-            'eventSummary' => User::query()
-                ->selectRaw('event_name, count(*) as participants_count')
-                ->whereNotNull('event_name')
-                ->groupBy('event_name')
+            'eventSummary' => EventRegistration::query()
+                ->join('events', 'events.id', '=', 'event_registrations.event_id')
+                ->selectRaw('events.slug as event_name, count(*) as participants_count')
+                ->groupBy('events.slug')
                 ->orderByDesc('participants_count')
                 ->get(),
             'registrationTrend' => $registrationTrend,
@@ -211,16 +209,18 @@ class DashboardController extends Controller
             'checkedInParticipants' => $checkedInParticipantsList,
             'notCheckedInParticipants' => $notCheckedInParticipantsList,
             'participantStatistics' => [
-                'participants' => User::query()
+                'participants' => EventRegistration::query()
+                    ->join('users', 'users.id', '=', 'event_registrations.user_id')
+                    ->join('events', 'events.id', '=', 'event_registrations.event_id')
                     ->get([
-                        'id',
-                        'province_id',
-                        'municipality_id',
-                        'sex',
-                        'participant_type',
-                        'organization_id',
-                        'organization',
-                        'event_name',
+                        'event_registrations.id',
+                        'users.province_id',
+                        'users.municipality_id',
+                        'users.sex',
+                        'event_registrations.participant_type',
+                        'event_registrations.organization_id',
+                        'event_registrations.organization',
+                        'events.slug as event_name',
                     ]),
                 'provinces' => Province::query()
                     ->select(['id', 'name', 'code'])
@@ -241,12 +241,12 @@ class DashboardController extends Controller
                         'participant_types.type',
                         'events.slug as event_slug',
                     ])
-                    ->withCount('users')
+                    ->withCount('registrations')
                     ->orderBy('participant_types.name')
                     ->get(),
                 'organizations' => Organization::query()
                     ->select(['id', 'name', 'slug', 'type'])
-                    ->withCount('users')
+                    ->withCount('registrations')
                     ->orderBy('name')
                     ->get(),
             ],

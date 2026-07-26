@@ -290,7 +290,9 @@ function getCameraErrorMessage(error: unknown) {
 }
 
 function isCersVirtualIdQr(value: string) {
-    return value.trim().startsWith('CERS:VID:1:');
+    const token = value.trim();
+
+    return token.startsWith('CERS:VID:1:') || token.startsWith('CERS:VID:2:');
 }
 
 const closedEventScanError =
@@ -591,6 +593,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                                 'Only CERS virtual ID QR codes can be scanned.';
 
                             pauseScannerWithError(message);
+
                             return;
                         } else {
                             const checkedIn = await submitCheckIn(
@@ -607,6 +610,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                     pauseScannerWithError(
                         'The camera image could not be scanned. Keep the QR code inside the frame or use Participant ID entry.',
                     );
+
                     return;
                 }
             }
