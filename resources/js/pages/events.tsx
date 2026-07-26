@@ -545,7 +545,7 @@ function EventPdfDialog({
 }) {
     return (
         <Dialog open={event !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-3 p-4 sm:h-[92dvh] sm:max-h-[92dvh] sm:w-[94vw]">
+            <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] flex-col gap-3 p-4 sm:h-[92dvh] sm:max-h-[92dvh] sm:w-[94vw] sm:max-w-[94vw] lg:max-w-6xl">
                 <DialogHeader className="shrink-0 text-left">
                     <DialogTitle className="inline-flex items-center gap-2 text-base">
                         <FileText className="size-4 text-slate-500 dark:text-neutral-400" />
@@ -560,7 +560,7 @@ function EventPdfDialog({
                     <iframe
                         src={event.pdf_url}
                         title={`${event.name} PDF preview`}
-                        className="min-h-0 flex-1 rounded-xl border border-[#d9e5f5] bg-white dark:border-neutral-800"
+                        className="min-h-0 w-full flex-1 rounded-xl border border-[#d9e5f5] bg-white dark:border-neutral-800"
                     />
                 ) : null}
 
