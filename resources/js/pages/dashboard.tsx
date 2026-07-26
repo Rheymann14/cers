@@ -168,6 +168,7 @@ type StatisticMunicipality = StatisticOption & {
 type StatisticParticipantType = StatisticOption & {
     slug: string;
     type: string;
+    event_slug: string;
 };
 
 type StatisticOrganization = StatisticOption & {
@@ -2029,6 +2030,24 @@ export default function Dashboard({
                   ),
         [eventFilter, participantStatistics.participants],
     );
+    const eventParticipantTypes = useMemo(() => {
+        if (eventFilter !== 'all') {
+            return participantStatistics.participantTypes.filter(
+                (participantType) => participantType.event_slug === eventFilter,
+            );
+        }
+
+        return Array.from(
+            new Map(
+                participantStatistics.participantTypes.map(
+                    (participantType) => [
+                        participantType.slug,
+                        participantType,
+                    ],
+                ),
+            ).values(),
+        );
+    }, [eventFilter, participantStatistics.participantTypes]);
     const filteredStatisticParticipants = useMemo(
         () =>
             eventStatisticParticipants.filter((participant) =>
@@ -2143,7 +2162,7 @@ export default function Dashboard({
     }, [filteredStatisticMunicipalities, filteredStatisticParticipants]);
     const participantTypeBreakdown = useMemo(() => {
         const knownParticipantTypeSlugs = new Set(
-            participantStatistics.participantTypes.map(
+            eventParticipantTypes.map(
                 (participantType) => participantType.slug,
             ),
         );
@@ -2159,19 +2178,16 @@ export default function Dashboard({
         );
 
         return [
-            ...participantStatistics.participantTypes.map(
-                (participantType) => ({
-                    key: participantType.slug,
-                    label: participantType.name,
-                    meta: formatLabel(participantType.type),
-                    count: countStatisticParticipants(
-                        filteredStatisticParticipants,
-                        (participant) =>
-                            participant.participant_type ===
-                            participantType.slug,
-                    ),
-                }),
-            ),
+            ...eventParticipantTypes.map((participantType) => ({
+                key: participantType.slug,
+                label: participantType.name,
+                meta: formatLabel(participantType.type),
+                count: countStatisticParticipants(
+                    filteredStatisticParticipants,
+                    (participant) =>
+                        participant.participant_type === participantType.slug,
+                ),
+            })),
             {
                 key: 'unlisted-participant-type',
                 label: 'Unlisted participant type',
@@ -2183,7 +2199,7 @@ export default function Dashboard({
                 count: missingParticipantTypeCount,
             },
         ];
-    }, [filteredStatisticParticipants, participantStatistics.participantTypes]);
+    }, [eventParticipantTypes, filteredStatisticParticipants]);
     const organizationBreakdown = useMemo(
         () =>
             buildOrganizationGroups(
@@ -2274,21 +2290,18 @@ export default function Dashboard({
                 count: eventStatisticParticipants.length,
                 description: 'Include every participant category.',
             },
-            ...participantStatistics.participantTypes.map(
-                (participantType) => ({
-                    value: participantType.slug,
-                    label: participantType.name,
-                    count: countStatisticParticipants(
-                        eventStatisticParticipants,
-                        (participant) =>
-                            participant.participant_type ===
-                            participantType.slug,
-                    ),
-                    description: formatLabel(participantType.type),
-                }),
-            ),
+            ...eventParticipantTypes.map((participantType) => ({
+                value: participantType.slug,
+                label: participantType.name,
+                count: countStatisticParticipants(
+                    eventStatisticParticipants,
+                    (participant) =>
+                        participant.participant_type === participantType.slug,
+                ),
+                description: formatLabel(participantType.type),
+            })),
         ],
-        [eventStatisticParticipants, participantStatistics.participantTypes],
+        [eventParticipantTypes, eventStatisticParticipants],
     );
     const organizationFilterOptions = useMemo(
         () => [

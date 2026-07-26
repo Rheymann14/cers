@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Event;
 use App\Models\Municipality;
 use App\Models\Organization;
 use App\Models\ParticipantType;
@@ -19,11 +20,16 @@ class PageSettingsController extends Controller
     {
         return Inertia::render('page_settings', [
             'participantTypes' => ParticipantType::query()
-                ->select(['id', 'name', 'slug', 'type', 'is_active', 'created_by_user_id', 'created_at'])
+                ->select(['id', 'event_id', 'name', 'slug', 'type', 'is_active', 'created_by_user_id', 'created_at'])
                 ->with('creator:id,name')
                 ->withCount('users')
                 ->orderBy('name')
                 ->get(),
+            'events' => Event::query()
+                ->orderByRaw('starts_at is null')
+                ->orderByDesc('starts_at')
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug', 'starts_at', 'ends_at', 'is_active']),
             'organizations' => Organization::query()
                 ->select(['id', 'name', 'slug', 'type', 'is_active', 'created_by_user_id', 'created_at'])
                 ->with('creator:id,name')
@@ -138,13 +144,18 @@ class PageSettingsController extends Controller
                 'string',
                 'max:255',
                 'alpha_dash:ascii',
-                Rule::unique($this->tableName($table), 'slug')->ignore($id),
+                $table === 'participant-types'
+                    ? Rule::unique('participant_types', 'slug')
+                        ->where('event_id', $request->integer('event_id'))
+                        ->ignore($id)
+                    : Rule::unique($this->tableName($table), 'slug')->ignore($id),
             ],
         ];
 
         return match ($table) {
             'participant-types' => $request->validate([
                 ...$baseRules,
+                'event_id' => ['required', 'integer', Rule::exists('events', 'id')],
                 'type' => ['required', 'string', Rule::in(['general', '4ps'])],
                 'is_active' => ['boolean'],
             ]),

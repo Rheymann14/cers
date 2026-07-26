@@ -29,12 +29,18 @@ class WelcomeLookupController extends Controller
                 ->orderBy('name')
                 ->get(['code as value', 'name as label']),
             'participantTypes' => ParticipantType::query()
-                ->where('is_active', true)
-                ->whereNotIn('slug', ['admin', 'administrator'])
-                ->whereNotIn('name', ['Admin', 'Administrator'])
+                ->join('events', 'events.id', '=', 'participant_types.event_id')
+                ->where('participant_types.is_active', true)
+                ->whereNotIn('participant_types.slug', ['admin', 'administrator'])
+                ->whereNotIn('participant_types.name', ['Admin', 'Administrator'])
                 ->orderByRaw("CASE WHEN type = '4ps' THEN 1 ELSE 2 END")
-                ->orderBy('name')
-                ->get(['slug as value', 'name as label', 'type']),
+                ->orderBy('participant_types.name')
+                ->get([
+                    'participant_types.slug as value',
+                    'participant_types.name as label',
+                    'participant_types.type',
+                    'events.slug as event_slug',
+                ]),
             'events' => Event::query()
                 ->where('is_active', true)
                 ->whereNotNull('starts_at')

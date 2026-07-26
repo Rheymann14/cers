@@ -65,10 +65,16 @@ class ParticipantsController extends Controller
                     'type',
                 ]),
             'participantTypes' => ParticipantType::query()
-                ->where('is_active', true)
+                ->join('events', 'events.id', '=', 'participant_types.event_id')
+                ->where('participant_types.is_active', true)
                 ->orderByRaw("CASE WHEN type = '4ps' THEN 1 ELSE 2 END")
-                ->orderBy('name')
-                ->get(['slug as value', 'name as label', 'type']),
+                ->orderBy('participant_types.name')
+                ->get([
+                    'participant_types.slug as value',
+                    'participant_types.name as label',
+                    'participant_types.type',
+                    'events.slug as event_slug',
+                ]),
             'events' => Event::query()
                 ->where('is_active', true)
                 ->orderByRaw('starts_at is null')
@@ -129,7 +135,13 @@ class ParticipantsController extends Controller
             'participant_type' => [
                 'required',
                 'string',
-                Rule::exists('participant_types', 'slug')->where('is_active', true),
+                Rule::exists('participant_types', 'slug')->where(
+                    fn ($query) => $query
+                        ->where('is_active', true)
+                        ->where('event_id', Event::query()
+                            ->where('slug', $request->input('event_name'))
+                            ->value('id')),
+                ),
             ],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
             'event_name' => [
@@ -264,7 +276,13 @@ class ParticipantsController extends Controller
             'participant_type' => [
                 'required',
                 'string',
-                Rule::exists('participant_types', 'slug')->where('is_active', true),
+                Rule::exists('participant_types', 'slug')->where(
+                    fn ($query) => $query
+                        ->where('is_active', true)
+                        ->where('event_id', Event::query()
+                            ->where('slug', $request->input('event_name'))
+                            ->value('id')),
+                ),
             ],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
             'event_name' => [

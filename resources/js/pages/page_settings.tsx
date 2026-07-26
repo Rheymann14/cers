@@ -89,7 +89,17 @@ type CreatedSetting = BaseSetting & {
 };
 
 type ParticipantType = CreatedSetting & {
+    event_id: number;
     type: string;
+};
+
+type EventOption = {
+    id: number;
+    name: string;
+    slug: string;
+    starts_at: string | null;
+    ends_at: string | null;
+    is_active: boolean;
 };
 
 type Organization = CreatedSetting & {
@@ -121,6 +131,7 @@ type SettingsKey =
 type SettingsRecord = ParticipantType | Organization | Province | Municipality;
 
 type SettingsForm = {
+    event_id: string;
     name: string;
     slug: string;
     type: string;
@@ -132,6 +143,7 @@ type SettingsForm = {
 
 type Props = {
     participantTypes: ParticipantType[];
+    events: EventOption[];
     organizations: Organization[];
     provinces: Province[];
     municipalities: Municipality[];
@@ -140,6 +152,7 @@ type Props = {
 const pageSizeOptions = [5, 10, 25];
 
 const defaultForm: SettingsForm = {
+    event_id: '',
     name: '',
     slug: '',
     type: 'general',
@@ -197,6 +210,7 @@ function scrollToSettingsSection(sectionId: string) {
 
 export default function PageSettings({
     participantTypes,
+    events,
     organizations,
     provinces,
     municipalities,
@@ -240,6 +254,7 @@ export default function PageSettings({
                     searchPlaceholder="Search participant types..."
                     emptyText="No participant types found."
                     items={participantTypes}
+                    eventOptions={events}
                     columns={[
                         {
                             label: 'Participant Type',
@@ -448,6 +463,7 @@ function SettingsTable({
     searchPlaceholder,
     emptyText,
     items,
+    eventOptions = [],
     provinceOptions = [],
     columns,
 }: {
@@ -459,6 +475,7 @@ function SettingsTable({
     searchPlaceholder: string;
     emptyText: string;
     items: SettingsRecord[];
+    eventOptions?: EventOption[];
     provinceOptions?: Province[];
     columns: {
         label: string;
@@ -475,6 +492,10 @@ function SettingsTable({
     const [statusItem, setStatusItem] = useState<SettingsRecord | null>(null);
     const [dialogMode, setDialogMode] = useState<'add' | 'edit' | null>(null);
     const [provincePopoverOpen, setProvincePopoverOpen] = useState(false);
+    const [eventPopoverOpen, setEventPopoverOpen] = useState(false);
+    const [selectedEventId, setSelectedEventId] = useState(
+        eventOptions[0] ? String(eventOptions[0].id) : '',
+    );
     const {
         data,
         setData,
@@ -488,15 +509,23 @@ function SettingsTable({
 
     const filteredItems = useMemo(() => {
         const query = search.trim().toLowerCase();
+        const eventItems =
+            tableKey === 'participant-types'
+                ? items.filter(
+                      (item) =>
+                          'event_id' in item &&
+                          String(item.event_id) === selectedEventId,
+                  )
+                : items;
 
         if (!query) {
-            return items;
+            return eventItems;
         }
 
-        return items.filter((item) =>
+        return eventItems.filter((item) =>
             searchableText(item).toLowerCase().includes(query),
         );
-    }, [items, search]);
+    }, [items, search, selectedEventId, tableKey]);
 
     const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
     const currentPage = Math.min(page, totalPages);
@@ -504,6 +533,9 @@ function SettingsTable({
     const pageItems = filteredItems.slice(startIndex, startIndex + pageSize);
     const selectedProvince = provinceOptions.find(
         (province) => String(province.id) === data.province_id,
+    );
+    const selectedEvent = eventOptions.find(
+        (event) => String(event.id) === selectedEventId,
     );
 
     function updateSearch(value: string) {
@@ -519,7 +551,9 @@ function SettingsTable({
     function openAddDialog() {
         clearErrors();
         setEditingItem(null);
-        setData(defaultSettingsForm(tableKey, provinceOptions));
+        setData(
+            defaultSettingsForm(tableKey, provinceOptions, selectedEventId),
+        );
         setDialogMode('add');
     }
 
@@ -533,6 +567,8 @@ function SettingsTable({
             code: 'code' in item ? item.code : '',
             region_name: 'region_name' in item ? item.region_name : '',
             province_id: 'province_id' in item ? String(item.province_id) : '',
+            event_id:
+                'event_id' in item ? String(item.event_id) : selectedEventId,
             is_active: item.is_active,
         });
         setDialogMode('edit');
@@ -612,6 +648,9 @@ function SettingsTable({
                     type="button"
                     size="sm"
                     onClick={openAddDialog}
+                    disabled={
+                        tableKey === 'participant-types' && !selectedEventId
+                    }
                     className="h-8 justify-center text-xs"
                 >
                     <Plus className="size-3.5" />
@@ -620,14 +659,91 @@ function SettingsTable({
             </div>
 
             <div className="flex flex-col gap-3 border-b p-3 sm:p-4 md:flex-row md:items-center md:justify-between">
-                <div className="relative w-full md:max-w-sm">
-                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        value={search}
-                        onChange={(event) => updateSearch(event.target.value)}
-                        placeholder={searchPlaceholder}
-                        className="pl-9"
-                    />
+                <div className="flex w-full flex-col gap-2 sm:flex-row md:max-w-2xl">
+                    {tableKey === 'participant-types' && (
+                        <Popover
+                            open={eventPopoverOpen}
+                            onOpenChange={setEventPopoverOpen}
+                        >
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={eventPopoverOpen}
+                                    className="w-full justify-between font-normal sm:max-w-xs"
+                                >
+                                    <span className="truncate">
+                                        {selectedEvent?.name ??
+                                            'Select an event'}
+                                    </span>
+                                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                                align="start"
+                                className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                            >
+                                <Command>
+                                    <CommandInput placeholder="Search events..." />
+                                    <CommandList>
+                                        <CommandEmpty>
+                                            No events found.
+                                        </CommandEmpty>
+                                        <CommandGroup heading="Events">
+                                            {eventOptions.map((event) => (
+                                                <CommandItem
+                                                    key={event.id}
+                                                    value={`${event.name} ${event.slug}`}
+                                                    onSelect={() => {
+                                                        setSelectedEventId(
+                                                            String(event.id),
+                                                        );
+                                                        setPage(1);
+                                                        setEventPopoverOpen(
+                                                            false,
+                                                        );
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            'mr-2 size-4',
+                                                            selectedEventId ===
+                                                                String(event.id)
+                                                                ? 'opacity-100'
+                                                                : 'opacity-0',
+                                                        )}
+                                                    />
+                                                    <span className="min-w-0 flex-1 truncate">
+                                                        {event.name}
+                                                    </span>
+                                                    {!event.is_active && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="ml-2"
+                                                        >
+                                                            Inactive
+                                                        </Badge>
+                                                    )}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                    )}
+                    <div className="relative w-full md:max-w-sm">
+                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={search}
+                            onChange={(event) =>
+                                updateSearch(event.target.value)
+                            }
+                            placeholder={searchPlaceholder}
+                            className="pl-9"
+                        />
+                    </div>
                 </div>
                 <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground md:justify-end">
                     <span>Rows</span>
@@ -1039,31 +1155,53 @@ function SettingsTable({
                         )}
 
                         {tableKey === 'participant-types' && (
-                            <div className="space-y-2">
-                                <Label htmlFor={`${tableKey}-type`}>
-                                    Category
-                                </Label>
-                                <Select
-                                    value={data.type}
-                                    onValueChange={(value) =>
-                                        setData('type', value)
-                                    }
-                                >
-                                    <SelectTrigger
-                                        id={`${tableKey}-type`}
-                                        aria-invalid={!!errors.type}
+                            <>
+                                <input
+                                    type="hidden"
+                                    name="event_id"
+                                    value={data.event_id}
+                                />
+                                <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                                    <span className="text-muted-foreground">
+                                        Event:{' '}
+                                    </span>
+                                    <span className="font-medium">
+                                        {eventOptions.find(
+                                            (event) =>
+                                                String(event.id) ===
+                                                data.event_id,
+                                        )?.name ?? 'No event selected'}
+                                    </span>
+                                    <InputError message={errors.event_id} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor={`${tableKey}-type`}>
+                                        Category
+                                    </Label>
+                                    <Select
+                                        value={data.type}
+                                        onValueChange={(value) =>
+                                            setData('type', value)
+                                        }
                                     >
-                                        <SelectValue placeholder="Select category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="general">
-                                            General
-                                        </SelectItem>
-                                        <SelectItem value="4ps">4Ps</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <InputError message={errors.type} />
-                            </div>
+                                        <SelectTrigger
+                                            id={`${tableKey}-type`}
+                                            aria-invalid={!!errors.type}
+                                        >
+                                            <SelectValue placeholder="Select category" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="general">
+                                                General
+                                            </SelectItem>
+                                            <SelectItem value="4ps">
+                                                4Ps
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError message={errors.type} />
+                                </div>
+                            </>
                         )}
 
                         <div className="grid gap-3 sm:grid-cols-2">
@@ -1274,9 +1412,11 @@ function StatusBadge({ active }: { active: boolean }) {
 function defaultSettingsForm(
     tableKey: SettingsKey,
     provinceOptions: Province[],
+    selectedEventId = '',
 ): SettingsForm {
     return {
         ...defaultForm,
+        event_id: tableKey === 'participant-types' ? selectedEventId : '',
         type:
             tableKey === 'participant-types'
                 ? 'general'

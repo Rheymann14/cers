@@ -233,9 +233,16 @@ class DashboardController extends Controller
                     ->orderBy('name')
                     ->get(),
                 'participantTypes' => ParticipantType::query()
-                    ->select(['id', 'name', 'slug', 'type'])
+                    ->join('events', 'events.id', '=', 'participant_types.event_id')
+                    ->select([
+                        'participant_types.id',
+                        'participant_types.name',
+                        'participant_types.slug',
+                        'participant_types.type',
+                        'events.slug as event_slug',
+                    ])
                     ->withCount('users')
-                    ->orderBy('name')
+                    ->orderBy('participant_types.name')
                     ->get(),
                 'organizations' => Organization::query()
                     ->select(['id', 'name', 'slug', 'type'])

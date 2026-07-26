@@ -148,6 +148,7 @@ type Option = {
     value: string;
     label: string;
     type?: string | null;
+    event_slug?: string;
 };
 
 type EventStatus = 'ongoing' | 'upcoming' | 'closed';
@@ -1730,20 +1731,48 @@ export default function Participants({
         [organizations],
     );
 
-    const fourPsParticipantTypes = useMemo(
+    const addParticipantTypes = useMemo(
         () =>
             participantTypes.filter(
+                (type) => type.event_slug === addData.event_name,
+            ),
+        [addData.event_name, participantTypes],
+    );
+    const editParticipantTypes = useMemo(
+        () =>
+            participantTypes.filter(
+                (type) => type.event_slug === data.event_name,
+            ),
+        [data.event_name, participantTypes],
+    );
+    const addFourPsParticipantTypes = useMemo(
+        () =>
+            addParticipantTypes.filter(
                 (type) => type.type?.trim().toLowerCase() === '4ps',
             ),
-        [participantTypes],
+        [addParticipantTypes],
     );
 
-    const generalParticipantTypes = useMemo(
+    const addGeneralParticipantTypes = useMemo(
         () =>
-            participantTypes.filter(
+            addParticipantTypes.filter(
                 (type) => type.type?.trim().toLowerCase() !== '4ps',
             ),
-        [participantTypes],
+        [addParticipantTypes],
+    );
+    const editFourPsParticipantTypes = useMemo(
+        () =>
+            editParticipantTypes.filter(
+                (type) => type.type?.trim().toLowerCase() === '4ps',
+            ),
+        [editParticipantTypes],
+    );
+    const editGeneralParticipantTypes = useMemo(
+        () =>
+            editParticipantTypes.filter(
+                (type) => type.type?.trim().toLowerCase() !== '4ps',
+            ),
+        [editParticipantTypes],
     );
 
     const normalizedAddedByOptions = useMemo(() => {
@@ -3289,13 +3318,13 @@ export default function Participants({
                                             id="add_participant_type"
                                             label="Participant type"
                                             value={addData.participant_type}
-                                            options={participantTypes}
+                                            options={addParticipantTypes}
                                             participantTypeGrouped
                                             fourPsOptions={
-                                                fourPsParticipantTypes
+                                                addFourPsParticipantTypes
                                             }
                                             generalOptions={
-                                                generalParticipantTypes
+                                                addGeneralParticipantTypes
                                             }
                                             placeholder="Search and select type"
                                             searchPlaceholder="Search participant type..."
@@ -3357,9 +3386,10 @@ export default function Participants({
                                         searchPlaceholder="Search event..."
                                         emptyMessage="No event found."
                                         error={addErrors.event_name}
-                                        onValueChange={(value) =>
-                                            setAddData('event_name', value)
-                                        }
+                                        onValueChange={(value) => {
+                                            setAddData('event_name', value);
+                                            setAddData('participant_type', '');
+                                        }}
                                     />
                                 </div>
                             )}
@@ -3661,10 +3691,10 @@ export default function Participants({
                                 id="participant_type"
                                 label="Participant type"
                                 value={data.participant_type}
-                                options={participantTypes}
+                                options={editParticipantTypes}
                                 participantTypeGrouped
-                                fourPsOptions={fourPsParticipantTypes}
-                                generalOptions={generalParticipantTypes}
+                                fourPsOptions={editFourPsParticipantTypes}
+                                generalOptions={editGeneralParticipantTypes}
                                 placeholder="Search and select type"
                                 searchPlaceholder="Search participant type..."
                                 emptyMessage="No type found."
@@ -3712,9 +3742,10 @@ export default function Participants({
                             searchPlaceholder="Search event..."
                             emptyMessage="No event found."
                             error={errors.event_name}
-                            onValueChange={(value) =>
-                                setData('event_name', value)
-                            }
+                            onValueChange={(value) => {
+                                setData('event_name', value);
+                                setData('participant_type', '');
+                            }}
                         />
 
                         <DialogFooter className="gap-2 sm:gap-2">

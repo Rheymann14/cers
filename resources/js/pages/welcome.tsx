@@ -72,6 +72,7 @@ type LookupOption = {
     value: string;
     label: string;
     type?: 'organization' | 'school' | string | null;
+    event_slug?: string;
 };
 
 type EventOption = LookupOption & {
@@ -708,28 +709,35 @@ export default function Welcome() {
             ),
         [organizations],
     );
+    const eventParticipantTypes = useMemo(
+        () =>
+            participantTypes.filter(
+                (type) => type.event_slug === selectedEvent,
+            ),
+        [participantTypes, selectedEvent],
+    );
     const participantTypeLabels = useMemo(
         () =>
-            participantTypes.flatMap((type) => [
+            eventParticipantTypes.flatMap((type) => [
                 normalizeLookupLabel(type.label),
                 normalizeLookupLabel(type.value),
             ]),
-        [participantTypes],
+        [eventParticipantTypes],
     );
     const fourPsParticipantTypes = useMemo(
         () =>
-            participantTypes.filter(
+            eventParticipantTypes.filter(
                 (type) => normalizeLookupLabel(type.type ?? '') === '4ps',
             ),
-        [participantTypes],
+        [eventParticipantTypes],
     );
 
     const generalParticipantTypes = useMemo(
         () =>
-            participantTypes.filter(
+            eventParticipantTypes.filter(
                 (type) => normalizeLookupLabel(type.type ?? '') !== '4ps',
             ),
-        [participantTypes],
+        [eventParticipantTypes],
     );
     const selectedEventOption = useMemo(
         () => events.find((event) => event.value === selectedEvent) ?? null,
@@ -766,10 +774,10 @@ export default function Welcome() {
         () =>
             selectedParticipantType === otherParticipantTypeValue
                 ? 'Others'
-                : (participantTypes.find(
+                : (eventParticipantTypes.find(
                       (type) => type.value === selectedParticipantType,
                   )?.label ?? ''),
-        [participantTypes, selectedParticipantType],
+        [eventParticipantTypes, selectedParticipantType],
     );
 
     const setActiveSectionIfChanged = useCallback((nextSection: string) => {
@@ -2462,6 +2470,9 @@ export default function Welcome() {
                                                                                 onSelect={() => {
                                                                                     setSelectedEvent(
                                                                                         event.value,
+                                                                                    );
+                                                                                    setSelectedParticipantType(
+                                                                                        '',
                                                                                     );
                                                                                     setEventPopoverOpen(
                                                                                         false,

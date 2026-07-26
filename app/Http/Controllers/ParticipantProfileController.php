@@ -23,6 +23,7 @@ class ParticipantProfileController extends Controller
                 ->orderBy('name')
                 ->get(['name as value', 'name as label']),
             'participantTypes' => ParticipantType::query()
+                ->where('event_id', $request->user()?->event_id)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['slug as value', 'name as label']),
@@ -80,6 +81,21 @@ class ParticipantProfileController extends Controller
         $event = Event::query()
             ->where('slug', $validated['event_name'])
             ->firstOrFail();
+
+        if (
+            filled($user->participant_type)
+            && ! $event->participantTypes()
+                ->where('slug', $user->participant_type)
+                ->where('is_active', true)
+                ->exists()
+        ) {
+            return back()
+                ->withErrors([
+                    'event_name' => 'Your participant type is not available for the selected event.',
+                ])
+                ->withInput();
+        }
+
         $validated['event_id'] = $event->id;
         $validated['event_name'] = $event->slug;
 
