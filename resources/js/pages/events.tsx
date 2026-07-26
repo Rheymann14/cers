@@ -68,6 +68,12 @@ type PageProps = {
 
 type EventStatus = 'ongoing' | 'upcoming' | 'closed';
 
+const eventStatusOrder: Record<EventStatus, number> = {
+    ongoing: 0,
+    upcoming: 1,
+    closed: 2,
+};
+
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'short',
@@ -771,25 +777,30 @@ export default function Events({ events }: Props) {
     );
     const filteredEvents = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
+        const matchingEvents = normalizedSearch
+            ? events.filter((event) =>
+                  [
+                      event.name,
+                      event.description,
+                      event.venue_name,
+                      event.venue_address,
+                      formatDateRange(event),
+                      getEventStatus(event),
+                      ...event.materials.map(
+                          (material) => material.original_name,
+                      ),
+                  ]
+                      .filter(Boolean)
+                      .join(' ')
+                      .toLowerCase()
+                      .includes(normalizedSearch),
+              )
+            : events;
 
-        if (!normalizedSearch) {
-            return events;
-        }
-
-        return events.filter((event) =>
-            [
-                event.name,
-                event.description,
-                event.venue_name,
-                event.venue_address,
-                formatDateRange(event),
-                getEventStatus(event),
-                ...event.materials.map((material) => material.original_name),
-            ]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase()
-                .includes(normalizedSearch),
+        return [...matchingEvents].sort(
+            (firstEvent, secondEvent) =>
+                eventStatusOrder[getEventStatus(firstEvent)] -
+                eventStatusOrder[getEventStatus(secondEvent)],
         );
     }, [events, search]);
 
