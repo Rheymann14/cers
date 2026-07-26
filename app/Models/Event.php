@@ -18,6 +18,7 @@ class Event extends Model
         'description',
         'venue_name',
         'venue_address',
+        'venue_map_link',
         'venue_latitude',
         'venue_longitude',
         'starts_at',

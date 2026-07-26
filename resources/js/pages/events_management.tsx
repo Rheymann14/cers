@@ -78,6 +78,7 @@ type ManagedEvent = {
     description: string | null;
     venue_name: string | null;
     venue_address: string | null;
+    venue_map_link: string | null;
     venue_latitude: string | null;
     venue_longitude: string | null;
     starts_at: string | null;
@@ -111,6 +112,7 @@ type EventForm = {
 type EventVenueForm = {
     venue_name: string;
     venue_address: string;
+    venue_map_link: string;
     venue_latitude: string;
     venue_longitude: string;
 };
@@ -137,6 +139,7 @@ const defaultForm: EventForm = {
 const defaultVenueForm: EventVenueForm = {
     venue_name: '',
     venue_address: '',
+    venue_map_link: '',
     venue_latitude: '',
     venue_longitude: '',
 };
@@ -262,6 +265,15 @@ function getEventDateStatus(event: ManagedEvent) {
 }
 
 function getVenueCoordinates(venue: EventVenueForm | ManagedEvent) {
+    if (
+        venue.venue_latitude === null ||
+        venue.venue_longitude === null ||
+        venue.venue_latitude.trim() === '' ||
+        venue.venue_longitude.trim() === ''
+    ) {
+        return null;
+    }
+
     const latitude = Number(venue.venue_latitude);
     const longitude = Number(venue.venue_longitude);
 
@@ -283,7 +295,11 @@ function getVenueMapSrc(venue: EventVenueForm | ManagedEvent) {
     const coordinates = getVenueCoordinates(venue);
 
     if (coordinates) {
-        return `https://maps.google.com/maps?output=embed&z=18&q=${coordinates.latitude},${coordinates.longitude}`;
+        const exactLocation = encodeURIComponent(
+            `loc:${coordinates.latitude},${coordinates.longitude}`,
+        );
+
+        return `https://maps.google.com/maps?output=embed&z=18&q=${exactLocation}`;
     }
 
     const query = [venue.venue_name, venue.venue_address]
@@ -369,7 +385,6 @@ export default function EventsManagement({ events }: Props) {
     const [registrationStatusEvent, setRegistrationStatusEvent] =
         useState<ManagedEvent | null>(null);
     const [venueEvent, setVenueEvent] = useState<ManagedEvent | null>(null);
-    const [venueMapLink, setVenueMapLink] = useState('');
     const [dialogMode, setDialogMode] = useState<'add' | 'edit' | null>(null);
     const [imagePreviewUrl, setImagePreviewUrl] = useState('');
     const {
@@ -484,10 +499,10 @@ export default function EventsManagement({ events }: Props) {
         setVenueData({
             venue_name: event.venue_name ?? '',
             venue_address: event.venue_address ?? '',
+            venue_map_link: event.venue_map_link ?? '',
             venue_latitude: event.venue_latitude ?? '',
             venue_longitude: event.venue_longitude ?? '',
         });
-        setVenueMapLink('');
     }
 
     function closeVenueDialog() {
@@ -496,13 +511,12 @@ export default function EventsManagement({ events }: Props) {
         }
 
         setVenueEvent(null);
-        setVenueMapLink('');
         resetVenue();
         clearVenueErrors();
     }
 
     function updateVenueMapLink(value: string) {
-        setVenueMapLink(value);
+        setVenueData('venue_map_link', value);
 
         const coordinates = extractCoordinatesFromMapsUrl(value);
 
@@ -1480,12 +1494,14 @@ export default function EventsManagement({ events }: Props) {
                             </Label>
                             <Input
                                 id="event-venue-map-link"
-                                value={venueMapLink}
+                                value={venueData.venue_map_link}
                                 onChange={(event) =>
                                     updateVenueMapLink(event.target.value)
                                 }
                                 placeholder="Paste full Google Maps URL to use its exact pin"
+                                aria-invalid={!!venueErrors.venue_map_link}
                             />
+                            <InputError message={venueErrors.venue_map_link} />
                         </div>
 
                         <div className="grid gap-3 sm:grid-cols-2">
