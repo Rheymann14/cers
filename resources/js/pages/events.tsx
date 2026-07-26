@@ -10,7 +10,8 @@ import {
     Search,
     Sun,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,11 @@ import {
 } from '@/components/ui/dialog';
 import { useAppearance } from '@/hooks/use-appearance';
 import { cn } from '@/lib/utils';
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+).toString();
 
 type EventMaterial = {
     id: number;
@@ -536,6 +542,84 @@ function EventImageDialog({
     );
 }
 
+function useMobilePdfPreview() {
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(max-width: 767px)');
+        const updateMatch = () => setIsMobile(mediaQuery.matches);
+
+        updateMatch();
+        mediaQuery.addEventListener('change', updateMatch);
+
+        return () => mediaQuery.removeEventListener('change', updateMatch);
+    }, []);
+
+    return isMobile;
+}
+
+function MobilePdfPreview({ name, url }: { name: string; url: string }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState(0);
+    const [numPages, setNumPages] = useState(0);
+
+    useEffect(() => {
+        const container = containerRef.current;
+
+        if (!container) {
+            return;
+        }
+
+        const updateWidth = () => setContainerWidth(container.clientWidth);
+        const resizeObserver = new ResizeObserver(updateWidth);
+
+        updateWidth();
+        resizeObserver.observe(container);
+
+        return () => resizeObserver.disconnect();
+    }, []);
+
+    return (
+        <div
+            ref={containerRef}
+            className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-[#d9e5f5] bg-slate-200 dark:border-neutral-800 dark:bg-neutral-950"
+        >
+            <Document
+                file={url}
+                aria-label={`${name} PDF preview`}
+                className="grid justify-items-center gap-3 p-2"
+                loading={
+                    <p className="p-6 text-center text-sm text-slate-600 dark:text-neutral-300">
+                        Loading PDF preview…
+                    </p>
+                }
+                error={
+                    <p className="p-6 text-center text-sm text-red-700 dark:text-red-300">
+                        The PDF preview could not be loaded. Please use the
+                        download button below.
+                    </p>
+                }
+                onLoadSuccess={({ numPages: loadedPages }) =>
+                    setNumPages(loadedPages)
+                }
+            >
+                {containerWidth > 0
+                    ? Array.from({ length: numPages }, (_, index) => (
+                          <Page
+                              key={`page-${index + 1}`}
+                              pageNumber={index + 1}
+                              width={Math.max(containerWidth - 16, 1)}
+                              renderAnnotationLayer={false}
+                              renderTextLayer={false}
+                              className="overflow-hidden rounded bg-white shadow-sm"
+                          />
+                      ))
+                    : null}
+            </Document>
+        </div>
+    );
+}
+
 function EventPdfDialog({
     event,
     onOpenChange,
@@ -543,6 +627,8 @@ function EventPdfDialog({
     event: PublicEvent | null;
     onOpenChange: (open: boolean) => void;
 }) {
+    const isMobilePdfPreview = useMobilePdfPreview();
+
     return (
         <Dialog open={event !== null} onOpenChange={onOpenChange}>
             <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] flex-col gap-3 p-4 sm:h-[92dvh] sm:max-h-[92dvh] sm:w-[94vw] sm:max-w-[94vw] lg:max-w-6xl">
@@ -557,11 +643,18 @@ function EventPdfDialog({
                 </DialogHeader>
 
                 {event?.pdf_url ? (
-                    <iframe
-                        src={event.pdf_url}
-                        title={`${event.name} PDF preview`}
-                        className="min-h-0 w-full flex-1 rounded-xl border border-[#d9e5f5] bg-white dark:border-neutral-800"
-                    />
+                    isMobilePdfPreview ? (
+                        <MobilePdfPreview
+                            name={event.name}
+                            url={event.pdf_url}
+                        />
+                    ) : (
+                        <iframe
+                            src={event.pdf_url}
+                            title={`${event.name} PDF preview`}
+                            className="min-h-0 w-full flex-1 rounded-xl border border-[#d9e5f5] bg-white dark:border-neutral-800"
+                        />
+                    )
                 ) : null}
 
                 <DialogFooter className="shrink-0">
