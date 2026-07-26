@@ -19,6 +19,9 @@ class ParticipantProfileController extends Controller
     {
         return Inertia::render('participant_profile', [
             'organizations' => Organization::query()
+                ->where(fn ($query) => $query
+                    ->whereNull('event_id')
+                    ->orWhere('event_id', $request->user()?->event_id))
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['name as value', 'name as label']),
@@ -50,7 +53,15 @@ class ParticipantProfileController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::exists('organizations', 'name')->where('is_active', true),
+                Rule::exists('organizations', 'name')->where(
+                    fn ($query) => $query
+                        ->where('is_active', true)
+                        ->where(fn ($query) => $query
+                            ->whereNull('event_id')
+                            ->orWhere('event_id', Event::query()
+                                ->where('slug', $request->input('event_name'))
+                                ->value('id'))),
+                ),
             ],
             'position' => ['nullable', 'string', 'max:255'],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
@@ -74,6 +85,11 @@ class ParticipantProfileController extends Controller
 
         $organization = Organization::query()
             ->where('name', $validated['organization'])
+            ->where(fn ($query) => $query
+                ->whereNull('event_id')
+                ->orWhere('event_id', Event::query()
+                    ->where('slug', $validated['event_name'])
+                    ->value('id')))
             ->where('is_active', true)
             ->firstOrFail();
 

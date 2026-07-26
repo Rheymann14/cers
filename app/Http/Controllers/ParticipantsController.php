@@ -57,13 +57,15 @@ class ParticipantsController extends Controller
                 ->latest('deleted_at')
                 ->get($columns),
             'organizations' => Organization::query()
-                ->where('is_active', true)
-                ->orderBy('type')
-                ->orderBy('name')
+                ->leftJoin('events', 'events.id', '=', 'organizations.event_id')
+                ->where('organizations.is_active', true)
+                ->orderBy('organizations.type')
+                ->orderBy('organizations.name')
                 ->get([
-                    'name as value',
-                    'name as label',
-                    'type',
+                    'organizations.name as value',
+                    'organizations.name as label',
+                    'organizations.type',
+                    'events.slug as event_slug',
                 ]),
             'participantTypes' => ParticipantType::query()
                 ->join('events', 'events.id', '=', 'participant_types.event_id')
@@ -131,7 +133,15 @@ class ParticipantsController extends Controller
                 'nullable',
                 'string',
                 'max:255',
-                Rule::exists('organizations', 'name')->where('is_active', true),
+                Rule::exists('organizations', 'name')->where(
+                    fn ($query) => $query
+                        ->where('is_active', true)
+                        ->where(fn ($query) => $query
+                            ->whereNull('event_id')
+                            ->orWhere('event_id', Event::query()
+                                ->where('slug', $request->input('event_name'))
+                                ->value('id'))),
+                ),
             ],
             'participant_type' => [
                 'required',
@@ -174,22 +184,33 @@ class ParticipantsController extends Controller
             $validated['middle_name'] ?? null,
             $validated['surname'],
         ])->filter()->implode(' '));
-        $organization = isset($validated['organization'])
-            ? Organization::query()->firstOrCreate(
-                ['slug' => str($validated['organization'])->slug()->toString()],
-                [
-                    'name' => $validated['organization'],
-                    'type' => 'school',
-                    'is_active' => true,
-                ],
-            )
-            : null;
         $event = isset($validated['event_name'])
             ? Event::query()
                 ->where('slug', $validated['event_name'])
                 ->where('is_active', true)
                 ->first()
             : null;
+        $organization = null;
+
+        if (isset($validated['organization']) && $event) {
+            $organizationSlug = str($validated['organization'])->slug()->toString();
+            $organization = Organization::query()
+                ->where('slug', $organizationSlug)
+                ->where('is_active', true)
+                ->where(fn ($query) => $query
+                    ->whereNull('event_id')
+                    ->orWhere('event_id', $event->id))
+                ->orderByRaw('event_id is null desc')
+                ->first();
+
+            $organization ??= Organization::query()->create([
+                'event_id' => $event->id,
+                'slug' => $organizationSlug,
+                'name' => $validated['organization'],
+                'type' => 'school',
+                'is_active' => true,
+            ]);
+        }
 
         if (
             ($validated['check_in'] ?? false)
@@ -295,7 +316,15 @@ class ParticipantsController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::exists('organizations', 'name')->where('is_active', true),
+                Rule::exists('organizations', 'name')->where(
+                    fn ($query) => $query
+                        ->where('is_active', true)
+                        ->where(fn ($query) => $query
+                            ->whereNull('event_id')
+                            ->orWhere('event_id', Event::query()
+                                ->where('slug', $request->input('event_name'))
+                                ->value('id'))),
+                ),
             ],
             'participant_type' => [
                 'required',
@@ -357,18 +386,27 @@ class ParticipantsController extends Controller
             $validated['municipality_id'] = null;
         }
 
-        $organization = Organization::query()->firstOrCreate(
-            ['slug' => str($validated['organization'])->slug()->toString()],
-            [
-                'name' => $validated['organization'],
-                'type' => 'school',
-                'is_active' => true,
-            ],
-        );
-        $validated['organization_id'] = $organization->id;
         $event = Event::query()
             ->where('slug', $validated['event_name'])
             ->firstOrFail();
+        $organizationSlug = str($validated['organization'])->slug()->toString();
+        $organization = Organization::query()
+            ->where('slug', $organizationSlug)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query
+                ->whereNull('event_id')
+                ->orWhere('event_id', $event->id))
+            ->orderByRaw('event_id is null desc')
+            ->first();
+
+        $organization ??= Organization::query()->create([
+            'event_id' => $event->id,
+            'slug' => $organizationSlug,
+            'name' => $validated['organization'],
+            'type' => 'school',
+            'is_active' => true,
+        ]);
+        $validated['organization_id'] = $organization->id;
         $validated['event_id'] = $event->id;
         $validated['event_name'] = $event->slug;
 

@@ -144,14 +144,6 @@ class CreateNewUser implements CreatesNewUsers
             $input['middle_name'] ?? null,
             $input['surname'],
         ])->filter()->implode(' '));
-        $organization = Organization::query()->firstOrCreate(
-            ['slug' => Str::slug($input['organization'])],
-            [
-                'name' => $input['organization'],
-                'type' => 'school',
-                'is_active' => true,
-            ],
-        );
         $province = Province::query()
             ->where('code', $input['province'])
             ->where('is_active', true)
@@ -169,6 +161,23 @@ class CreateNewUser implements CreatesNewUsers
             ->whereNotNull('ends_at')
             ->where('ends_at', '>=', now())
             ->firstOrFail();
+        $organizationSlug = Str::slug($input['organization']);
+        $organization = Organization::query()
+            ->where('slug', $organizationSlug)
+            ->where('is_active', true)
+            ->where(fn ($query) => $query
+                ->whereNull('event_id')
+                ->orWhere('event_id', $event->id))
+            ->orderByRaw('event_id is null desc')
+            ->first();
+
+        $organization ??= Organization::query()->create([
+            'event_id' => $event->id,
+            'slug' => $organizationSlug,
+            'name' => $input['organization'],
+            'type' => 'school',
+            'is_active' => true,
+        ]);
         $participantTypeSlug = Str::slug($input['participant_type']);
         $participantType = ParticipantType::query()->firstOrCreate(
             [

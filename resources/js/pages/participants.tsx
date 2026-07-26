@@ -1716,22 +1716,57 @@ export default function Participants({
         restoring ||
         updatingStatus;
 
-    const organizationOptions = useMemo(
+    const addOrganizations = useMemo(
         () =>
             organizations.filter(
+                (organization) =>
+                    !organization.event_slug ||
+                    organization.event_slug === addData.event_name,
+            ),
+        [addData.event_name, organizations],
+    );
+    const editOrganizations = useMemo(
+        () =>
+            organizations.filter(
+                (organization) =>
+                    !organization.event_slug ||
+                    organization.event_slug === data.event_name,
+            ),
+        [data.event_name, organizations],
+    );
+    const addOrganizationOptions = useMemo(
+        () =>
+            addOrganizations.filter(
                 (organization) =>
                     organization.type?.trim().toLowerCase() === 'agency',
             ),
-        [organizations],
+        [addOrganizations],
     );
-
-    const schoolOptions = useMemo(
+    const addSchoolOptions = useMemo(
         () =>
-            organizations.filter(
-                (organization) =>
-                    organization.type?.trim().toLowerCase() === 'institution',
+            addOrganizations.filter((organization) =>
+                ['institution', 'school'].includes(
+                    organization.type?.trim().toLowerCase() ?? '',
+                ),
             ),
-        [organizations],
+        [addOrganizations],
+    );
+    const editOrganizationOptions = useMemo(
+        () =>
+            editOrganizations.filter(
+                (organization) =>
+                    organization.type?.trim().toLowerCase() === 'agency',
+            ),
+        [editOrganizations],
+    );
+    const editSchoolOptions = useMemo(
+        () =>
+            editOrganizations.filter((organization) =>
+                ['institution', 'school'].includes(
+                    organization.type?.trim().toLowerCase() ?? '',
+                ),
+            ),
+        [editOrganizations],
     );
 
     const addParticipantTypes = useMemo(
@@ -3268,12 +3303,12 @@ export default function Participants({
                                         id="add_organization"
                                         label="School or organization"
                                         value={addData.organization}
-                                        options={organizations}
+                                        options={addOrganizations}
                                         grouped
                                         organizationOptions={
-                                            organizationOptions
+                                            addOrganizationOptions
                                         }
-                                        schoolOptions={schoolOptions}
+                                        schoolOptions={addSchoolOptions}
                                         placeholder="Search and select school or organization"
                                         searchPlaceholder="Search school or organization..."
                                         emptyMessage="No school or organization found."
@@ -3351,6 +3386,7 @@ export default function Participants({
                                         onValueChange={(value) => {
                                             setAddData('event_name', value);
                                             setAddData('participant_type', '');
+                                            setAddData('organization', '');
                                         }}
                                     />
 
@@ -3625,6 +3661,7 @@ export default function Participants({
                             onValueChange={(value) => {
                                 setData('event_name', value);
                                 setData('participant_type', '');
+                                setData('organization', '');
                             }}
                         />
 
@@ -3755,10 +3792,10 @@ export default function Participants({
                                 id="organization"
                                 label="School or organization"
                                 value={data.organization}
-                                options={organizations}
+                                options={editOrganizations}
                                 grouped
-                                organizationOptions={organizationOptions}
-                                schoolOptions={schoolOptions}
+                                organizationOptions={editOrganizationOptions}
+                                schoolOptions={editSchoolOptions}
                                 placeholder="Search and select school or organization"
                                 searchPlaceholder="Search school or organization..."
                                 emptyMessage="No school or organization found."

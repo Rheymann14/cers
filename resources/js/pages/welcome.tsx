@@ -684,30 +684,39 @@ export default function Welcome() {
     const previousEmailErrorRef = useRef<string | null>(null);
     const activeSectionRef = useRef(activeSection);
     const isNavbarScrolledRef = useRef(isNavbarScrolled);
-    const organizationLabels = useMemo(
-        () =>
-            organizations.map((organization) =>
-                normalizeLookupLabel(organization.label),
-            ),
-        [organizations],
-    );
-    const organizationOptions = useMemo(
+    const eventOrganizations = useMemo(
         () =>
             organizations.filter(
                 (organization) =>
+                    !organization.event_slug ||
+                    organization.event_slug === selectedEvent,
+            ),
+        [organizations, selectedEvent],
+    );
+    const organizationLabels = useMemo(
+        () =>
+            eventOrganizations.map((organization) =>
+                normalizeLookupLabel(organization.label),
+            ),
+        [eventOrganizations],
+    );
+    const organizationOptions = useMemo(
+        () =>
+            eventOrganizations.filter(
+                (organization) =>
                     normalizeLookupLabel(organization.type ?? '') === 'agency',
             ),
-        [organizations],
+        [eventOrganizations],
     );
 
     const schoolOptions = useMemo(
         () =>
-            organizations.filter(
-                (organization) =>
-                    normalizeLookupLabel(organization.type ?? '') ===
-                    'institution',
+            eventOrganizations.filter((organization) =>
+                ['institution', 'school'].includes(
+                    normalizeLookupLabel(organization.type ?? ''),
+                ),
             ),
-        [organizations],
+        [eventOrganizations],
     );
     const eventParticipantTypes = useMemo(
         () =>
@@ -750,11 +759,11 @@ export default function Welcome() {
         () =>
             selectedOrganization === otherOrganizationValue
                 ? 'Others'
-                : (organizations.find(
+                : (eventOrganizations.find(
                       (organization) =>
                           organization.value === selectedOrganization,
                   )?.label ?? ''),
-        [organizations, selectedOrganization],
+        [eventOrganizations, selectedOrganization],
     );
     const selectedProvinceOption = useMemo(
         () =>
@@ -1200,39 +1209,70 @@ export default function Welcome() {
         }
     }
 
+    function getOtherOrganizationValidationMessage(value: string) {
+        const normalizedValue = normalizeLookupLabel(value);
+
+        return normalizedValue && organizationLabels.includes(normalizedValue)
+            ? 'This school or organization already exists. Please search for it in the dropdown.'
+            : '';
+    }
+
+    function handleOtherOrganizationChange(
+        event: React.ChangeEvent<HTMLInputElement>,
+    ) {
+        event.currentTarget.setCustomValidity(
+            getOtherOrganizationValidationMessage(event.currentTarget.value),
+        );
+    }
+
     function handleOtherOrganizationBlur(
         event: React.FocusEvent<HTMLInputElement>,
     ) {
-        if (
-            organizationLabels.includes(
-                normalizeLookupLabel(event.currentTarget.value),
-            )
-        ) {
-            toast.error(
-                'This school or organization already exists. Please search for it in the dropdown.',
-                {
-                    duration: 7000,
-                    closeButton: true,
-                },
-            );
+        const message = getOtherOrganizationValidationMessage(
+            event.currentTarget.value,
+        );
+
+        event.currentTarget.setCustomValidity(message);
+
+        if (message) {
+            toast.error(message, {
+                duration: 7000,
+                closeButton: true,
+            });
         }
+    }
+
+    function getOtherParticipantTypeValidationMessage(value: string) {
+        const normalizedValue = normalizeLookupLabel(value);
+
+        return normalizedValue &&
+            participantTypeLabels.includes(normalizedValue)
+            ? 'This participant type already exists. Please search for it in the dropdown.'
+            : '';
+    }
+
+    function handleOtherParticipantTypeChange(
+        event: React.ChangeEvent<HTMLInputElement>,
+    ) {
+        event.currentTarget.setCustomValidity(
+            getOtherParticipantTypeValidationMessage(event.currentTarget.value),
+        );
     }
 
     function handleOtherParticipantTypeBlur(
         event: React.FocusEvent<HTMLInputElement>,
     ) {
-        if (
-            participantTypeLabels.includes(
-                normalizeLookupLabel(event.currentTarget.value),
-            )
-        ) {
-            toast.error(
-                'This participant type already exists. Please search for it in the dropdown.',
-                {
-                    duration: 7000,
-                    closeButton: true,
-                },
-            );
+        const message = getOtherParticipantTypeValidationMessage(
+            event.currentTarget.value,
+        );
+
+        event.currentTarget.setCustomValidity(message);
+
+        if (message) {
+            toast.error(message, {
+                duration: 7000,
+                closeButton: true,
+            });
         }
     }
 
@@ -1558,6 +1598,9 @@ export default function Welcome() {
                                                                                         event.value,
                                                                                     );
                                                                                     setSelectedParticipantType(
+                                                                                        '',
+                                                                                    );
+                                                                                    setSelectedOrganization(
                                                                                         '',
                                                                                     );
                                                                                     setEventPopoverOpen(
@@ -2185,6 +2228,9 @@ export default function Welcome() {
                                                             required
                                                             name="participant_type"
                                                             placeholder="Enter participant type"
+                                                            onChange={
+                                                                handleOtherParticipantTypeChange
+                                                            }
                                                             onBlur={
                                                                 handleOtherParticipantTypeBlur
                                                             }
@@ -2440,6 +2486,9 @@ export default function Welcome() {
                                                             autoComplete="organization"
                                                             name="organization"
                                                             placeholder="Enter school or organization"
+                                                            onChange={
+                                                                handleOtherOrganizationChange
+                                                            }
                                                             onBlur={
                                                                 handleOtherOrganizationBlur
                                                             }

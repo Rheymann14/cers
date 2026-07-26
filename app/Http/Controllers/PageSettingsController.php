@@ -31,6 +31,7 @@ class PageSettingsController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug', 'starts_at', 'ends_at', 'is_active']),
             'organizations' => Organization::query()
+                ->whereNull('event_id')
                 ->select(['id', 'name', 'slug', 'type', 'is_active', 'created_by_user_id', 'created_at'])
                 ->with('creator:id,name')
                 ->withCount('users')

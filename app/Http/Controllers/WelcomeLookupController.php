@@ -16,13 +16,15 @@ class WelcomeLookupController extends Controller
     {
         return response()->json([
             'organizations' => Organization::query()
-                ->where('is_active', true)
-                ->orderBy('type')
-                ->orderBy('name')
+                ->leftJoin('events', 'events.id', '=', 'organizations.event_id')
+                ->where('organizations.is_active', true)
+                ->orderBy('organizations.type')
+                ->orderBy('organizations.name')
                 ->get([
-                    'name as value',
-                    'name as label',
-                    'type',
+                    'organizations.name as value',
+                    'organizations.name as label',
+                    'organizations.type',
+                    'events.slug as event_slug',
                 ]),
             'provinces' => Province::query()
                 ->where('is_active', true)

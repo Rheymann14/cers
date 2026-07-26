@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'slug', 'type', 'is_active', 'created_by_user_id'])]
+#[Fillable(['event_id', 'name', 'slug', 'type', 'is_active', 'created_by_user_id'])]
 class Organization extends Model
 {
     use HasFactory;
@@ -23,6 +23,11 @@ class Organization extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function event(): BelongsTo
+    {
+        return $this->belongsTo(Event::class);
     }
 
     public function creator(): BelongsTo
