@@ -4,6 +4,7 @@ use App\Models\Event;
 use App\Models\Municipality;
 use App\Models\Organization;
 use App\Models\Province;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -114,4 +115,37 @@ test('registration stores and exposes a custom organization only for its event',
         ->and($customOrganizations->first()['event_slug'])->toBe($event->slug)
         ->and($defaultOrganization)->not->toBeNull()
         ->and($defaultOrganization['event_slug'])->toBeNull();
+});
+
+test('legacy other organizations are moved from global to their participant events', function () {
+    $event = Event::query()->firstOrFail();
+    $legacyOrganization = Organization::query()->create([
+        'name' => 'Legacy Other School',
+        'slug' => 'legacy-other-school',
+        'type' => 'school',
+        'is_active' => true,
+    ]);
+    $participant = User::factory()->create([
+        'event_id' => $event->id,
+        'event_name' => $event->slug,
+        'organization_id' => $legacyOrganization->id,
+        'organization' => $legacyOrganization->name,
+    ]);
+
+    $migration = require database_path(
+        'migrations/2026_07_26_000004_scope_legacy_other_organizations.php',
+    );
+    $migration->up();
+
+    $this->assertDatabaseMissing('organizations', [
+        'id' => $legacyOrganization->id,
+        'event_id' => null,
+    ]);
+    $this->assertDatabaseHas('organizations', [
+        'event_id' => $event->id,
+        'slug' => $legacyOrganization->slug,
+    ]);
+
+    expect($participant->fresh()->organization_id)
+        ->not->toBe($legacyOrganization->id);
 });

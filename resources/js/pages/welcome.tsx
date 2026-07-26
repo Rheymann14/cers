@@ -813,6 +813,7 @@ export default function Welcome() {
         async function loadLookups() {
             try {
                 const response = await fetch('/welcome-lookups', {
+                    cache: 'no-store',
                     headers: {
                         Accept: 'application/json',
                     },
