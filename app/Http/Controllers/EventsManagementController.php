@@ -153,9 +153,26 @@ class EventsManagementController extends Controller
         $validated = $request->validate([
             'venue_name' => ['required', 'string', 'max:255'],
             'venue_address' => ['nullable', 'string', 'max:500'],
-            'venue_map_link' => ['nullable', 'url', 'max:2048'],
-            'venue_latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'venue_longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'venue_map_link' => [
+                'nullable',
+                'url',
+                'max:2048',
+                'required_without_all:venue_latitude,venue_longitude',
+            ],
+            'venue_latitude' => [
+                'nullable',
+                'numeric',
+                'between:-90,90',
+                'required_with:venue_longitude',
+                'required_without:venue_map_link',
+            ],
+            'venue_longitude' => [
+                'nullable',
+                'numeric',
+                'between:-180,180',
+                'required_with:venue_latitude',
+                'required_without:venue_map_link',
+            ],
         ]);
 
         $event->update($validated);

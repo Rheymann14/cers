@@ -1502,6 +1502,10 @@ export default function EventsManagement({ events }: Props) {
                                 aria-invalid={!!venueErrors.venue_map_link}
                             />
                             <InputError message={venueErrors.venue_map_link} />
+                            <p className="text-xs text-muted-foreground">
+                                Provide a Google Maps link, or enter both
+                                coordinates below.
+                            </p>
                         </div>
 
                         <div className="grid gap-3 sm:grid-cols-2">

@@ -46,6 +46,7 @@ type PublicEvent = {
     description: string | null;
     venue_name: string | null;
     venue_address: string | null;
+    venue_map_link: string | null;
     venue_latitude: string | null;
     venue_longitude: string | null;
     starts_at: string | null;
@@ -164,6 +165,15 @@ function getMapQuery(event: PublicEvent) {
 }
 
 function getVenueCoordinates(event: PublicEvent) {
+    if (
+        event.venue_latitude === null ||
+        event.venue_longitude === null ||
+        event.venue_latitude.trim() === '' ||
+        event.venue_longitude.trim() === ''
+    ) {
+        return null;
+    }
+
     const latitude = Number(event.venue_latitude);
     const longitude = Number(event.venue_longitude);
 
@@ -181,7 +191,75 @@ function getVenueCoordinates(event: PublicEvent) {
     return { latitude, longitude };
 }
 
+function extractCoordinatesFromMapsUrl(value: string) {
+    let decodedValue = value.trim();
+
+    try {
+        decodedValue = decodeURIComponent(decodedValue);
+    } catch {
+        // Keep the raw value when the URL contains an incomplete escape.
+    }
+
+    const patterns = [
+        /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+        /[?&](?:q|query|destination)=(?:loc:)?(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+        /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?),/,
+    ];
+
+    for (const pattern of patterns) {
+        const match = decodedValue.match(pattern);
+
+        if (!match) {
+            continue;
+        }
+
+        const latitude = Number(match[1]);
+        const longitude = Number(match[2]);
+
+        if (
+            Number.isFinite(latitude) &&
+            Number.isFinite(longitude) &&
+            latitude >= -90 &&
+            latitude <= 90 &&
+            longitude >= -180 &&
+            longitude <= 180
+        ) {
+            return { latitude, longitude };
+        }
+    }
+
+    return null;
+}
+
+function getMapLinkQuery(value: string) {
+    try {
+        const url = new URL(value);
+
+        for (const parameter of ['q', 'query', 'destination']) {
+            const query = url.searchParams.get(parameter)?.trim();
+
+            if (query) {
+                return query;
+            }
+        }
+
+        const placeMatch = url.pathname.match(/\/(?:place|search)\/([^/]+)/i);
+
+        if (placeMatch) {
+            return decodeURIComponent(placeMatch[1]).replace(/\+/g, ' ').trim();
+        }
+    } catch {
+        return '';
+    }
+
+    return '';
+}
+
 function getMapUrl(event: PublicEvent) {
+    if (event.venue_map_link?.trim()) {
+        return event.venue_map_link.trim();
+    }
+
     const coordinates = getVenueCoordinates(event);
 
     if (coordinates) {
@@ -198,13 +276,20 @@ function getMapUrl(event: PublicEvent) {
 }
 
 function getMapEmbedUrl(event: PublicEvent) {
-    const coordinates = getVenueCoordinates(event);
+    const mapLink = event.venue_map_link?.trim() ?? '';
+    const coordinates =
+        (mapLink && extractCoordinatesFromMapsUrl(mapLink)) ||
+        getVenueCoordinates(event);
 
     if (coordinates) {
-        return `https://maps.google.com/maps?output=embed&z=18&q=${coordinates.latitude},${coordinates.longitude}`;
+        const exactLocation = encodeURIComponent(
+            `loc:${coordinates.latitude},${coordinates.longitude}`,
+        );
+
+        return `https://maps.google.com/maps?output=embed&z=18&q=${exactLocation}`;
     }
 
-    const query = getMapQuery(event);
+    const query = (mapLink && getMapLinkQuery(mapLink)) || getMapQuery(event);
 
     if (!query) {
         return '';
