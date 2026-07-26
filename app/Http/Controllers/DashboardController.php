@@ -18,7 +18,9 @@ class DashboardController extends Controller
     public function __invoke(): Response
     {
         $events = Event::query()
-            ->withCount(['registrations as users_count'])
+            ->withCount([
+                'registrations as users_count' => fn ($query) => $query->whereHas('user'),
+            ])
             ->orderBy('starts_at')
             ->orderBy('name')
             ->get([
@@ -71,6 +73,7 @@ class DashboardController extends Controller
                     'date' => $date->toDateString(),
                     'label' => $date->format('M j'),
                     'count' => EventRegistration::query()
+                        ->whereHas('user')
                         ->whereDate('created_at', $date->toDateString())
                         ->count(),
                 ];
@@ -129,6 +132,7 @@ class DashboardController extends Controller
                 $attendance->event_id.':'.$attendance->user_id => true,
             ]);
         $notCheckedInParticipantsList = EventRegistration::query()
+            ->whereHas('user')
             ->with([
                 'event:id,name,slug',
                 'user:id,participant_id,name,given_name,middle_name,surname,email,phone,sex,province_id,municipality_id,is_active',
@@ -175,6 +179,7 @@ class DashboardController extends Controller
                 'notCheckedInParticipants' => $notCheckedInParticipants,
             ],
             'recentParticipants' => EventRegistration::query()
+                ->whereHas('user')
                 ->with(['user:id,participant_id,name,email', 'event:id,name,slug'])
                 ->latest()
                 ->get()
@@ -189,6 +194,7 @@ class DashboardController extends Controller
                     'created_at' => $registration->created_at,
                 ]),
             'eventSummary' => EventRegistration::query()
+                ->whereHas('user')
                 ->join('events', 'events.id', '=', 'event_registrations.event_id')
                 ->selectRaw('events.slug as event_name, count(*) as participants_count')
                 ->groupBy('events.slug')
@@ -212,6 +218,7 @@ class DashboardController extends Controller
                 'participants' => EventRegistration::query()
                     ->join('users', 'users.id', '=', 'event_registrations.user_id')
                     ->join('events', 'events.id', '=', 'event_registrations.event_id')
+                    ->whereNull('users.deleted_at')
                     ->get([
                         'event_registrations.id',
                         'users.province_id',
@@ -241,12 +248,16 @@ class DashboardController extends Controller
                         'participant_types.type',
                         'events.slug as event_slug',
                     ])
-                    ->withCount('registrations')
+                    ->withCount([
+                        'registrations' => fn ($query) => $query->whereHas('user'),
+                    ])
                     ->orderBy('participant_types.name')
                     ->get(),
                 'organizations' => Organization::query()
                     ->select(['id', 'name', 'slug', 'type'])
-                    ->withCount('registrations')
+                    ->withCount([
+                        'registrations' => fn ($query) => $query->whereHas('user'),
+                    ])
                     ->orderBy('name')
                     ->get(),
             ],

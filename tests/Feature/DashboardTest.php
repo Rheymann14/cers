@@ -77,6 +77,39 @@ test('dashboard attendance totals use event registered participants', function (
         );
 });
 
+test('dashboard ignores registrations belonging to deleted participants', function () {
+    $admin = User::factory()->create([
+        'participant_type' => 'admin',
+    ]);
+    $event = Event::query()->create([
+        'name' => 'Deleted Participant Test',
+        'slug' => 'deleted-participant-test',
+        'is_active' => true,
+    ]);
+    $participant = User::factory()->create([
+        'participant_type' => 'participant',
+    ]);
+
+    EventRegistration::query()->create([
+        'user_id' => $participant->id,
+        'event_id' => $event->id,
+        'participant_type' => 'participant',
+    ]);
+
+    $participant->delete();
+
+    $this->actingAs($admin)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('stats.participants', 0)
+            ->where('stats.notCheckedInParticipants', 0)
+            ->has('recentParticipants', 0)
+            ->has('notCheckedInParticipants', 0)
+            ->where('eventAttendanceSummary.0.participants_count', 0)
+        );
+});
+
 test('non administrator users are redirected away from the dashboard', function () {
     $user = User::factory()->create([
         'participant_type' => 'participant',
