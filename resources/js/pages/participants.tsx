@@ -37,6 +37,7 @@ import InputError from '@/components/input-error';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Command,
     CommandEmpty,
@@ -179,6 +180,7 @@ type ParticipantFormData = {
 
 type AddParticipantFormData = ParticipantFormData & {
     avatar: string;
+    check_in: boolean;
 };
 
 const columns: {
@@ -249,6 +251,7 @@ const emptyParticipantFormData: ParticipantFormData = {
 const emptyAddParticipantFormData: AddParticipantFormData = {
     ...emptyParticipantFormData,
     avatar: '',
+    check_in: false,
 };
 
 const addParticipantSteps = ['Participant', 'Registration'] as const;
@@ -1774,6 +1777,28 @@ export default function Participants({
             ),
         [editParticipantTypes],
     );
+    const filterParticipantTypes = useMemo(() => {
+        if (eventFilter !== 'all') {
+            return participantTypes.filter(
+                (type) => type.event_slug === eventFilter,
+            );
+        }
+
+        return Array.from(
+            new Map(
+                participantTypes.map((type) => [type.value, type]),
+            ).values(),
+        );
+    }, [eventFilter, participantTypes]);
+    const eventFilterParticipants = useMemo(
+        () =>
+            eventFilter === 'all'
+                ? participants
+                : participants.filter(
+                      (participant) => participant.event_name === eventFilter,
+                  ),
+        [eventFilter, participants],
+    );
 
     const normalizedAddedByOptions = useMemo(() => {
         const seen = new Set<string>();
@@ -1804,7 +1829,7 @@ export default function Participants({
     const participantTypeCounts = useMemo(() => {
         const counts = new Map<string, number>();
 
-        participants.forEach((participant) => {
+        eventFilterParticipants.forEach((participant) => {
             if (!participant.participant_type) {
                 return;
             }
@@ -1816,7 +1841,7 @@ export default function Participants({
         });
 
         return counts;
-    }, [participants]);
+    }, [eventFilterParticipants]);
 
     const eventCounts = useMemo(() => {
         const counts = new Map<string, number>();
@@ -2057,6 +2082,7 @@ export default function Participants({
 
     function updateEventFilter(value: string) {
         setEventFilter(value);
+        setTypeFilter('all');
         setPage(1);
     }
 
@@ -2480,9 +2506,9 @@ export default function Participants({
                                 />
                                 <ParticipantTypeFilter
                                     value={typeFilter}
-                                    options={participantTypes}
+                                    options={filterParticipantTypes}
                                     counts={participantTypeCounts}
-                                    totalCount={participants.length}
+                                    totalCount={eventFilterParticipants.length}
                                     onChange={updateTypeFilter}
                                 />
                                 <Button
@@ -3313,6 +3339,52 @@ export default function Participants({
 
                             {addStep === 1 && (
                                 <div className="grid gap-3">
+                                    <SearchableOptionField
+                                        id="add_event_name"
+                                        label="Event"
+                                        value={addData.event_name}
+                                        options={events}
+                                        placeholder="Search and select event"
+                                        searchPlaceholder="Search event..."
+                                        emptyMessage="No event found."
+                                        error={addErrors.event_name}
+                                        onValueChange={(value) => {
+                                            setAddData('event_name', value);
+                                            setAddData('participant_type', '');
+                                        }}
+                                    />
+
+                                    <label
+                                        htmlFor="add_check_in"
+                                        className="flex cursor-pointer items-start gap-3 rounded-md border bg-muted/20 p-3"
+                                    >
+                                        <Checkbox
+                                            id="add_check_in"
+                                            checked={addData.check_in}
+                                            onCheckedChange={(checked) =>
+                                                setAddData(
+                                                    'check_in',
+                                                    checked === true,
+                                                )
+                                            }
+                                            className="mt-0.5"
+                                        />
+                                        <span className="min-w-0">
+                                            <span className="flex items-center gap-2 text-sm font-medium">
+                                                <QrCode className="size-4 text-muted-foreground" />
+                                                Check in after registration
+                                            </span>
+                                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                                                Record attendance immediately
+                                                for onsite registration. No QR
+                                                scan will be required.
+                                            </span>
+                                            <InputError
+                                                message={addErrors.check_in}
+                                            />
+                                        </span>
+                                    </label>
+
                                     <div className="grid gap-3 sm:grid-cols-2">
                                         <SearchableOptionField
                                             id="add_participant_type"
@@ -3326,10 +3398,19 @@ export default function Participants({
                                             generalOptions={
                                                 addGeneralParticipantTypes
                                             }
-                                            placeholder="Search and select type"
+                                            placeholder={
+                                                addData.event_name
+                                                    ? 'Search and select type'
+                                                    : 'Select an event first'
+                                            }
                                             searchPlaceholder="Search participant type..."
-                                            emptyMessage="No type found."
+                                            emptyMessage={
+                                                addData.event_name
+                                                    ? 'No type found.'
+                                                    : 'Select an event first.'
+                                            }
                                             error={addErrors.participant_type}
+                                            disabled={!addData.event_name}
                                             onValueChange={(value) =>
                                                 setAddData(
                                                     'participant_type',
@@ -3376,21 +3457,6 @@ export default function Participants({
                                             />
                                         </div>
                                     </div>
-
-                                    <SearchableOptionField
-                                        id="add_event_name"
-                                        label="Event"
-                                        value={addData.event_name}
-                                        options={events}
-                                        placeholder="Search and select event"
-                                        searchPlaceholder="Search event..."
-                                        emptyMessage="No event found."
-                                        error={addErrors.event_name}
-                                        onValueChange={(value) => {
-                                            setAddData('event_name', value);
-                                            setAddData('participant_type', '');
-                                        }}
-                                    />
                                 </div>
                             )}
                         </div>
@@ -3547,6 +3613,21 @@ export default function Participants({
                     </DialogHeader>
 
                     <form onSubmit={submitEdit} className="space-y-3">
+                        <SearchableOptionField
+                            id="event_name"
+                            label="Event"
+                            value={data.event_name}
+                            options={events}
+                            placeholder="Search and select event"
+                            searchPlaceholder="Search event..."
+                            emptyMessage="No event found."
+                            error={errors.event_name}
+                            onValueChange={(value) => {
+                                setData('event_name', value);
+                                setData('participant_type', '');
+                            }}
+                        />
+
                         <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
                             <div className="space-y-2">
                                 <Label htmlFor="given_name">Given name</Label>
@@ -3695,10 +3776,19 @@ export default function Participants({
                                 participantTypeGrouped
                                 fourPsOptions={editFourPsParticipantTypes}
                                 generalOptions={editGeneralParticipantTypes}
-                                placeholder="Search and select type"
+                                placeholder={
+                                    data.event_name
+                                        ? 'Search and select type'
+                                        : 'Select an event first'
+                                }
                                 searchPlaceholder="Search participant type..."
-                                emptyMessage="No type found."
+                                emptyMessage={
+                                    data.event_name
+                                        ? 'No type found.'
+                                        : 'Select an event first.'
+                                }
                                 error={errors.participant_type}
+                                disabled={!data.event_name}
                                 onValueChange={(value) =>
                                     setData('participant_type', value)
                                 }
@@ -3732,21 +3822,6 @@ export default function Participants({
                                 <InputError message={errors.sex} />
                             </div>
                         </div>
-
-                        <SearchableOptionField
-                            id="event_name"
-                            label="Event"
-                            value={data.event_name}
-                            options={events}
-                            placeholder="Search and select event"
-                            searchPlaceholder="Search event..."
-                            emptyMessage="No event found."
-                            error={errors.event_name}
-                            onValueChange={(value) => {
-                                setData('event_name', value);
-                                setData('participant_type', '');
-                            }}
-                        />
 
                         <DialogFooter className="gap-2 sm:gap-2">
                             <Button

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\EventAttendance;
 use App\Models\Municipality;
 use App\Models\Organization;
 use App\Models\ParticipantType;
@@ -145,10 +146,11 @@ class ParticipantsController extends Controller
             ],
             'sex' => ['required', 'string', Rule::in(['male', 'female'])],
             'event_name' => [
-                'nullable',
+                'required',
                 'string',
                 Rule::exists('events', 'slug')->where('is_active', true),
             ],
+            'check_in' => ['boolean'],
         ]);
 
         $province = Province::query()
@@ -189,6 +191,17 @@ class ParticipantsController extends Controller
                 ->first()
             : null;
 
+        if (
+            ($validated['check_in'] ?? false)
+            && (! $event || ($event->ends_at && now()->greaterThan($event->ends_at)))
+        ) {
+            return back()
+                ->withErrors([
+                    'check_in' => 'The selected event is closed and cannot accept attendance check-ins.',
+                ])
+                ->withInput();
+        }
+
         $participant = User::query()->create([
             'name' => $name,
             'participant_id' => $this->generateParticipantId(),
@@ -211,6 +224,15 @@ class ParticipantsController extends Controller
             'registration_consent_accepted_at' => now(),
             'password' => 'cers2026',
         ]);
+
+        if ($validated['check_in'] ?? false) {
+            EventAttendance::query()->create([
+                'event_id' => $event->id,
+                'user_id' => $participant->id,
+                'checked_in_by_user_id' => $request->user()?->id,
+                'checked_in_at' => now(),
+            ]);
+        }
 
         if (filled($participant->email)) {
             try {
@@ -237,7 +259,9 @@ class ParticipantsController extends Controller
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => 'Participant added successfully.',
+            'message' => ($validated['check_in'] ?? false)
+                ? 'Participant added and checked in successfully.'
+                : 'Participant added successfully.',
         ]);
 
         return back();

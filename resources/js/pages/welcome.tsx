@@ -1461,6 +1461,153 @@ export default function Welcome() {
                                             </h2>
                                         </div>
 
+                                        <section className="grid gap-4">
+                                            <div>
+                                                <h3 className="text-base font-semibold text-slate-950 dark:text-white">
+                                                    Event information
+                                                </h3>
+                                                <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
+                                                    Choose the event you want to
+                                                    attend. Its participant
+                                                    types will appear below.
+                                                </p>
+                                            </div>
+
+                                            <div className="grid gap-2">
+                                                <p
+                                                    id="event_name_label"
+                                                    className="text-sm font-medium"
+                                                >
+                                                    Event <RequiredMark />
+                                                </p>
+                                                <input
+                                                    type="hidden"
+                                                    name="event_name"
+                                                    value={selectedEvent}
+                                                    readOnly
+                                                />
+                                                <Popover
+                                                    open={eventPopoverOpen}
+                                                    onOpenChange={
+                                                        setEventPopoverOpen
+                                                    }
+                                                >
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            role="combobox"
+                                                            data-registration-field="event_name"
+                                                            aria-labelledby="event_name_label"
+                                                            aria-expanded={
+                                                                eventPopoverOpen
+                                                            }
+                                                            className={
+                                                                comboboxButtonClass
+                                                            }
+                                                        >
+                                                            <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-left">
+                                                                <span
+                                                                    className={
+                                                                        comboboxValueClass
+                                                                    }
+                                                                >
+                                                                    {selectedEventLabel ||
+                                                                        'Search and select event'}
+                                                                </span>
+                                                                {selectedEventOption ? (
+                                                                    <EventStatusBadge
+                                                                        event={
+                                                                            selectedEventOption
+                                                                        }
+                                                                    />
+                                                                ) : null}
+                                                            </span>
+                                                            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent
+                                                        align="start"
+                                                        className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
+                                                    >
+                                                        <Command>
+                                                            <CommandInput placeholder="Search event..." />
+                                                            <CommandList>
+                                                                <CommandEmpty>
+                                                                    {lookupsLoading
+                                                                        ? 'Loading events...'
+                                                                        : 'No event found.'}
+                                                                </CommandEmpty>
+                                                                <CommandGroup>
+                                                                    {events.map(
+                                                                        (
+                                                                            event,
+                                                                        ) => (
+                                                                            <CommandItem
+                                                                                key={
+                                                                                    event.value
+                                                                                }
+                                                                                className={
+                                                                                    commandItemClass
+                                                                                }
+                                                                                value={
+                                                                                    event.label
+                                                                                }
+                                                                                onSelect={() => {
+                                                                                    setSelectedEvent(
+                                                                                        event.value,
+                                                                                    );
+                                                                                    setSelectedParticipantType(
+                                                                                        '',
+                                                                                    );
+                                                                                    setEventPopoverOpen(
+                                                                                        false,
+                                                                                    );
+                                                                                }}
+                                                                            >
+                                                                                <Check
+                                                                                    className={cn(
+                                                                                        'mt-0.5 mr-2 size-4',
+                                                                                        selectedEvent ===
+                                                                                            event.value
+                                                                                            ? 'opacity-100'
+                                                                                            : 'opacity-0',
+                                                                                    )}
+                                                                                />
+                                                                                <span
+                                                                                    className={
+                                                                                        commandItemTextClass
+                                                                                    }
+                                                                                >
+                                                                                    {
+                                                                                        event.label
+                                                                                    }
+                                                                                </span>
+                                                                                <EventStatusBadge
+                                                                                    event={
+                                                                                        event
+                                                                                    }
+                                                                                />
+                                                                            </CommandItem>
+                                                                        ),
+                                                                    )}
+                                                                </CommandGroup>
+                                                            </CommandList>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+                                                <InputError
+                                                    message={errors.event_name}
+                                                />
+                                                {selectedEventRegistrationClosed ? (
+                                                    <p className="text-sm font-medium text-[#CE1126] dark:text-red-300">
+                                                        Registration for this
+                                                        event is closed.
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        </section>
+
                                         <section className="grid gap-5">
                                             <div>
                                                 <h3 className="text-base font-semibold text-slate-950 dark:text-white">
@@ -1856,6 +2003,9 @@ export default function Welcome() {
                                                                 type="button"
                                                                 variant="outline"
                                                                 role="combobox"
+                                                                disabled={
+                                                                    !selectedEvent
+                                                                }
                                                                 data-registration-field="participant_type"
                                                                 aria-labelledby="participant_type_label"
                                                                 aria-expanded={
@@ -1871,7 +2021,9 @@ export default function Welcome() {
                                                                     }
                                                                 >
                                                                     {selectedParticipantTypeLabel ||
-                                                                        'Search and select type'}
+                                                                        (selectedEvent
+                                                                            ? 'Search and select type'
+                                                                            : 'Select an event first')}
                                                                 </span>
                                                                 <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                                                             </Button>
@@ -1886,7 +2038,9 @@ export default function Welcome() {
                                                                     <CommandEmpty>
                                                                         {lookupsLoading
                                                                             ? 'Loading participant types...'
-                                                                            : 'No type found.'}
+                                                                            : selectedEvent
+                                                                              ? 'No type found.'
+                                                                              : 'Select an event first.'}
                                                                     </CommandEmpty>
                                                                     <CommandGroup>
                                                                         <CommandItem
@@ -2373,152 +2527,6 @@ export default function Welcome() {
                                                         profilePhotoError
                                                     }
                                                 />
-                                            </div>
-                                        </section>
-
-                                        <section className="grid gap-4 border-t border-[#d9e5f5] pt-6 dark:border-neutral-800">
-                                            <div>
-                                                <h3 className="text-base font-semibold text-slate-950 dark:text-white">
-                                                    Event information
-                                                </h3>
-                                                <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
-                                                    Choose the event you want to
-                                                    attend.
-                                                </p>
-                                            </div>
-
-                                            <div className="grid gap-2">
-                                                <p
-                                                    id="event_name_label"
-                                                    className="text-sm font-medium"
-                                                >
-                                                    Event <RequiredMark />
-                                                </p>
-                                                <input
-                                                    type="hidden"
-                                                    name="event_name"
-                                                    value={selectedEvent}
-                                                    readOnly
-                                                />
-                                                <Popover
-                                                    open={eventPopoverOpen}
-                                                    onOpenChange={
-                                                        setEventPopoverOpen
-                                                    }
-                                                >
-                                                    <PopoverTrigger asChild>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            role="combobox"
-                                                            data-registration-field="event_name"
-                                                            aria-labelledby="event_name_label"
-                                                            aria-expanded={
-                                                                eventPopoverOpen
-                                                            }
-                                                            className={
-                                                                comboboxButtonClass
-                                                            }
-                                                        >
-                                                            <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-left">
-                                                                <span
-                                                                    className={
-                                                                        comboboxValueClass
-                                                                    }
-                                                                >
-                                                                    {selectedEventLabel ||
-                                                                        'Search and select event'}
-                                                                </span>
-                                                                {selectedEventOption ? (
-                                                                    <EventStatusBadge
-                                                                        event={
-                                                                            selectedEventOption
-                                                                        }
-                                                                    />
-                                                                ) : null}
-                                                            </span>
-                                                            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent
-                                                        align="start"
-                                                        className="w-[min(calc(100vw-2rem),var(--radix-popover-trigger-width))] p-0"
-                                                    >
-                                                        <Command>
-                                                            <CommandInput placeholder="Search event..." />
-                                                            <CommandList>
-                                                                <CommandEmpty>
-                                                                    {lookupsLoading
-                                                                        ? 'Loading events...'
-                                                                        : 'No event found.'}
-                                                                </CommandEmpty>
-                                                                <CommandGroup>
-                                                                    {events.map(
-                                                                        (
-                                                                            event,
-                                                                        ) => (
-                                                                            <CommandItem
-                                                                                key={
-                                                                                    event.value
-                                                                                }
-                                                                                className={
-                                                                                    commandItemClass
-                                                                                }
-                                                                                value={
-                                                                                    event.label
-                                                                                }
-                                                                                onSelect={() => {
-                                                                                    setSelectedEvent(
-                                                                                        event.value,
-                                                                                    );
-                                                                                    setSelectedParticipantType(
-                                                                                        '',
-                                                                                    );
-                                                                                    setEventPopoverOpen(
-                                                                                        false,
-                                                                                    );
-                                                                                }}
-                                                                            >
-                                                                                <Check
-                                                                                    className={cn(
-                                                                                        'mt-0.5 mr-2 size-4',
-                                                                                        selectedEvent ===
-                                                                                            event.value
-                                                                                            ? 'opacity-100'
-                                                                                            : 'opacity-0',
-                                                                                    )}
-                                                                                />
-                                                                                <span
-                                                                                    className={
-                                                                                        commandItemTextClass
-                                                                                    }
-                                                                                >
-                                                                                    {
-                                                                                        event.label
-                                                                                    }
-                                                                                </span>
-                                                                                <EventStatusBadge
-                                                                                    event={
-                                                                                        event
-                                                                                    }
-                                                                                />
-                                                                            </CommandItem>
-                                                                        ),
-                                                                    )}
-                                                                </CommandGroup>
-                                                            </CommandList>
-                                                        </Command>
-                                                    </PopoverContent>
-                                                </Popover>
-                                                <InputError
-                                                    message={errors.event_name}
-                                                />
-                                                {selectedEventRegistrationClosed ? (
-                                                    <p className="text-sm font-medium text-[#CE1126] dark:text-red-300">
-                                                        Registration for this
-                                                        event is closed.
-                                                    </p>
-                                                ) : null}
                                             </div>
                                         </section>
 

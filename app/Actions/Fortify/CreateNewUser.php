@@ -130,7 +130,7 @@ class CreateNewUser implements CreatesNewUsers
                 ->where('slug', $participantTypeSlug)
                 ->first();
 
-            if (! $participantType || ! $participantType->is_active) {
+            if ($participantType && ! $participantType->is_active) {
                 $validator->errors()->add('participant_type', 'The selected participant type is invalid.');
             }
         });
@@ -170,11 +170,16 @@ class CreateNewUser implements CreatesNewUsers
             ->where('ends_at', '>=', now())
             ->firstOrFail();
         $participantTypeSlug = Str::slug($input['participant_type']);
-        $participantType = ParticipantType::query()
-            ->where('event_id', $event->id)
-            ->where('slug', $participantTypeSlug)
-            ->where('is_active', true)
-            ->firstOrFail();
+        $participantType = ParticipantType::query()->firstOrCreate(
+            [
+                'event_id' => $event->id,
+                'slug' => $participantTypeSlug,
+            ],
+            [
+                'name' => $input['participant_type'],
+                'is_active' => true,
+            ],
+        );
 
         return User::create([
             'name' => $name,
