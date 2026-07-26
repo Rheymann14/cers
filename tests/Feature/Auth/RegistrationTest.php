@@ -14,6 +14,12 @@ test('welcome registration form can be rendered', function () {
     $response->assertOk();
 });
 
+test('fortify registration page redirects to the public registration form', function () {
+    $response = $this->get(route('register'));
+
+    $response->assertRedirect(route('registration'));
+});
+
 test('new users can register from the welcome page', function () {
     $province = Province::query()->updateOrCreate(
         ['code' => '1001300000'],
