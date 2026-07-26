@@ -225,6 +225,9 @@ function FeaturedEventCard({
     events: EventOption[];
     loading: boolean;
 }) {
+    const [expandedDescriptionEvent, setExpandedDescriptionEvent] = useState<
+        string | null
+    >(null);
     const featuredEvent = useMemo(() => {
         const availableEvents = events
             .map((event) => ({
@@ -285,6 +288,11 @@ function FeaturedEventCard({
 
     const { event, status } = featuredEvent;
     const venue = event.venue_name || event.venue_address;
+    const description =
+        event.description ||
+        'Join us for this upcoming CHED event. Event details and registration information are available through CERS.';
+    const hasLongDescription = description.length > 160;
+    const descriptionExpanded = expandedDescriptionEvent === event.value;
 
     return (
         <article className="relative isolate min-h-[390px] overflow-hidden rounded-3xl border border-[#cbdcf5] bg-white p-7 shadow-xl shadow-slate-200/70 motion-safe:animate-in motion-safe:duration-700 motion-safe:fade-in motion-safe:slide-in-from-bottom-4 sm:p-8 dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-black/30">
@@ -308,13 +316,35 @@ function FeaturedEventCard({
                 </Badge>
             </div>
 
-            <h2 className="mt-8 line-clamp-2 text-3xl leading-tight font-bold text-slate-950 dark:text-white">
+            <h2 className="mt-8 text-3xl leading-tight font-bold text-slate-950 dark:text-white">
                 {event.label}
             </h2>
-            <p className="mt-3 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600 sm:text-base dark:text-neutral-300">
-                {event.description ||
-                    'Join us for this upcoming CHED event. Event details and registration information are available through CERS.'}
+            <p
+                id={`featured-event-description-${event.value}`}
+                className={cn(
+                    'mt-3 text-sm leading-6 text-slate-600 sm:text-base dark:text-neutral-300',
+                    hasLongDescription &&
+                        !descriptionExpanded &&
+                        'line-clamp-3',
+                )}
+            >
+                {description}
             </p>
+            {hasLongDescription ? (
+                <button
+                    type="button"
+                    aria-expanded={descriptionExpanded}
+                    aria-controls={`featured-event-description-${event.value}`}
+                    onClick={() =>
+                        setExpandedDescriptionEvent((expandedEvent) =>
+                            expandedEvent === event.value ? null : event.value,
+                        )
+                    }
+                    className="mt-1 text-sm font-bold text-[#0038A8] transition hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0038A8] dark:text-blue-300"
+                >
+                    {descriptionExpanded ? 'Hide' : 'Show more'}
+                </button>
+            ) : null}
 
             <div className="mt-7 grid gap-3">
                 <div className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-950/70">
