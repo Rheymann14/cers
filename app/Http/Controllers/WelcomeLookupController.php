@@ -53,6 +53,9 @@ class WelcomeLookupController extends Controller
                 ->get([
                     'slug as value',
                     'name as label',
+                    'description',
+                    'venue_name',
+                    'venue_address',
                     'starts_at',
                     'ends_at',
                     'is_registration_closed',

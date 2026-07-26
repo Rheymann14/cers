@@ -1,15 +1,19 @@
 import { Form, Head, Link, usePage } from '@inertiajs/react';
 import { toPng } from 'html-to-image';
 import {
+    ArrowRight,
     Check,
-    CheckCircle2,
     ChevronsUpDown,
     ClipboardCheck,
     ArrowDown,
+    CalendarDays,
+    Clock3,
     Download,
     ImagePlus,
+    MapPin,
     Moon,
     QrCode,
+    Sparkles,
     Trash2,
     Sun,
 } from 'lucide-react';
@@ -76,6 +80,9 @@ type LookupOption = {
 };
 
 type EventOption = LookupOption & {
+    description: string | null;
+    venue_name: string | null;
+    venue_address: string | null;
     starts_at: string | null;
     ends_at: string | null;
     is_registration_closed: boolean;
@@ -122,13 +129,6 @@ const commandItemClass =
 const commandItemTextClass =
     'min-w-0 flex-1 whitespace-normal break-words leading-snug';
 
-const sampleVirtualId = {
-    email: 'juan.delacruz@example.com',
-    fullName: 'Juan Delacruz',
-    organization: 'Agency',
-    participantId: 'CERS-VKTO-2026',
-};
-
 function hashString(value: string) {
     let hash = 2166136261;
 
@@ -167,112 +167,198 @@ function RequiredMark() {
     );
 }
 
-function WelcomeVirtualIdPreview() {
-    const qrValue = createQrToken(sampleVirtualId);
+function getFeaturedEventStatus(event: EventOption) {
+    const startsAt = toDateTime(event.starts_at);
+    const endsAt = toDateTime(event.ends_at);
+    const now = new Date();
 
-    return (
-        <div className="rounded-2xl border border-[#d9e5f5] bg-white p-3 shadow-md shadow-slate-200/70 motion-safe:animate-in motion-safe:duration-700 motion-safe:fade-in motion-safe:slide-in-from-bottom-4 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30">
-            <div className="rounded-2xl border border-[#d9e5f5] bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
-                <div className="flex items-center gap-3">
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0038A8] shadow-sm dark:bg-neutral-900 dark:text-blue-300">
-                        <QrCode className="size-6" />
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-2xl leading-tight font-bold text-slate-950 dark:text-white">
-                            Virtual ID
-                        </p>
-                        <p className="text-sm font-medium text-slate-600 dark:text-neutral-300">
-                            QR-based attendance verification
-                        </p>
-                    </div>
-                </div>
+    return startsAt && startsAt > now
+        ? 'upcoming'
+        : endsAt && endsAt >= now
+          ? 'ongoing'
+          : null;
+}
 
-                <div className="mt-4 grid gap-3 rounded-2xl border border-white/80 bg-[radial-gradient(circle_at_9%_8%,rgba(252,209,22,0.22),transparent_30%),radial-gradient(circle_at_88%_8%,rgba(0,56,168,0.14),transparent_32%),linear-gradient(135deg,#ffffff_0%,#f1f8ff_52%,#fff8e7_100%)] p-3 shadow-sm sm:grid-cols-[1fr_36%] dark:border-neutral-800 dark:bg-[radial-gradient(circle_at_9%_8%,rgba(252,209,22,0.13),transparent_30%),radial-gradient(circle_at_88%_8%,rgba(59,130,246,0.22),transparent_32%),linear-gradient(135deg,#0a0a0a_0%,#111827_58%,#1f2937_100%)]">
-                    <div className="grid min-w-0 content-between gap-4">
-                        <div className="flex items-center gap-2">
-                            <img
-                                src="/ched_logo-128.png"
-                                alt="CHED"
-                                className="size-8 rounded-full bg-white object-contain p-1 shadow-sm"
-                                loading="lazy"
-                                decoding="async"
-                            />
-                            <div>
-                                <p className="text-base leading-tight font-bold text-slate-950 dark:text-white">
-                                    CERS
-                                </p>
-                                <p className="text-xs font-medium text-slate-600 dark:text-neutral-300">
-                                    Participant Identification
-                                </p>
-                            </div>
-                        </div>
+function formatFeaturedEventDate(event: EventOption) {
+    const startsAt = toDateTime(event.starts_at);
+    const endsAt = toDateTime(event.ends_at);
 
-                        <div className="grid grid-cols-[56px_1fr] items-center gap-3">
-                            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-white bg-white text-base font-bold text-[#0038A8] shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-blue-300">
-                                JD
-                            </div>
-                            <div className="min-w-0">
-                                <h2 className="text-base leading-tight font-bold text-slate-950 dark:text-white">
-                                    {sampleVirtualId.fullName}
-                                </h2>
-                                <p className="text-xs font-medium text-slate-600 dark:text-neutral-300">
-                                    {sampleVirtualId.organization}
-                                </p>
-                            </div>
-                        </div>
+    if (!startsAt) {
+        return 'Date to be announced';
+    }
 
-                        <div>
-                            <p className="text-[10px] font-medium tracking-wide text-slate-500 uppercase dark:text-neutral-400">
-                                Participant ID
-                            </p>
-                            <div className="mt-1 inline-flex max-w-full rounded-full bg-white px-3 py-1 text-xs font-bold tracking-wide text-slate-950 shadow-sm dark:bg-neutral-900 dark:text-white">
-                                <span className="truncate">
-                                    {sampleVirtualId.participantId}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+    const dateFormatter = new Intl.DateTimeFormat('en-PH', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+    });
 
-                    <div className="grid min-w-0 content-center justify-items-center gap-2 rounded-2xl border border-white/80 bg-white/95 p-3 text-center shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-[#0038A8] dark:text-blue-300">
-                            <QrCode className="size-3.5" />
-                            QR Code
-                        </div>
-                        <div className="rounded-lg bg-white p-1.5 shadow-inner">
-                            <QRCodeSVG
-                                value={qrValue}
-                                size={144}
-                                level="M"
-                                marginSize={1}
-                                className="size-24 sm:size-28"
-                            />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-xs font-bold break-words text-slate-950 dark:text-white">
-                                {sampleVirtualId.participantId}
-                            </p>
-                            <p className="mt-0.5 text-[10px] text-slate-500 dark:text-neutral-400">
-                                CERS scanner verification only.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+    if (!endsAt || startsAt.toDateString() === endsAt.toDateString()) {
+        return dateFormatter.format(startsAt);
+    }
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {['Fast Check-In', 'QR Attendance', 'Secure Access'].map(
-                        (item) => (
-                            <div
-                                key={item}
-                                className="flex items-center justify-center gap-1.5 rounded-xl border border-white/80 bg-white/80 px-2.5 py-2 text-xs font-medium text-slate-700 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
-                            >
-                                <CheckCircle2 className="size-3.5 text-[#0038A8]" />
-                                <span>{item}</span>
-                            </div>
-                        ),
-                    )}
+    return `${dateFormatter.format(startsAt)} – ${dateFormatter.format(endsAt)}`;
+}
+
+function formatFeaturedEventTime(event: EventOption) {
+    const startsAt = toDateTime(event.starts_at);
+    const endsAt = toDateTime(event.ends_at);
+
+    if (!startsAt) {
+        return 'Time to be announced';
+    }
+
+    const timeFormatter = new Intl.DateTimeFormat('en-PH', {
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+
+    return endsAt
+        ? `${timeFormatter.format(startsAt)} – ${timeFormatter.format(endsAt)}`
+        : timeFormatter.format(startsAt);
+}
+
+function FeaturedEventCard({
+    events,
+    loading,
+}: {
+    events: EventOption[];
+    loading: boolean;
+}) {
+    const featuredEvent = useMemo(() => {
+        const availableEvents = events
+            .map((event) => ({
+                event,
+                status: getFeaturedEventStatus(event),
+            }))
+            .filter(
+                (
+                    item,
+                ): item is {
+                    event: EventOption;
+                    status: 'ongoing' | 'upcoming';
+                } => item.status !== null,
+            );
+
+        return (
+            availableEvents.find((item) => item.status === 'ongoing') ??
+            availableEvents.find((item) => item.status === 'upcoming') ??
+            null
+        );
+    }, [events]);
+
+    if (loading) {
+        return (
+            <div className="min-h-[390px] animate-pulse rounded-3xl border border-[#d9e5f5] bg-white/80 p-7 shadow-xl shadow-slate-200/60 dark:border-neutral-800 dark:bg-neutral-900/80 dark:shadow-black/30">
+                <div className="h-6 w-36 rounded-full bg-slate-200 dark:bg-neutral-800" />
+                <div className="mt-10 h-9 w-4/5 rounded bg-slate-200 dark:bg-neutral-800" />
+                <div className="mt-4 h-4 w-full rounded bg-slate-100 dark:bg-neutral-800" />
+                <div className="mt-2 h-4 w-3/4 rounded bg-slate-100 dark:bg-neutral-800" />
+                <div className="mt-10 grid gap-3">
+                    <div className="h-12 rounded-xl bg-slate-100 dark:bg-neutral-800" />
+                    <div className="h-12 rounded-xl bg-slate-100 dark:bg-neutral-800" />
                 </div>
             </div>
-        </div>
+        );
+    }
+
+    if (!featuredEvent) {
+        return (
+            <div className="flex min-h-[390px] flex-col items-center justify-center rounded-3xl border border-[#d9e5f5] bg-white/90 p-8 text-center shadow-xl shadow-slate-200/60 dark:border-neutral-800 dark:bg-neutral-900/90 dark:shadow-black/30">
+                <CalendarDays className="size-12 text-[#0038A8] dark:text-blue-300" />
+                <h2 className="mt-5 text-2xl font-bold text-slate-950 dark:text-white">
+                    No active events right now
+                </h2>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-slate-600 dark:text-neutral-300">
+                    Check the events page for announcements and future CHED
+                    activities.
+                </p>
+                <Link
+                    href="/events"
+                    className="mt-6 inline-flex items-center gap-2 font-semibold text-[#0038A8] hover:underline dark:text-blue-300"
+                >
+                    Browse events <ArrowRight className="size-4" />
+                </Link>
+            </div>
+        );
+    }
+
+    const { event, status } = featuredEvent;
+    const venue = event.venue_name || event.venue_address;
+
+    return (
+        <article className="relative isolate min-h-[390px] overflow-hidden rounded-3xl border border-[#cbdcf5] bg-white p-7 shadow-xl shadow-slate-200/70 motion-safe:animate-in motion-safe:duration-700 motion-safe:fade-in motion-safe:slide-in-from-bottom-4 sm:p-8 dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-black/30">
+            <div className="absolute inset-x-0 top-0 -z-10 h-32 bg-[radial-gradient(circle_at_top_right,rgba(252,209,22,0.34),transparent_38%),linear-gradient(120deg,rgba(0,56,168,0.14),transparent_68%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(252,209,22,0.15),transparent_38%),linear-gradient(120deg,rgba(37,99,235,0.2),transparent_68%)]" />
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-sm font-bold tracking-wide text-[#0038A8] uppercase dark:text-blue-300">
+                    <Sparkles className="size-4" />
+                    Featured Event
+                </div>
+                <Badge
+                    className={cn(
+                        'border-transparent px-3 py-1 text-xs font-bold capitalize',
+                        status === 'ongoing'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+                    )}
+                >
+                    <span className="mr-1.5 inline-block size-2 rounded-full bg-current" />
+                    {status}
+                </Badge>
+            </div>
+
+            <h2 className="mt-8 line-clamp-2 text-3xl leading-tight font-bold text-slate-950 dark:text-white">
+                {event.label}
+            </h2>
+            <p className="mt-3 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600 sm:text-base dark:text-neutral-300">
+                {event.description ||
+                    'Join us for this upcoming CHED event. Event details and registration information are available through CERS.'}
+            </p>
+
+            <div className="mt-7 grid gap-3">
+                <div className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-950/70">
+                    <CalendarDays className="mt-0.5 size-5 shrink-0 text-[#0038A8] dark:text-blue-300" />
+                    <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">
+                            {formatFeaturedEventDate(event)}
+                        </p>
+                        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-neutral-400">
+                            <Clock3 className="size-3.5" />
+                            {formatFeaturedEventTime(event)}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-950/70">
+                    <MapPin className="mt-0.5 size-5 shrink-0 text-[#CE1126] dark:text-red-300" />
+                    <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">
+                            {venue || 'Venue to be announced'}
+                        </p>
+                        {event.venue_name && event.venue_address ? (
+                            <p className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-neutral-400">
+                                {event.venue_address}
+                            </p>
+                        ) : null}
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between gap-4 border-t border-slate-100 pt-5 dark:border-neutral-800">
+                <p className="text-xs font-medium text-slate-500 dark:text-neutral-400">
+                    {event.is_registration_closed
+                        ? 'Registration is closed'
+                        : 'Registration is open'}
+                </p>
+                <Link
+                    href="/events"
+                    className="inline-flex items-center gap-2 text-sm font-bold text-[#0038A8] transition hover:gap-3 dark:text-blue-300"
+                >
+                    View details <ArrowRight className="size-4" />
+                </Link>
+            </div>
+        </article>
     );
 }
 
@@ -1460,7 +1546,10 @@ export default function Welcome() {
                                 </div>
                             </div>
 
-                            <WelcomeVirtualIdPreview />
+                            <FeaturedEventCard
+                                events={events}
+                                loading={lookupsLoading}
+                            />
                         </div>
                     </section>
 
