@@ -107,21 +107,26 @@ class DashboardController extends Controller
         $checkedInParticipants = $eventAttendanceSummary->sum('checked_in_count');
         $notCheckedInParticipants = max(0, $registeredEventParticipants - $checkedInParticipants);
 
+        $trendStartsAt = Carbon::today()->subDays(13);
+        $trendEndsAt = Carbon::today()->endOfDay();
+        $registrationCounts = EventRegistration::query()
+            ->whereHas('user')
+            ->whereBetween('created_at', [$trendStartsAt, $trendEndsAt])
+            ->selectRaw('date(created_at) as registration_date, count(*) as registration_count')
+            ->groupByRaw('date(created_at)')
+            ->pluck('registration_count', 'registration_date');
         $registrationTrend = collect(range(13, 0))
-            ->map(function (int $daysAgo) {
+            ->map(function (int $daysAgo) use ($registrationCounts) {
                 $date = Carbon::today()->subDays($daysAgo);
 
                 return [
                     'date' => $date->toDateString(),
                     'label' => $date->format('M j'),
-                    'count' => EventRegistration::query()
-                        ->whereHas('user')
-                        ->whereDate('created_at', $date->toDateString())
-                        ->count(),
+                    'count' => (int) ($registrationCounts[$date->toDateString()] ?? 0),
                 ];
             });
 
-        $checkedInParticipantsList = EventAttendance::query()
+        $checkedInParticipantsList = Inertia::defer(fn () => EventAttendance::query()
             ->whereHas('participant', function ($query) {
                 $query->whereHas('eventRegistrations', function ($query) {
                     $query->whereColumn('event_registrations.event_id', 'event_attendances.event_id');
@@ -168,59 +173,62 @@ class DashboardController extends Controller
                     'scanned_by' => $attendance->checkedInBy?->name,
                 ];
             })
-            ->values();
+            ->values(), 'attendance');
 
-        $checkedInKeys = EventAttendance::query()
-            ->get(['event_id', 'user_id', 'attendance_date'])
-            ->mapWithKeys(fn (EventAttendance $attendance) => [
-                $attendance->event_id.':'.$attendance->user_id.':'.$attendance->attendance_date->toDateString() => true,
-            ]);
-        $notCheckedInParticipantsList = EventRegistration::query()
-            ->whereHas('user')
-            ->with([
-                'event:id,name,slug',
-                'user:id,participant_id,name,given_name,middle_name,surname,email,phone,sex,province_id,municipality_id,is_active',
-                'user.province:id,name',
-                'user.municipality:id,name',
-            ])
-            ->latest()
-            ->get()
-            ->flatMap(function (EventRegistration $registration) use (
-                $checkedInKeys,
-                $eventDatesById,
-            ) {
-                $participant = $registration->user;
-                $event = $registration->event;
+        $notCheckedInParticipantsList = Inertia::defer(function () use ($eventDatesById) {
+            $checkedInKeys = EventAttendance::query()
+                ->get(['event_id', 'user_id', 'attendance_date'])
+                ->mapWithKeys(fn (EventAttendance $attendance) => [
+                    $attendance->event_id.':'.$attendance->user_id.':'.$attendance->attendance_date->toDateString() => true,
+                ]);
 
-                return ($eventDatesById[$registration->event_id] ?? collect())
-                    ->reject(fn (string $date) => $checkedInKeys->has(
-                        $registration->event_id.':'.$registration->user_id.':'.$date,
-                    ))
-                    ->map(fn (string $date) => [
-                        'id' => $registration->id,
-                        'row_key' => 'registration-'.$registration->id.'-'.$date,
-                        'participant_id' => $participant->participant_id,
-                        'name' => $participant->name,
-                        'given_name' => $participant->given_name,
-                        'middle_name' => $participant->middle_name,
-                        'surname' => $participant->surname,
-                        'email' => $participant->email,
-                        'phone' => $participant->phone,
-                        'organization' => $registration->organization,
-                        'participant_type' => $registration->participant_type,
-                        'sex' => $participant->sex,
-                        'province' => $participant->province?->name,
-                        'municipality' => $participant->municipality?->name,
-                        'is_active' => $participant->is_active,
-                        'event_name' => $event?->name,
-                        'event_slug' => $event?->slug,
-                        'registered_at' => $registration->created_at?->toIso8601String(),
-                        'attendance_date' => $date,
-                        'checked_in_at' => null,
-                        'scanned_by' => null,
-                    ]);
-            })
-            ->values();
+            return EventRegistration::query()
+                ->whereHas('user')
+                ->with([
+                    'event:id,name,slug',
+                    'user:id,participant_id,name,given_name,middle_name,surname,email,phone,sex,province_id,municipality_id,is_active',
+                    'user.province:id,name',
+                    'user.municipality:id,name',
+                ])
+                ->latest()
+                ->get()
+                ->flatMap(function (EventRegistration $registration) use (
+                    $checkedInKeys,
+                    $eventDatesById,
+                ) {
+                    $participant = $registration->user;
+                    $event = $registration->event;
+
+                    return ($eventDatesById[$registration->event_id] ?? collect())
+                        ->reject(fn (string $date) => $checkedInKeys->has(
+                            $registration->event_id.':'.$registration->user_id.':'.$date,
+                        ))
+                        ->map(fn (string $date) => [
+                            'id' => $registration->id,
+                            'row_key' => 'registration-'.$registration->id.'-'.$date,
+                            'participant_id' => $participant->participant_id,
+                            'name' => $participant->name,
+                            'given_name' => $participant->given_name,
+                            'middle_name' => $participant->middle_name,
+                            'surname' => $participant->surname,
+                            'email' => $participant->email,
+                            'phone' => $participant->phone,
+                            'organization' => $registration->organization,
+                            'participant_type' => $registration->participant_type,
+                            'sex' => $participant->sex,
+                            'province' => $participant->province?->name,
+                            'municipality' => $participant->municipality?->name,
+                            'is_active' => $participant->is_active,
+                            'event_name' => $event?->name,
+                            'event_slug' => $event?->slug,
+                            'registered_at' => $registration->created_at?->toIso8601String(),
+                            'attendance_date' => $date,
+                            'checked_in_at' => null,
+                            'scanned_by' => null,
+                        ]);
+                })
+                ->values();
+        }, 'attendance');
 
         return Inertia::render('dashboard', [
             'stats' => [
@@ -228,21 +236,25 @@ class DashboardController extends Controller
                 'checkedInParticipants' => $checkedInParticipants,
                 'notCheckedInParticipants' => $notCheckedInParticipants,
             ],
-            'recentParticipants' => EventRegistration::query()
-                ->whereHas('user')
-                ->with(['user:id,participant_id,name,email', 'event:id,name,slug'])
-                ->latest()
-                ->get()
-                ->map(fn (EventRegistration $registration) => [
-                    'id' => $registration->id,
-                    'participant_id' => $registration->user?->participant_id,
-                    'name' => $registration->user?->name,
-                    'email' => $registration->user?->email,
-                    'organization' => $registration->organization,
-                    'participant_type' => $registration->participant_type,
-                    'event_name' => $registration->event?->slug,
-                    'created_at' => $registration->created_at,
-                ]),
+            'recentParticipants' => Inertia::defer(
+                fn () => EventRegistration::query()
+                    ->whereHas('user')
+                    ->with(['user:id,participant_id,name,email', 'event:id,name,slug'])
+                    ->latest()
+                    ->limit(10)
+                    ->get()
+                    ->map(fn (EventRegistration $registration) => [
+                        'id' => $registration->id,
+                        'participant_id' => $registration->user?->participant_id,
+                        'name' => $registration->user?->name,
+                        'email' => $registration->user?->email,
+                        'organization' => $registration->organization,
+                        'participant_type' => $registration->participant_type,
+                        'event_name' => $registration->event?->slug,
+                        'created_at' => $registration->created_at,
+                    ]),
+                'dashboard-secondary',
+            ),
             'registrationTrend' => $registrationTrend,
             'attendanceStatus' => [
                 [
@@ -257,7 +269,7 @@ class DashboardController extends Controller
             'eventAttendanceSummary' => $eventAttendanceSummary,
             'checkedInParticipants' => $checkedInParticipantsList,
             'notCheckedInParticipants' => $notCheckedInParticipantsList,
-            'participantStatistics' => [
+            'participantStatistics' => Inertia::defer(fn () => [
                 'participants' => EventRegistration::query()
                     ->join('users', 'users.id', '=', 'event_registrations.user_id')
                     ->join('events', 'events.id', '=', 'event_registrations.event_id')
@@ -303,7 +315,7 @@ class DashboardController extends Controller
                     ])
                     ->orderBy('name')
                     ->get(),
-            ],
+            ], 'dashboard-statistics'),
         ]);
     }
 

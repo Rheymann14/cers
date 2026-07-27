@@ -82,8 +82,6 @@ test('dashboard attendance totals use event registered participants', function (
             ->where('stats.notCheckedInParticipants', 6)
             ->where('attendanceStatus.0.count', 1)
             ->where('attendanceStatus.1.count', 6)
-            ->has('checkedInParticipants', 2)
-            ->has('notCheckedInParticipants', 12)
             ->where(
                 'eventAttendanceSummary',
                 function ($summaries) use ($event) {
@@ -95,14 +93,17 @@ test('dashboard attendance totals use event registered participants', function (
                         && $dailyAttendance[1]['checked_in_count'] === 1;
                 },
             )
-            ->where(
-                'checkedInParticipants.0.attendance_date',
-                now()->addDay()->toDateString(),
-            )
-            ->where(
-                'checkedInParticipants.1.attendance_date',
-                now()->toDateString(),
-            )
+            ->loadDeferredProps('attendance', fn (Assert $page) => $page
+                ->has('checkedInParticipants', 2)
+                ->has('notCheckedInParticipants', 12)
+                ->where(
+                    'checkedInParticipants.0.attendance_date',
+                    now()->addDay()->toDateString(),
+                )
+                ->where(
+                    'checkedInParticipants.1.attendance_date',
+                    now()->toDateString(),
+                ))
         );
 });
 
@@ -133,9 +134,13 @@ test('dashboard ignores registrations belonging to deleted participants', functi
         ->assertInertia(fn (Assert $page) => $page
             ->where('stats.participants', 0)
             ->where('stats.notCheckedInParticipants', 0)
-            ->has('recentParticipants', 0)
-            ->has('notCheckedInParticipants', 0)
             ->where('eventAttendanceSummary.0.participants_count', 0)
+            ->loadDeferredProps(
+                ['dashboard-secondary', 'attendance'],
+                fn (Assert $page) => $page
+                    ->has('recentParticipants', 0)
+                    ->has('notCheckedInParticipants', 0),
+            )
         );
 });
 

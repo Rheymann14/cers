@@ -1,5 +1,5 @@
-import { Head, useForm } from '@inertiajs/react';
-import ExcelJS from 'exceljs';
+import { Head, router, useForm } from '@inertiajs/react';
+import type ExcelJS from 'exceljs';
 import {
     ArrowDown,
     ArrowUp,
@@ -25,11 +25,9 @@ import {
     UserX,
     X,
 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
 import type { ComponentProps, FormEvent } from 'react';
 import type { ChangeEvent } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { toast } from 'sonner';
@@ -94,6 +92,11 @@ import { normalizeContactNumber } from '@/lib/phone';
 import { cn } from '@/lib/utils';
 import { participants as participantsRoute } from '@/routes';
 
+const ReactCrop = lazy(() => import('react-image-crop'));
+const VirtualIdCard = lazy(
+    () => import('@/components/participants/virtual-id-card'),
+);
+
 type Participant = {
     id: number;
     participant_id: string | null;
@@ -136,13 +139,34 @@ type CreatedByUser = {
 };
 
 type Props = {
-    participants: Participant[];
-    deletedParticipants: Participant[];
+    participants: PaginatedParticipants;
+    deletedParticipants?: Participant[];
+    filters: ParticipantFilters;
     organizations: Option[];
     participantTypes: Option[];
     events: EventOption[];
     addedByOptions: Option[];
     provinces: Option[];
+};
+
+type PaginatedParticipants = {
+    data: Participant[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+};
+
+type ParticipantFilters = {
+    search: string;
+    event: string;
+    added_by: string;
+    type: string;
+    sort: SortKey;
+    direction: SortDirection;
+    per_page: number;
 };
 
 type SortKey =
@@ -308,19 +332,16 @@ const participantTypeBadgeClassNames = [
 ];
 
 function getCenteredCircleCrop(width: number, height: number): Crop {
-    return centerCrop(
-        makeAspectCrop(
-            {
-                unit: '%',
-                width: 80,
-            },
-            1,
-            width,
-            height,
-        ),
-        width,
-        height,
-    );
+    const size = 80;
+    const renderedAspect = width / height;
+
+    return {
+        unit: '%',
+        width: renderedAspect >= 1 ? size / renderedAspect : size,
+        height: renderedAspect >= 1 ? size : size * renderedAspect,
+        x: renderedAspect >= 1 ? (100 - size / renderedAspect) / 2 : 10,
+        y: renderedAspect >= 1 ? 10 : (100 - size * renderedAspect) / 2,
+    };
 }
 
 function getCroppedImageDataUrl(
@@ -647,28 +668,6 @@ function getSortValue(participant: Participant, key: SortKey): string {
     return String(participant[key] ?? '');
 }
 
-function getInitials(name: string) {
-    return (
-        name
-            .split(' ')
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((part) => part[0])
-            .join('')
-            .toUpperCase() || 'C'
-    );
-}
-
-function getParticipantCardInitials(participant: Participant) {
-    const initials = [participant.given_name, participant.surname]
-        .map((value) => value?.trim()[0])
-        .filter(Boolean)
-        .join('')
-        .toUpperCase();
-
-    return initials || getInitials(participant.name);
-}
-
 function getParticipantTypeBadgeClassName(
     value: string | null,
     options: Option[],
@@ -693,36 +692,6 @@ function getParticipantTypeBadgeClassName(
     return participantTypeBadgeClassNames[
         colorIndex % participantTypeBadgeClassNames.length
     ];
-}
-
-function hashString(value: string) {
-    let hash = 2166136261;
-
-    for (let index = 0; index < value.length; index += 1) {
-        hash ^= value.charCodeAt(index);
-        hash = Math.imul(hash, 16777619);
-    }
-
-    return (hash >>> 0).toString(36).toUpperCase();
-}
-
-function createQrToken({
-    email,
-    fullName,
-    participantId,
-}: {
-    email: string;
-    fullName: string;
-    organization: string;
-    participantId: string;
-}) {
-    const fingerprint = hashString(
-        ['CERS-VIRTUAL-ID', participantId, fullName, email]
-            .map((value) => value.trim().toLowerCase())
-            .join('|'),
-    );
-
-    return `CERS:VID:2:${fingerprint}`;
 }
 
 const preventDialogOutsideClose: NonNullable<
@@ -1112,102 +1081,6 @@ function ParticipantIdButton({
         >
             {participant.participant_id ?? '-'}
         </button>
-    );
-}
-
-function VirtualIdCard({ participant }: { participant: Participant }) {
-    const displayName = participant.name || 'Participant';
-    const displayId = participant.participant_id || 'Not assigned';
-    const organization = participant.organization ?? '';
-    const qrValue = createQrToken({
-        email: participant.email ?? '',
-        fullName: displayName,
-        organization,
-        participantId: participant.participant_id ?? '',
-    });
-
-    return (
-        <section className="flex justify-center">
-            <div className="grid aspect-[27/17] w-full max-w-[420px] grid-cols-[1fr_38%] gap-2 overflow-hidden rounded-lg border bg-[radial-gradient(circle_at_12%_15%,rgba(251,191,36,0.28),transparent_26%),radial-gradient(circle_at_82%_12%,rgba(14,165,233,0.2),transparent_26%),linear-gradient(135deg,#f8fbff_0%,#e8f6ff_48%,#fff7ed_100%)] p-3 shadow-xs">
-                <div className="grid min-w-0 content-between gap-2">
-                    <div className="flex items-start gap-3">
-                        <div className="flex items-center gap-3">
-                            <img
-                                src="/ched_logo.png"
-                                alt="CHED"
-                                className="size-8 rounded-full bg-white object-contain p-1 shadow-sm sm:size-9"
-                            />
-                            <div>
-                                <p className="text-sm leading-tight font-semibold text-slate-900 sm:text-base">
-                                    CERS
-                                </p>
-                                <p className="text-[10px] text-slate-600 sm:text-xs">
-                                    Participant Identification
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-[52px_1fr] items-center gap-2 sm:grid-cols-[60px_1fr]">
-                        <div className="flex size-13 items-center justify-center overflow-hidden rounded-md border border-white/80 bg-white text-base font-semibold text-sky-900 shadow-sm sm:size-15">
-                            {participant.avatar ? (
-                                <img
-                                    src={participant.avatar}
-                                    alt=""
-                                    className="size-full object-cover"
-                                />
-                            ) : (
-                                getParticipantCardInitials(participant)
-                            )}
-                        </div>
-
-                        <div className="min-w-0">
-                            <h2 className="line-clamp-2 text-xs leading-[1.1] font-semibold text-slate-950 sm:text-sm">
-                                {displayName}
-                            </h2>
-                            <p className="mt-0.5 line-clamp-2 text-[9px] leading-tight font-medium break-words text-slate-700 sm:text-[10px]">
-                                {organization || 'Organization not assigned'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="grid gap-2">
-                        <div className="min-w-0">
-                            <p className="text-[9px] font-medium tracking-wide text-slate-500 uppercase sm:text-[10px]">
-                                Participant ID
-                            </p>
-                            <div className="mt-1 inline-flex max-w-full rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold tracking-wide text-slate-950 shadow-sm sm:text-xs">
-                                <span className="truncate">{displayId}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid min-w-0 content-center justify-items-center gap-2 rounded-lg border border-white/80 bg-white/90 p-2 text-center shadow-sm sm:p-3">
-                    <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-800 sm:text-xs">
-                        <QrCode className="size-3" />
-                        QR Code
-                    </div>
-                    <div className="rounded-md bg-white p-1.5 shadow-inner">
-                        <QRCodeSVG
-                            value={qrValue}
-                            size={176}
-                            level="M"
-                            marginSize={1}
-                            className="size-16 sm:size-24"
-                        />
-                    </div>
-                    <div className="min-w-0">
-                        <p className="line-clamp-2 text-[9px] font-semibold break-words text-slate-900 sm:text-[10px]">
-                            {displayId}
-                        </p>
-                        <p className="mt-0.5 text-[8px] text-slate-500 sm:text-[9px]">
-                            CERS scanner verification only.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </section>
     );
 }
 
@@ -1670,25 +1543,32 @@ function ContactEmail({ email }: { email: string | null }) {
 }
 
 export default function Participants({
-    participants,
-    deletedParticipants,
+    participants: participantPagination,
+    deletedParticipants = [],
+    filters,
     organizations,
     participantTypes,
     events,
     addedByOptions,
     provinces,
 }: Props) {
+    const participants = participantPagination.data;
     const getInitials = useInitials();
-    const [search, setSearch] = useState('');
-    const [eventFilter, setEventFilter] = useState(() =>
-        getNearestEventValue(events),
+    const [search, setSearch] = useState(filters.search);
+    const [eventFilter, setEventFilter] = useState(
+        filters.event === 'all' && !filters.search
+            ? getNearestEventValue(events)
+            : filters.event,
     );
-    const [addedByFilter, setAddedByFilter] = useState('all');
-    const [typeFilter, setTypeFilter] = useState('all');
-    const [sortKey, setSortKey] = useState<SortKey>('created_at');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-    const [pageSize, setPageSize] = useState(10);
-    const [page, setPage] = useState(1);
+    const [addedByFilter, setAddedByFilter] = useState(filters.added_by);
+    const [typeFilter, setTypeFilter] = useState(filters.type);
+    const [sortKey, setSortKey] = useState<SortKey>(filters.sort);
+    const [sortDirection, setSortDirection] = useState<SortDirection>(
+        filters.direction,
+    );
+    const [pageSize, setPageSize] = useState(filters.per_page);
+    const [page, setPage] = useState(participantPagination.current_page);
+    const initialParticipantRequest = useRef(true);
     const [addDialogOpen, setAddDialogOpen] = useState(false);
     const [addStep, setAddStep] = useState(0);
     const [addAvatarPreview, setAddAvatarPreview] = useState('');
@@ -1718,6 +1598,8 @@ export default function Participants({
     const [resettingPasswordParticipant, setResettingPasswordParticipant] =
         useState<Participant | null>(null);
     const [deletedDialogOpen, setDeletedDialogOpen] = useState(false);
+    const [deletedParticipantsLoading, setDeletedParticipantsLoading] =
+        useState(false);
     const [viewingImageParticipant, setViewingImageParticipant] =
         useState<Participant | null>(null);
     const [viewingIdParticipant, setViewingIdParticipant] =
@@ -1756,6 +1638,54 @@ export default function Participants({
         resettingPassword ||
         restoring ||
         updatingStatus;
+
+    useEffect(() => {
+        if (initialParticipantRequest.current) {
+            initialParticipantRequest.current = false;
+
+            if (eventFilter === filters.event) {
+                return;
+            }
+        }
+
+        const timeout = window.setTimeout(
+            () => {
+                router.get(
+                    '/participants',
+                    {
+                        search: search || undefined,
+                        event: eventFilter,
+                        added_by: addedByFilter,
+                        type: typeFilter,
+                        sort: sortKey,
+                        direction: sortDirection,
+                        per_page: pageSize,
+                        page,
+                    },
+                    {
+                        only: ['participants', 'filters'],
+                        preserveScroll: true,
+                        preserveState: true,
+                        replace: true,
+                    },
+                );
+            },
+            search !== filters.search ? 300 : 0,
+        );
+
+        return () => window.clearTimeout(timeout);
+    }, [
+        addedByFilter,
+        eventFilter,
+        filters.event,
+        filters.search,
+        page,
+        pageSize,
+        search,
+        sortDirection,
+        sortKey,
+        typeFilter,
+    ]);
 
     const addOrganizations = useMemo(
         () =>
@@ -2085,50 +2015,7 @@ export default function Participants({
     }, [data.province, editingParticipant, setData]);
 
     const filteredParticipants = useMemo(() => {
-        const normalizedSearch = search.trim().toLowerCase();
-
-        const eventFiltered = eventFilterParticipants;
-
-        const addedByFiltered =
-            addedByFilter === 'all'
-                ? eventFiltered
-                : eventFiltered.filter(
-                      (participant) =>
-                          getAddedByFilterValue(participant) === addedByFilter,
-                  );
-
-        const typeFiltered =
-            typeFilter === 'all'
-                ? addedByFiltered
-                : addedByFiltered.filter(
-                      (participant) =>
-                          participant.participant_type === typeFilter,
-                  );
-
-        const filtered = normalizedSearch
-            ? typeFiltered.filter((participant) =>
-                  [
-                      participant.name,
-                      participant.participant_id,
-                      participant.email,
-                      participant.phone,
-                      getLocationLabel(participant),
-                      participant.organization,
-                      participant.participant_type,
-                      participant.sex,
-                      participant.event_name,
-                      getAddedByType(participant),
-                      getAddedByLabel(participant),
-                      participant.is_active ? 'active' : 'inactive',
-                  ]
-                      .filter(Boolean)
-                      .join(' ')
-                      .toLowerCase()
-                      .includes(normalizedSearch),
-              )
-            : typeFiltered;
-
-        return [...filtered].sort((a, b) => {
+        return [...eventFilterParticipants].sort((a, b) => {
             const aValue = getSortValue(a, sortKey);
             const bValue = getSortValue(b, sortKey);
 
@@ -2143,25 +2030,12 @@ export default function Participants({
 
             return sortDirection === 'asc' ? comparison : -comparison;
         });
-    }, [
-        addedByFilter,
-        eventFilterParticipants,
-        search,
-        sortDirection,
-        sortKey,
-        typeFilter,
-    ]);
+    }, [eventFilterParticipants, sortDirection, sortKey]);
 
-    const totalPages = Math.max(
-        1,
-        Math.ceil(filteredParticipants.length / pageSize),
-    );
-    const currentPage = Math.min(page, totalPages);
-    const startIndex = (currentPage - 1) * pageSize;
-    const pageParticipants = filteredParticipants.slice(
-        startIndex,
-        startIndex + pageSize,
-    );
+    const totalPages = Math.max(1, participantPagination.last_page);
+    const currentPage = participantPagination.current_page;
+    const startIndex = Math.max(0, (participantPagination.from ?? 1) - 1);
+    const pageParticipants = filteredParticipants;
 
     function updateSort(key: SortKey) {
         if (sortKey === key) {
@@ -2203,10 +2077,49 @@ export default function Participants({
         setPage(1);
     }
 
+    function openDeletedParticipantsDialog() {
+        setDeletedDialogOpen(true);
+        setDeletedParticipantsLoading(true);
+        router.reload({
+            only: ['deletedParticipants'],
+            onFinish: () => setDeletedParticipantsLoading(false),
+        });
+    }
+
     async function downloadParticipantsExcel() {
         setIsExportingParticipants(true);
 
         try {
+            const searchParams = new URLSearchParams({
+                search,
+                event: eventFilter,
+                added_by: addedByFilter,
+                type: typeFilter,
+                sort: sortKey,
+                direction: sortDirection,
+            });
+            const response = await fetch(
+                `/participants-export?${searchParams.toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
+
+            if (!response.ok) {
+                throw new Error('Unable to load participant export data.');
+            }
+
+            const exportRows = (await response.json()) as Participant[];
+            const exportParticipants =
+                eventFilter === 'all'
+                    ? exportRows
+                    : exportRows.flatMap((participant) => {
+                          const eventParticipant = participantForEvent(
+                              participant,
+                              eventFilter,
+                          );
+
+                          return eventParticipant ? [eventParticipant] : [];
+                      });
+            const { default: ExcelJS } = await import('exceljs');
             const workbook = new ExcelJS.Workbook();
             workbook.creator = 'CERS';
             workbook.created = new Date();
@@ -2215,7 +2128,7 @@ export default function Participants({
             const worksheet = workbook.addWorksheet('Participants');
             worksheet.columns = participantExportColumns;
             worksheet.addRows(
-                filteredParticipants.map((participant) =>
+                exportParticipants.map((participant) =>
                     participantExportRow(participant, participantTypes, events),
                 ),
             );
@@ -2230,7 +2143,7 @@ export default function Participants({
 
             link.href = url;
             link.download = getParticipantsExportFileName(
-                filteredParticipants,
+                exportParticipants,
                 events,
                 addedByFilter,
                 normalizedAddedByOptions,
@@ -2601,21 +2514,21 @@ export default function Participants({
                                     value={eventFilter}
                                     options={events}
                                     counts={eventCounts}
-                                    totalCount={participants.length}
+                                    totalCount={participantPagination.total}
                                     onChange={updateEventFilter}
                                 />
                                 <AddedByFilter
                                     value={addedByFilter}
                                     options={normalizedAddedByOptions}
                                     counts={addedByCounts}
-                                    totalCount={eventFilterParticipants.length}
+                                    totalCount={participantPagination.total}
                                     onChange={updateAddedByFilter}
                                 />
                                 <ParticipantTypeFilter
                                     value={typeFilter}
                                     options={filterParticipantTypes}
                                     counts={participantTypeCounts}
-                                    totalCount={eventFilterParticipants.length}
+                                    totalCount={participantPagination.total}
                                     onChange={updateTypeFilter}
                                 />
                                 <Button
@@ -2647,7 +2560,7 @@ export default function Participants({
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => setDeletedDialogOpen(true)}
+                                    onClick={openDeletedParticipantsDialog}
                                     className="h-8 justify-center px-2 text-xs"
                                 >
                                     <UserX className="size-3.5" />
@@ -3100,20 +3013,15 @@ export default function Participants({
                         <p className="text-center md:text-left">
                             Showing{' '}
                             <span className="font-medium text-foreground">
-                                {filteredParticipants.length === 0
-                                    ? 0
-                                    : startIndex + 1}
+                                {participantPagination.from ?? 0}
                             </span>{' '}
                             to{' '}
                             <span className="font-medium text-foreground">
-                                {Math.min(
-                                    startIndex + pageSize,
-                                    filteredParticipants.length,
-                                )}
+                                {participantPagination.to ?? 0}
                             </span>{' '}
                             of{' '}
                             <span className="font-medium text-foreground">
-                                {filteredParticipants.length}
+                                {participantPagination.total}
                             </span>{' '}
                             participants
                         </p>
@@ -3648,35 +3556,39 @@ export default function Participants({
 
                     {addCropImageSrc && (
                         <div className="max-h-[55dvh] overflow-auto rounded-md border bg-muted/20 p-2">
-                            <ReactCrop
-                                crop={addCrop}
-                                onChange={(_, percentCrop) =>
-                                    setAddCrop(percentCrop)
-                                }
-                                onComplete={(pixelCrop) =>
-                                    setAddCompletedCrop(pixelCrop)
-                                }
-                                aspect={1}
-                                circularCrop
-                                keepSelection
+                            <Suspense
+                                fallback={<Skeleton className="h-72 w-full" />}
                             >
-                                <img
-                                    ref={addCropImageRef}
-                                    src={addCropImageSrc}
-                                    alt="Crop profile"
-                                    className="max-h-[48dvh] w-full object-contain"
-                                    onLoad={(event) => {
-                                        const image = event.currentTarget;
+                                <ReactCrop
+                                    crop={addCrop}
+                                    onChange={(_, percentCrop) =>
+                                        setAddCrop(percentCrop)
+                                    }
+                                    onComplete={(pixelCrop) =>
+                                        setAddCompletedCrop(pixelCrop)
+                                    }
+                                    aspect={1}
+                                    circularCrop
+                                    keepSelection
+                                >
+                                    <img
+                                        ref={addCropImageRef}
+                                        src={addCropImageSrc}
+                                        alt="Crop profile"
+                                        className="max-h-[48dvh] w-full object-contain"
+                                        onLoad={(event) => {
+                                            const image = event.currentTarget;
 
-                                        setAddCrop(
-                                            getCenteredCircleCrop(
-                                                image.width,
-                                                image.height,
-                                            ),
-                                        );
-                                    }}
-                                />
-                            </ReactCrop>
+                                            setAddCrop(
+                                                getCenteredCircleCrop(
+                                                    image.width,
+                                                    image.height,
+                                                ),
+                                            );
+                                        }}
+                                    />
+                                </ReactCrop>
+                            </Suspense>
                         </div>
                     )}
 
@@ -4082,7 +3994,11 @@ export default function Participants({
                     </DialogHeader>
 
                     <div className="max-h-[min(24rem,calc(100dvh-8rem))] space-y-2 overflow-y-auto pr-1">
-                        {eventFilterDeletedParticipants.length > 0 ? (
+                        {deletedParticipantsLoading ? (
+                            Array.from({ length: 3 }).map((_, index) => (
+                                <Skeleton key={index} className="h-20 w-full" />
+                            ))
+                        ) : eventFilterDeletedParticipants.length > 0 ? (
                             eventFilterDeletedParticipants.map(
                                 (participant) => (
                                     <div
@@ -4174,7 +4090,13 @@ export default function Participants({
                     </DialogHeader>
 
                     {viewingIdParticipant && (
-                        <VirtualIdCard participant={viewingIdParticipant} />
+                        <Suspense
+                            fallback={
+                                <Skeleton className="aspect-[27/17] w-full" />
+                            }
+                        >
+                            <VirtualIdCard participant={viewingIdParticipant} />
+                        </Suspense>
                     )}
                 </DialogContent>
             </Dialog>

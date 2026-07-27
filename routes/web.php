@@ -42,6 +42,8 @@ Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
     Route::post('attendance-qr-scanner/check-in', [AttendanceQrScannerController::class, 'checkIn'])
         ->name('attendance-qr-scanner.check-in');
     Route::get('participants', ParticipantsController::class)->name('participants');
+    Route::get('participants-export', [ParticipantsController::class, 'export'])
+        ->name('participants.export');
     Route::post('participants', [ParticipantsController::class, 'store'])
         ->name('participants.store');
     Route::patch('participants/{participant}', [ParticipantsController::class, 'update'])

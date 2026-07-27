@@ -149,14 +149,14 @@ test('one participant account can register for multiple events but not the same 
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('participants')
-            ->where('participants.0.id', $participant->id)
-            ->has('participants.0.event_registrations', 2)
+            ->where('participants.data.0.id', $participant->id)
+            ->has('participants.data.0.event_registrations', 2)
             ->where(
-                'participants.0.event_registrations.1.event.slug',
+                'participants.data.0.event_registrations.1.event.slug',
                 $events[1]->slug,
             )
             ->where(
-                'participants.0.event_registrations.1.created_by.id',
+                'participants.data.0.event_registrations.1.created_by.id',
                 $admin->id,
             ));
 
@@ -175,10 +175,14 @@ test('one participant account can register for multiple events but not the same 
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('participants')
-            ->where('deletedParticipants.0.id', $participant->id)
-            ->has('deletedParticipants.0.event_registrations', 2)
-            ->where(
-                'deletedParticipants.0.event_registrations.1.created_by.id',
-                $admin->id,
+            ->reload(
+                fn (Assert $page) => $page
+                    ->where('deletedParticipants.0.id', $participant->id)
+                    ->has('deletedParticipants.0.event_registrations', 2)
+                    ->where(
+                        'deletedParticipants.0.event_registrations.1.created_by.id',
+                        $admin->id,
+                    ),
+                'deletedParticipants',
             ));
 });

@@ -11,6 +11,8 @@ use App\Models\ParticipantType;
 use App\Models\Province;
 use App\Models\User;
 use App\Services\BrevoEmailService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -22,56 +24,28 @@ use Inertia\Response;
 
 class ParticipantsController extends Controller
 {
-    public function __invoke(): Response
+    public function __invoke(Request $request): Response
     {
-        $columns = [
-            'id',
-            'participant_id',
-            'name',
-            'given_name',
-            'middle_name',
-            'surname',
-            'email',
-            'avatar',
-            'phone',
-            'organization',
-            'participant_type',
-            'sex',
-            'event_name',
-            'province_id',
-            'municipality_id',
-            'is_active',
-            'created_by_user_id',
-            'created_at',
-            'deleted_at',
-            'deleted_by_user_id',
-        ];
+        $perPage = max(5, min(100, $request->integer('per_page', 10)));
 
         return Inertia::render('participants', [
-            'participants' => User::query()
-                ->with([
-                    'province:id,code,name',
-                    'municipality:id,code,name',
-                    'createdBy:id,name',
-                    'eventRegistrations:id,user_id,event_id,organization,participant_type,created_by_user_id,created_at',
-                    'eventRegistrations.event:id,slug',
-                    'eventRegistrations.createdBy:id,name',
-                ])
-                ->latest()
-                ->get($columns),
-            'deletedParticipants' => User::query()
-                ->onlyTrashed()
-                ->with([
-                    'province:id,code,name',
-                    'municipality:id,code,name',
-                    'createdBy:id,name',
-                    'deletedBy:id,name',
-                    'eventRegistrations:id,user_id,event_id,organization,participant_type,created_by_user_id,created_at',
-                    'eventRegistrations.event:id,slug',
-                    'eventRegistrations.createdBy:id,name',
-                ])
-                ->latest('deleted_at')
-                ->get($columns),
+            'participants' => $this->participantQuery($request)
+                ->paginate($perPage)
+                ->withQueryString(),
+            'deletedParticipants' => Inertia::optional(
+                fn () => $this->participantQuery($request, true)
+                    ->latest('deleted_at')
+                    ->get($this->participantColumns()),
+            ),
+            'filters' => [
+                'search' => $request->string('search')->toString(),
+                'event' => $request->string('event', 'all')->toString(),
+                'added_by' => $request->string('added_by', 'all')->toString(),
+                'type' => $request->string('type', 'all')->toString(),
+                'sort' => $request->string('sort', 'created_at')->toString(),
+                'direction' => $request->string('direction', 'desc')->toString(),
+                'per_page' => $perPage,
+            ],
             'organizations' => Organization::query()
                 ->leftJoin('events', 'events.id', '=', 'organizations.event_id')
                 ->where('organizations.is_active', true)
@@ -132,6 +106,122 @@ class ParticipantsController extends Controller
                 ->orderBy('name')
                 ->get(['code as value', 'name as label']),
         ]);
+    }
+
+    public function export(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->participantQuery($request)
+                ->get($this->participantColumns()),
+        );
+    }
+
+    private function participantQuery(Request $request, bool $trashed = false): Builder
+    {
+        $query = User::query()
+            ->when($trashed, fn (Builder $query) => $query->onlyTrashed())
+            ->with([
+                'province:id,code,name',
+                'municipality:id,code,name',
+                'createdBy:id,name',
+                'deletedBy:id,name',
+                'eventRegistrations:id,user_id,event_id,organization,participant_type,created_by_user_id,created_at',
+                'eventRegistrations.event:id,slug',
+                'eventRegistrations.createdBy:id,name',
+            ]);
+        $event = $request->string('event', 'all')->toString();
+        $type = $request->string('type', 'all')->toString();
+        $addedBy = $request->string('added_by', 'all')->toString();
+        $search = trim($request->string('search')->toString());
+
+        if ($event !== 'all') {
+            $query->whereHas('eventRegistrations.event', fn (Builder $query) => $query->where('slug', $event));
+        }
+
+        if ($type !== 'all') {
+            $query->whereHas('eventRegistrations', function (Builder $query) use ($event, $type) {
+                $query->where('participant_type', $type)
+                    ->when(
+                        $event !== 'all',
+                        fn (Builder $query) => $query->whereHas(
+                            'event',
+                            fn (Builder $query) => $query->where('slug', $event),
+                        ),
+                    );
+            });
+        }
+
+        if ($addedBy === 'system') {
+            $query->whereNull('created_by_user_id');
+        } elseif (str_starts_with($addedBy, 'admin:')) {
+            $query->where(function (Builder $query) use ($addedBy) {
+                $creatorId = (int) Str::after($addedBy, 'admin:');
+                $query->where('created_by_user_id', $creatorId)
+                    ->orWhereHas(
+                        'eventRegistrations',
+                        fn (Builder $query) => $query->where('created_by_user_id', $creatorId),
+                    );
+            });
+        }
+
+        if ($search !== '') {
+            $query->where(function (Builder $query) use ($search) {
+                $like = '%'.$search.'%';
+                $query->where('name', 'like', $like)
+                    ->orWhere('participant_id', 'like', $like)
+                    ->orWhere('email', 'like', $like)
+                    ->orWhere('phone', 'like', $like)
+                    ->orWhere('organization', 'like', $like)
+                    ->orWhere('participant_type', 'like', $like)
+                    ->orWhereHas('province', fn (Builder $query) => $query->where('name', 'like', $like))
+                    ->orWhereHas('municipality', fn (Builder $query) => $query->where('name', 'like', $like))
+                    ->orWhereHas('eventRegistrations', fn (Builder $query) => $query
+                        ->where('organization', 'like', $like)
+                        ->orWhere('participant_type', 'like', $like));
+            });
+        }
+
+        $sort = $request->string('sort', 'created_at')->toString();
+        $direction = $request->string('direction', 'desc')->toString() === 'asc' ? 'asc' : 'desc';
+        $sortableColumns = [
+            'name' => 'name',
+            'email' => 'email',
+            'sex' => 'sex',
+            'created_at' => 'created_at',
+            'organization' => 'organization',
+            'participant_type' => 'participant_type',
+            'event_name' => 'event_name',
+        ];
+
+        return $query
+            ->orderBy($sortableColumns[$sort] ?? 'created_at', $direction)
+            ->orderBy('id', $direction);
+    }
+
+    private function participantColumns(): array
+    {
+        return [
+            'id',
+            'participant_id',
+            'name',
+            'given_name',
+            'middle_name',
+            'surname',
+            'email',
+            'avatar',
+            'phone',
+            'organization',
+            'participant_type',
+            'sex',
+            'event_name',
+            'province_id',
+            'municipality_id',
+            'is_active',
+            'created_by_user_id',
+            'created_at',
+            'deleted_at',
+            'deleted_by_user_id',
+        ];
     }
 
     public function store(Request $request, BrevoEmailService $brevoEmailService): RedirectResponse

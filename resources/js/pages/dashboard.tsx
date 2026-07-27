@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import ExcelJS from 'exceljs';
+import type ExcelJS from 'exceljs';
 import {
     Activity,
     BarChart3,
@@ -217,13 +217,13 @@ type StatisticChartType = 'bar' | 'pie' | 'line';
 
 type Props = {
     stats: Stats;
-    recentParticipants: RecentParticipant[];
+    recentParticipants?: RecentParticipant[];
     registrationTrend: RegistrationTrend[];
     attendanceStatus: AttendanceStatus[];
     eventAttendanceSummary: EventAttendanceSummary[];
-    checkedInParticipants: AttendanceParticipant[];
-    notCheckedInParticipants: AttendanceParticipant[];
-    participantStatistics: ParticipantStatistics;
+    checkedInParticipants?: AttendanceParticipant[];
+    notCheckedInParticipants?: AttendanceParticipant[];
+    participantStatistics?: ParticipantStatistics;
 };
 
 const statCards = [
@@ -260,6 +260,14 @@ const excelMimeType =
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const unspecifiedStatisticKey = 'not-specified';
 const overflowStatisticKey = 'other';
+const emptyAttendanceParticipants: AttendanceParticipant[] = [];
+const emptyParticipantStatistics: ParticipantStatistics = {
+    participants: [],
+    provinces: [],
+    municipalities: [],
+    participantTypes: [],
+    organizations: [],
+};
 
 type AttendanceExportColumn = {
     header: string;
@@ -1929,13 +1937,23 @@ function AttendanceParticipantCard({
 }
 
 export default function Dashboard({
-    recentParticipants,
+    stats,
+    recentParticipants = [],
     registrationTrend,
     eventAttendanceSummary,
-    checkedInParticipants,
-    notCheckedInParticipants,
-    participantStatistics,
+    checkedInParticipants: deferredCheckedInParticipants,
+    notCheckedInParticipants: deferredNotCheckedInParticipants,
+    participantStatistics: deferredParticipantStatistics,
 }: Props) {
+    const attendanceLoaded =
+        deferredCheckedInParticipants !== undefined &&
+        deferredNotCheckedInParticipants !== undefined;
+    const checkedInParticipants =
+        deferredCheckedInParticipants ?? emptyAttendanceParticipants;
+    const notCheckedInParticipants =
+        deferredNotCheckedInParticipants ?? emptyAttendanceParticipants;
+    const participantStatistics =
+        deferredParticipantStatistics ?? emptyParticipantStatistics;
     const initialEventFilter = getNearestEventSlug(eventAttendanceSummary);
     const [selectedAttendanceStatus, setSelectedAttendanceStatus] = useState<
         'checked-in' | 'not-checked-in' | null
@@ -1983,13 +2001,15 @@ export default function Dashboard({
             ),
         [attendanceDayFilter, eventFilter, notCheckedInParticipants],
     );
-    const filteredStats: Stats = {
-        participants:
-            eventCheckedInParticipants.length +
-            eventNotCheckedInParticipants.length,
-        checkedInParticipants: eventCheckedInParticipants.length,
-        notCheckedInParticipants: eventNotCheckedInParticipants.length,
-    };
+    const filteredStats: Stats = attendanceLoaded
+        ? {
+              participants:
+                  eventCheckedInParticipants.length +
+                  eventNotCheckedInParticipants.length,
+              checkedInParticipants: eventCheckedInParticipants.length,
+              notCheckedInParticipants: eventNotCheckedInParticipants.length,
+          }
+        : stats;
     const filteredAttendanceStatus: AttendanceStatus[] = [
         {
             label: 'Checked In',
@@ -2489,6 +2509,7 @@ export default function Dashboard({
         setIsExportingAttendance(true);
 
         try {
+            const { default: ExcelJS } = await import('exceljs');
             const workbook = new ExcelJS.Workbook();
             workbook.creator = 'CERS';
             workbook.created = new Date();
