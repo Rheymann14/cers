@@ -53,7 +53,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
     TableBody,
@@ -262,6 +262,7 @@ const excelMimeType =
 const unspecifiedStatisticKey = 'not-specified';
 const overflowStatisticKey = 'other';
 const emptyAttendanceParticipants: AttendanceParticipant[] = [];
+const emptyRecentParticipants: RecentParticipant[] = [];
 const emptyParticipantStatistics: ParticipantStatistics = {
     participants: [],
     provinces: [],
@@ -1939,13 +1940,16 @@ function AttendanceParticipantCard({
 
 export default function Dashboard({
     stats,
-    recentParticipants = [],
+    recentParticipants: deferredRecentParticipants,
     registrationTrend,
     eventAttendanceSummary,
     checkedInParticipants: deferredCheckedInParticipants,
     notCheckedInParticipants: deferredNotCheckedInParticipants,
     participantStatistics: deferredParticipantStatistics,
 }: Props) {
+    const recentParticipants =
+        deferredRecentParticipants ?? emptyRecentParticipants;
+    const recentParticipantsLoaded = deferredRecentParticipants !== undefined;
     const attendanceLoaded =
         deferredCheckedInParticipants !== undefined &&
         deferredNotCheckedInParticipants !== undefined;
@@ -1956,6 +1960,7 @@ export default function Dashboard({
     const participantStatistics =
         deferredParticipantStatistics ?? emptyParticipantStatistics;
     const statisticsLoaded = deferredParticipantStatistics !== undefined;
+    const recentSectionLoaded = recentParticipantsLoaded && statisticsLoaded;
     const initialEventFilter = getNearestEventSlug(eventAttendanceSummary);
     const [selectedAttendanceStatus, setSelectedAttendanceStatus] = useState<
         'checked-in' | 'not-checked-in' | null
@@ -2642,7 +2647,7 @@ export default function Dashboard({
                                 {attendanceLoaded ? (
                                     filteredStats[card.key].toLocaleString()
                                 ) : (
-                                    <Skeleton className="h-7 w-16" />
+                                    <Spinner className="size-6 text-muted-foreground" />
                                 )}
                             </p>
                         </button>
@@ -2688,7 +2693,9 @@ export default function Dashboard({
                             <button
                                 type="button"
                                 onClick={() => void downloadAttendanceExcel()}
-                                disabled={isExportingAttendance}
+                                disabled={
+                                    !attendanceLoaded || isExportingAttendance
+                                }
                                 className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border bg-background px-3 text-xs font-medium text-foreground transition hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
                             >
                                 <Download className="size-4" />
@@ -2697,10 +2704,19 @@ export default function Dashboard({
                                     : 'Download Excel'}
                             </button>
                         </div>
-                        <DoughnutChart
-                            data={filteredAttendanceStatus}
-                            onSelectStatus={openAttendanceDialog}
-                        />
+                        {attendanceLoaded ? (
+                            <DoughnutChart
+                                data={filteredAttendanceStatus}
+                                onSelectStatus={openAttendanceDialog}
+                            />
+                        ) : (
+                            <div className="flex min-h-48 items-center justify-center">
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Spinner className="size-6" />
+                                    Loading attendance…
+                                </div>
+                            </div>
+                        )}
                     </section>
                 </div>
 
@@ -2812,7 +2828,14 @@ export default function Dashboard({
 
                         {/* Mobile card layout */}
                         <div className="space-y-3 p-3 md:hidden">
-                            {filteredRecentParticipants.length > 0 ? (
+                            {!recentSectionLoaded ? (
+                                <div className="flex min-h-32 items-center justify-center">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Spinner className="size-5" />
+                                        Loading registrations…
+                                    </div>
+                                </div>
+                            ) : filteredRecentParticipants.length > 0 ? (
                                 filteredRecentParticipants.map(
                                     (participant) => (
                                         <article
@@ -2909,7 +2932,20 @@ export default function Dashboard({
                                 </TableHeader>
 
                                 <TableBody>
-                                    {filteredRecentParticipants.length > 0 ? (
+                                    {!recentSectionLoaded ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={5}
+                                                className="h-32"
+                                            >
+                                                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                                                    <Spinner className="size-5" />
+                                                    Loading registrations…
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : filteredRecentParticipants.length >
+                                      0 ? (
                                         filteredRecentParticipants.map(
                                             (participant) => (
                                                 <TableRow key={participant.id}>
@@ -3003,7 +3039,7 @@ export default function Dashboard({
                                             {filteredStatisticParticipants.length.toLocaleString()}
                                         </p>
                                     ) : (
-                                        <Skeleton className="mt-2 ml-auto h-7 w-16" />
+                                        <Spinner className="mt-2 ml-auto size-6 text-muted-foreground" />
                                     )}
                                 </div>
                                 <button
@@ -3084,48 +3120,57 @@ export default function Dashboard({
                             />
                         </div>
 
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                            <StatisticChart
-                                title="Province Distribution"
-                                description="Shows where registered participants are coming from."
-                                icon={MapPin}
-                                items={provinceBreakdown}
-                                emptyText="No province statistics found."
-                                chartType="bar"
-                            />
-                            <StatisticChart
-                                title="Municipality Distribution"
-                                description="City and municipality counts within the current filters."
-                                icon={MapPin}
-                                items={municipalityBreakdown}
-                                emptyText="No municipality statistics found."
-                                chartType="line"
-                            />
-                            <StatisticChart
-                                title="Sex Split"
-                                description="Participant counts grouped by recorded sex."
-                                icon={Users}
-                                items={sexBreakdown}
-                                emptyText="No sex statistics found."
-                                chartType="pie"
-                            />
-                            <StatisticChart
-                                title="Participant Types"
-                                description="Counts by the category selected during registration."
-                                icon={GraduationCap}
-                                items={participantTypeBreakdown}
-                                emptyText="No participant type statistics found."
-                                chartType="pie"
-                            />
-                            <StatisticChart
-                                title="Schools / Organizations"
-                                description="Schools and partner organizations represented in the list."
-                                icon={Building2}
-                                items={organizationBreakdown}
-                                emptyText="No school or organization statistics found."
-                                chartType="bar"
-                            />
-                        </div>
+                        {statisticsLoaded ? (
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                <StatisticChart
+                                    title="Province Distribution"
+                                    description="Shows where registered participants are coming from."
+                                    icon={MapPin}
+                                    items={provinceBreakdown}
+                                    emptyText="No province statistics found."
+                                    chartType="bar"
+                                />
+                                <StatisticChart
+                                    title="Municipality Distribution"
+                                    description="City and municipality counts within the current filters."
+                                    icon={MapPin}
+                                    items={municipalityBreakdown}
+                                    emptyText="No municipality statistics found."
+                                    chartType="line"
+                                />
+                                <StatisticChart
+                                    title="Sex Split"
+                                    description="Participant counts grouped by recorded sex."
+                                    icon={Users}
+                                    items={sexBreakdown}
+                                    emptyText="No sex statistics found."
+                                    chartType="pie"
+                                />
+                                <StatisticChart
+                                    title="Participant Types"
+                                    description="Counts by the category selected during registration."
+                                    icon={GraduationCap}
+                                    items={participantTypeBreakdown}
+                                    emptyText="No participant type statistics found."
+                                    chartType="pie"
+                                />
+                                <StatisticChart
+                                    title="Schools / Organizations"
+                                    description="Schools and partner organizations represented in the list."
+                                    icon={Building2}
+                                    items={organizationBreakdown}
+                                    emptyText="No school or organization statistics found."
+                                    chartType="bar"
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed">
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Spinner className="size-6" />
+                                    Loading participant statistics…
+                                </div>
+                            </div>
+                        )}
                     </section>
                 </TooltipProvider>
             </div>
