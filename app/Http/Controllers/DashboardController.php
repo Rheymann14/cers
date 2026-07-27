@@ -319,8 +319,13 @@ class DashboardController extends Controller
      */
     private function eventDates(Event $event): Collection
     {
-        $startsOn = $event->starts_at?->copy()->startOfDay();
-        $endsOn = ($event->ends_at ?? $event->starts_at)?->copy()->startOfDay();
+        $attendanceTimezone = config('app.attendance_timezone', 'Asia/Manila');
+        $startsOn = $event->starts_at?->copy()
+            ->timezone($attendanceTimezone)
+            ->startOfDay();
+        $endsOn = ($event->ends_at ?? $event->starts_at)?->copy()
+            ->timezone($attendanceTimezone)
+            ->startOfDay();
 
         if (! $startsOn || ! $endsOn) {
             return collect();

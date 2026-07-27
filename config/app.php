@@ -69,6 +69,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Attendance Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Event attendance days are calendar dates at the event location. Database
+    | timestamps remain in UTC, while daily attendance uses Philippine time.
+    |
+    */
+
+    'attendance_timezone' => env('ATTENDANCE_TIMEZONE', 'Asia/Manila'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

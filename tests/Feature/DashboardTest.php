@@ -33,7 +33,7 @@ test('dashboard attendance totals use event registered participants', function (
         'slug' => 'dashboard-count-test',
         'is_active' => true,
         'starts_at' => now()->startOfDay(),
-        'ends_at' => now()->addDay()->endOfDay(),
+        'ends_at' => now()->addDay()->midDay(),
     ]);
     $checkedInParticipant = User::factory()->create([
         'participant_type' => 'participant',
@@ -136,6 +136,52 @@ test('dashboard ignores registrations belonging to deleted participants', functi
             ->has('recentParticipants', 0)
             ->has('notCheckedInParticipants', 0)
             ->where('eventAttendanceSummary.0.participants_count', 0)
+        );
+});
+
+test('dashboard treats a UTC-spanning Philippine event as one local attendance day', function () {
+    $admin = User::factory()->create([
+        'participant_type' => 'admin',
+    ]);
+    $participant = User::factory()->create([
+        'participant_type' => 'participant',
+    ]);
+    $event = Event::query()->create([
+        'name' => 'PBBM Gabay Date Test',
+        'slug' => 'pbbm-gabay-date-test',
+        'is_active' => true,
+        'starts_at' => '2026-05-12 23:30:00',
+        'ends_at' => '2026-05-13 06:00:00',
+    ]);
+
+    EventRegistration::query()->create([
+        'user_id' => $participant->id,
+        'event_id' => $event->id,
+        'participant_type' => 'participant',
+    ]);
+    EventAttendance::query()->create([
+        'event_id' => $event->id,
+        'user_id' => $participant->id,
+        'attendance_date' => '2026-05-13',
+        'checked_in_by_user_id' => $admin->id,
+        'checked_in_at' => '2026-05-12 23:45:00',
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where(
+                'eventAttendanceSummary',
+                function ($summaries) use ($event) {
+                    $dailyAttendance = collect($summaries)
+                        ->firstWhere('id', $event->id)['daily_attendance'] ?? [];
+
+                    return count($dailyAttendance) === 1
+                        && $dailyAttendance[0]['date'] === '2026-05-13'
+                        && $dailyAttendance[0]['checked_in_count'] === 1;
+                },
+            )
         );
 });
 

@@ -93,8 +93,8 @@ test('a participant can check in once on every day of a multi-day event', functi
     $event = Event::query()->create([
         'name' => 'Three Day Event',
         'slug' => 'three-day-event',
-        'starts_at' => '2026-08-04 08:00:00',
-        'ends_at' => '2026-08-06 17:00:00',
+        'starts_at' => '2026-08-04 00:00:00',
+        'ends_at' => '2026-08-06 09:00:00',
         'is_active' => true,
     ]);
 
@@ -143,8 +143,8 @@ test('attendance cannot be recorded outside the event date range', function () {
     $event = Event::query()->create([
         'name' => 'Dated Event',
         'slug' => 'dated-event',
-        'starts_at' => '2026-08-04 08:00:00',
-        'ends_at' => '2026-08-06 17:00:00',
+        'starts_at' => '2026-08-04 00:00:00',
+        'ends_at' => '2026-08-06 09:00:00',
         'is_active' => true,
     ]);
 

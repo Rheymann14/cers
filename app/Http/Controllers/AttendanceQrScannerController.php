@@ -49,10 +49,18 @@ class AttendanceQrScannerController extends Controller
             ], 422);
         }
 
-        $attendanceDate = Carbon::createFromFormat('Y-m-d', $validated['attendance_date'])
+        $attendanceTimezone = config('app.attendance_timezone', 'Asia/Manila');
+        $attendanceDate = Carbon::createFromFormat(
+            'Y-m-d',
+            $validated['attendance_date'],
+            $attendanceTimezone,
+        )->startOfDay();
+        $eventStartsOn = $event->starts_at?->copy()
+            ->timezone($attendanceTimezone)
             ->startOfDay();
-        $eventStartsOn = $event->starts_at?->copy()->startOfDay();
-        $eventEndsOn = ($event->ends_at ?? $event->starts_at)?->copy()->startOfDay();
+        $eventEndsOn = ($event->ends_at ?? $event->starts_at)?->copy()
+            ->timezone($attendanceTimezone)
+            ->startOfDay();
 
         if (
             ! $eventStartsOn
