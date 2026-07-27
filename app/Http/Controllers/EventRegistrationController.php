@@ -70,6 +70,6 @@ class EventRegistrationController extends Controller
             'avatar' => $user->avatar,
         ]);
 
-        return redirect()->route($user->isAdministrator() ? 'dashboard' : 'home');
+        return redirect()->route('home');
     }
 }

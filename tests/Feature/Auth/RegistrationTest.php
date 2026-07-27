@@ -5,6 +5,7 @@ use App\Models\Municipality;
 use App\Models\Province;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
 
@@ -63,6 +64,12 @@ test('new users can register from the welcome page', function () {
 });
 
 test('one participant account can register for multiple events but not the same event twice', function () {
+    $admin = User::factory()->create([
+        'participant_type' => 'admin',
+        'is_active' => true,
+        'created_at' => now()->subDay(),
+        'updated_at' => now()->subDay(),
+    ]);
     $events = Event::query()->limit(2)->get();
     expect($events)->toHaveCount(2);
 
@@ -107,14 +114,43 @@ test('one participant account can register for multiple events but not the same 
     ])->assertRedirect();
     $participant = User::query()->where('email', $email)->firstOrFail();
 
-    $this->post(route('event-registration.store'), [
+    $secondRegistrationResponse = $this->post(route('event-registration.store'), [
         ...$payload,
         'event_name' => $events[1]->slug,
-    ])->assertRedirect();
+    ]);
+
+    $secondRegistrationResponse
+        ->assertRedirect(route('home', absolute: false))
+        ->assertSessionHas('registration_success', fn (array $registration) => (
+            $registration['participant_id'] === $participant->participant_id
+            && $registration['email'] === $email
+        ));
+
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('welcome')
+            ->where(
+                'registrationSuccess.participant_id',
+                $participant->participant_id,
+            )
+            ->where('registrationSuccess.email', $email));
 
     expect(User::query()->where('email', $email)->count())->toBe(1)
         ->and($participant->eventRegistrations()->count())->toBe(2)
         ->and($participant->participant_id)->toBe($participant->fresh()->participant_id);
+
+    $this->actingAs($admin)
+        ->get(route('participants'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('participants')
+            ->where('participants.0.id', $participant->id)
+            ->has('participants.0.event_registrations', 2)
+            ->where(
+                'participants.0.event_registrations.1.event.slug',
+                $events[1]->slug,
+            ));
 
     $this->post(route('event-registration.store'), [
         ...$payload,

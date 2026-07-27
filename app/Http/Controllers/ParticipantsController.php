@@ -49,12 +49,25 @@ class ParticipantsController extends Controller
 
         return Inertia::render('participants', [
             'participants' => User::query()
-                ->with(['province:id,code,name', 'municipality:id,code,name', 'createdBy:id,name'])
+                ->with([
+                    'province:id,code,name',
+                    'municipality:id,code,name',
+                    'createdBy:id,name',
+                    'eventRegistrations:id,user_id,event_id,organization,participant_type,created_at',
+                    'eventRegistrations.event:id,slug',
+                ])
                 ->latest()
                 ->get($columns),
             'deletedParticipants' => User::query()
                 ->onlyTrashed()
-                ->with(['province:id,code,name', 'municipality:id,code,name', 'createdBy:id,name', 'deletedBy:id,name'])
+                ->with([
+                    'province:id,code,name',
+                    'municipality:id,code,name',
+                    'createdBy:id,name',
+                    'deletedBy:id,name',
+                    'eventRegistrations:id,user_id,event_id,organization,participant_type,created_at',
+                    'eventRegistrations.event:id,slug',
+                ])
                 ->latest('deleted_at')
                 ->get($columns),
             'organizations' => Organization::query()

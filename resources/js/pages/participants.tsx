@@ -110,11 +110,23 @@ type Participant = {
     participant_type: string | null;
     sex: string | null;
     event_name: string | null;
+    event_registrations: ParticipantEventRegistration[];
     is_active: boolean;
     created_by: CreatedByUser | null;
     deleted_by: CreatedByUser | null;
     created_at: string;
     deleted_at: string | null;
+};
+
+type ParticipantEventRegistration = {
+    id: number;
+    organization: string | null;
+    participant_type: string | null;
+    created_at: string;
+    event: {
+        id: number;
+        slug: string;
+    } | null;
 };
 
 type CreatedByUser = {
@@ -182,6 +194,34 @@ type AddParticipantFormData = ParticipantFormData & {
     avatar: string;
     check_in: boolean;
 };
+
+function getEventRegistration(
+    participant: Participant,
+    eventSlug: string,
+): ParticipantEventRegistration | undefined {
+    return participant.event_registrations.find(
+        (registration) => registration.event?.slug === eventSlug,
+    );
+}
+
+function participantForEvent(
+    participant: Participant,
+    eventSlug: string,
+): Participant | null {
+    const registration = getEventRegistration(participant, eventSlug);
+
+    if (!registration) {
+        return participant.event_name === eventSlug ? participant : null;
+    }
+
+    return {
+        ...participant,
+        event_name: eventSlug,
+        organization: registration.organization,
+        participant_type: registration.participant_type,
+        created_at: registration.created_at,
+    };
+}
 
 const columns: {
     key: SortKey;
@@ -1828,9 +1868,14 @@ export default function Participants({
         () =>
             eventFilter === 'all'
                 ? participants
-                : participants.filter(
-                      (participant) => participant.event_name === eventFilter,
-                  ),
+                : participants.flatMap((participant) => {
+                      const eventParticipant = participantForEvent(
+                          participant,
+                          eventFilter,
+                      );
+
+                      return eventParticipant ? [eventParticipant] : [];
+                  }),
         [eventFilter, participants],
     );
 
@@ -1881,14 +1926,24 @@ export default function Participants({
         const counts = new Map<string, number>();
 
         participants.forEach((participant) => {
-            if (!participant.event_name) {
+            if (participant.event_registrations.length > 0) {
+                participant.event_registrations.forEach((registration) => {
+                    const eventSlug = registration.event?.slug;
+
+                    if (eventSlug) {
+                        counts.set(eventSlug, (counts.get(eventSlug) ?? 0) + 1);
+                    }
+                });
+
                 return;
             }
 
-            counts.set(
-                participant.event_name,
-                (counts.get(participant.event_name) ?? 0) + 1,
-            );
+            if (participant.event_name) {
+                counts.set(
+                    participant.event_name,
+                    (counts.get(participant.event_name) ?? 0) + 1,
+                );
+            }
         });
 
         return counts;
@@ -2009,12 +2064,7 @@ export default function Participants({
     const filteredParticipants = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
 
-        const eventFiltered =
-            eventFilter === 'all'
-                ? participants
-                : participants.filter(
-                      (participant) => participant.event_name === eventFilter,
-                  );
+        const eventFiltered = eventFilterParticipants;
 
         const addedByFiltered =
             addedByFilter === 'all'
@@ -2072,8 +2122,7 @@ export default function Participants({
         });
     }, [
         addedByFilter,
-        eventFilter,
-        participants,
+        eventFilterParticipants,
         search,
         sortDirection,
         sortKey,
