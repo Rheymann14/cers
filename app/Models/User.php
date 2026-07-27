@@ -51,7 +51,21 @@ class User extends Authenticatable
      */
     public function isAdministrator(): bool
     {
-        return $this->normalizeParticipantType($this->participant_type) === 'admin';
+        if ($this->normalizeParticipantType($this->participant_type) === 'admin') {
+            return true;
+        }
+
+        if ($this->relationLoaded('eventRegistrations')) {
+            return $this->eventRegistrations->contains(
+                fn (EventRegistration $registration) => (
+                    $this->normalizeParticipantType($registration->participant_type) === 'admin'
+                ),
+            );
+        }
+
+        return $this->eventRegistrations()
+            ->whereIn('participant_type', ['admin', 'administrator'])
+            ->exists();
     }
 
     /**

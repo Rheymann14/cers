@@ -75,6 +75,17 @@ class PageSettingsController extends Controller
         $model = $this->findModel($table, $id);
         $validated = $this->validatedData($request, $table, $id);
 
+        if ($model instanceof ParticipantType && $model->slug === 'admin') {
+            $validated = [
+                ...$validated,
+                'event_id' => $model->event_id,
+                'name' => 'Administrator',
+                'slug' => 'admin',
+                'type' => 'general',
+                'is_active' => true,
+            ];
+        }
+
         $model->update($validated);
 
         Inertia::flash('toast', [
@@ -88,6 +99,15 @@ class PageSettingsController extends Controller
     public function toggleStatus(string $table, int $id): RedirectResponse
     {
         $model = $this->findModel($table, $id);
+
+        if ($model instanceof ParticipantType && $model->slug === 'admin') {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => 'The default Administrator type must remain active.',
+            ]);
+
+            return back();
+        }
 
         $model->update([
             'is_active' => ! $model->getAttribute('is_active'),
@@ -104,6 +124,16 @@ class PageSettingsController extends Controller
     public function destroy(string $table, int $id): RedirectResponse
     {
         $model = $this->findModel($table, $id);
+
+        if ($model instanceof ParticipantType && $model->slug === 'admin') {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => 'The default Administrator type cannot be deleted.',
+            ]);
+
+            return back();
+        }
+
         $model->delete();
 
         Inertia::flash('toast', [

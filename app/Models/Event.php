@@ -35,6 +35,20 @@ class Event extends Model
         'pdf_url',
     ];
 
+    protected static function booted(): void
+    {
+        static::created(function (Event $event): void {
+            $event->participantTypes()->firstOrCreate(
+                ['slug' => 'admin'],
+                [
+                    'name' => 'Administrator',
+                    'type' => 'general',
+                    'is_active' => true,
+                ],
+            );
+        });
+    }
+
     protected function casts(): array
     {
         return [

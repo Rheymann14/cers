@@ -108,14 +108,23 @@ class ParticipantsController extends Controller
             'addedByOptions' => collect([
                 ['value' => 'system', 'label' => 'System', 'type' => 'system'],
             ])->concat(
-                User::query()
-                    ->whereIn('participant_type', ['admin', 'administrator'])
-                    ->orderBy('name')
-                    ->get(['id', 'name'])
-                    ->map(fn (User $admin) => [
-                        'value' => 'admin:'.$admin->id,
-                        'label' => $admin->name,
+                EventRegistration::query()
+                    ->join('users', 'users.id', '=', 'event_registrations.user_id')
+                    ->join('events', 'events.id', '=', 'event_registrations.event_id')
+                    ->whereIn('event_registrations.participant_type', ['admin', 'administrator'])
+                    ->where('users.is_active', true)
+                    ->whereNull('users.deleted_at')
+                    ->orderBy('users.name')
+                    ->get([
+                        'users.id as user_id',
+                        'users.name',
+                        'events.slug as event_slug',
+                    ])
+                    ->map(fn (EventRegistration $registration) => [
+                        'value' => 'admin:'.$registration->user_id,
+                        'label' => $registration->name,
                         'type' => 'administrator',
+                        'event_slug' => $registration->event_slug,
                     ]),
             )->values(),
             'provinces' => Province::query()

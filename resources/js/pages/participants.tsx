@@ -1898,16 +1898,23 @@ export default function Participants({
     const normalizedAddedByOptions = useMemo(() => {
         const seen = new Set<string>();
 
-        return addedByOptions.filter((option) => {
-            if (seen.has(option.value)) {
-                return false;
-            }
+        return addedByOptions
+            .filter(
+                (option) =>
+                    eventFilter === 'all' ||
+                    !option.event_slug ||
+                    option.event_slug === eventFilter,
+            )
+            .filter((option) => {
+                if (seen.has(option.value)) {
+                    return false;
+                }
 
-            seen.add(option.value);
+                seen.add(option.value);
 
-            return true;
-        });
-    }, [addedByOptions]);
+                return true;
+            });
+    }, [addedByOptions, eventFilter]);
 
     const addedByCounts = useMemo(() => {
         const counts = new Map<string, number>();
