@@ -362,6 +362,7 @@ export default function AttendanceQrScanner({ events }: Props) {
         : null;
     const initialEventClosed = initialSelectedEventStatus === 'closed';
     const [eventOpen, setEventOpen] = useState(false);
+    const [attendanceDateOpen, setAttendanceDateOpen] = useState(false);
     const [selectedEventId, setSelectedEventId] = useState(
         initialSelectedEvent?.id ? String(initialSelectedEvent.id) : '',
     );
@@ -857,6 +858,9 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                                 ),
                                                             );
                                                             setEventOpen(false);
+                                                            setAttendanceDateOpen(
+                                                                false,
+                                                            );
                                                             lastDetectedRef.current =
                                                                 '';
                                                             setCheckInResult(
@@ -934,33 +938,87 @@ export default function AttendanceQrScanner({ events }: Props) {
                         </Popover>
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="attendance_date">Attendance day</Label>
-                        <select
-                            id="attendance_date"
-                            value={attendanceDate}
-                            onChange={(event) => {
-                                setAttendanceDate(event.target.value);
-                                setCheckInResult(null);
-                                lastDetectedRef.current = '';
-                            }}
-                            disabled={
-                                !selectedEvent ||
-                                selectedEventStatus === 'closed' ||
-                                attendanceDates.length === 0
-                            }
-                            className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                        <Label id="attendance_date_label">Attendance day</Label>
+                        <Popover
+                            open={attendanceDateOpen}
+                            onOpenChange={setAttendanceDateOpen}
                         >
-                            {attendanceDates.length === 0 && (
-                                <option value="">
-                                    Event dates are unavailable
-                                </option>
-                            )}
-                            {attendanceDates.map((date) => (
-                                <option key={date} value={date}>
-                                    {formatAttendanceDate(date)}
-                                </option>
-                            ))}
-                        </select>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-labelledby="attendance_date_label"
+                                    aria-expanded={attendanceDateOpen}
+                                    disabled={
+                                        !selectedEvent ||
+                                        selectedEventStatus === 'closed' ||
+                                        attendanceDates.length === 0
+                                    }
+                                    className={cn(
+                                        'h-auto min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left font-normal',
+                                        !attendanceDate &&
+                                            'text-muted-foreground',
+                                    )}
+                                >
+                                    <span className="min-w-0 flex-1 leading-snug break-words whitespace-normal sm:truncate">
+                                        {attendanceDate
+                                            ? formatAttendanceDate(
+                                                  attendanceDate,
+                                              )
+                                            : 'Event dates are unavailable'}
+                                    </span>
+                                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                                align="start"
+                                collisionPadding={12}
+                                className="w-[calc(100vw-1.5rem)] max-w-[var(--radix-popover-content-available-width)] p-0 sm:w-[var(--radix-popover-trigger-width)]"
+                            >
+                                <Command>
+                                    <CommandInput placeholder="Search attendance days..." />
+                                    <CommandList className="max-h-[60vh]">
+                                        <CommandEmpty>
+                                            No attendance day found.
+                                        </CommandEmpty>
+                                        <CommandGroup>
+                                            {attendanceDates.map((date) => (
+                                                <CommandItem
+                                                    key={date}
+                                                    value={`${formatAttendanceDate(date)} ${date}`}
+                                                    onSelect={() => {
+                                                        setAttendanceDate(date);
+                                                        setAttendanceDateOpen(
+                                                            false,
+                                                        );
+                                                        setCheckInResult(null);
+                                                        lastDetectedRef.current =
+                                                            '';
+                                                    }}
+                                                    className="min-h-11 py-2.5"
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            'size-4',
+                                                            attendanceDate ===
+                                                                date
+                                                                ? 'opacity-100'
+                                                                : 'opacity-0',
+                                                        )}
+                                                    />
+                                                    <span className="min-w-0 leading-snug break-words whitespace-normal">
+                                                        {formatAttendanceDate(
+                                                            date,
+                                                        )}
+                                                    </span>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
                         {attendanceDates.length > 1 && (
                             <p className="text-xs text-muted-foreground">
                                 This event has {attendanceDates.length}{' '}
