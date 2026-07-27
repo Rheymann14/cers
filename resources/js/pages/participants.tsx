@@ -141,6 +141,7 @@ type CreatedByUser = {
 type Props = {
     participants: PaginatedParticipants;
     deletedParticipants?: Participant[];
+    deletedParticipantsCount: number;
     filters: ParticipantFilters;
     organizations: Option[];
     participantTypes: Option[];
@@ -1545,6 +1546,7 @@ function ContactEmail({ email }: { email: string | null }) {
 export default function Participants({
     participants: participantPagination,
     deletedParticipants = [],
+    deletedParticipantsCount,
     filters,
     organizations,
     participantTypes,
@@ -1663,7 +1665,11 @@ export default function Participants({
                         page,
                     },
                     {
-                        only: ['participants', 'filters'],
+                        only: [
+                            'participants',
+                            'deletedParticipantsCount',
+                            'filters',
+                        ],
                         preserveScroll: true,
                         preserveState: true,
                         replace: true,
@@ -2565,15 +2571,12 @@ export default function Participants({
                                 >
                                     <UserX className="size-3.5" />
                                     Deleted
-                                    {eventFilterDeletedParticipants.length >
-                                        0 && (
+                                    {deletedParticipantsCount > 0 && (
                                         <Badge
                                             variant="secondary"
                                             className="ml-0.5 px-1.5 py-0 text-[10px]"
                                         >
-                                            {
-                                                eventFilterDeletedParticipants.length
-                                            }
+                                            {deletedParticipantsCount}
                                         </Badge>
                                     )}
                                 </Button>

@@ -37,6 +37,19 @@ class ParticipantsController extends Controller
                     ->latest('deleted_at')
                     ->get($this->participantColumns()),
             ),
+            'deletedParticipantsCount' => User::query()
+                ->onlyTrashed()
+                ->when(
+                    $request->string('event', 'all')->toString() !== 'all',
+                    fn (Builder $query) => $query->whereHas(
+                        'eventRegistrations.event',
+                        fn (Builder $query) => $query->where(
+                            'slug',
+                            $request->string('event')->toString(),
+                        ),
+                    ),
+                )
+                ->count(),
             'filters' => [
                 'search' => $request->string('search')->toString(),
                 'event' => $request->string('event', 'all')->toString(),

@@ -53,6 +53,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     Table,
     TableBody,
@@ -1954,6 +1955,7 @@ export default function Dashboard({
         deferredNotCheckedInParticipants ?? emptyAttendanceParticipants;
     const participantStatistics =
         deferredParticipantStatistics ?? emptyParticipantStatistics;
+    const statisticsLoaded = deferredParticipantStatistics !== undefined;
     const initialEventFilter = getNearestEventSlug(eventAttendanceSummary);
     const [selectedAttendanceStatus, setSelectedAttendanceStatus] = useState<
         'checked-in' | 'not-checked-in' | null
@@ -2611,6 +2613,7 @@ export default function Dashboard({
                         <button
                             key={card.key}
                             type="button"
+                            disabled={!attendanceLoaded}
                             onClick={() => {
                                 if (card.key === 'participants') {
                                     router.visit('/participants');
@@ -2624,7 +2627,7 @@ export default function Dashboard({
                                     openAttendanceDialog('not-checked-in');
                                 }
                             }}
-                            className="rounded-lg border bg-card p-4 text-left text-card-foreground shadow-sm transition hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            className="rounded-lg border bg-card p-4 text-left text-card-foreground shadow-sm transition hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-wait"
                         >
                             <div className="flex items-center justify-between gap-3">
                                 <p className="text-sm font-medium text-muted-foreground">
@@ -2636,7 +2639,11 @@ export default function Dashboard({
                                 <card.icon className="size-4 text-muted-foreground" />
                             </div>
                             <p className="mt-3 text-2xl font-semibold tracking-tight">
-                                {filteredStats[card.key].toLocaleString()}
+                                {attendanceLoaded ? (
+                                    filteredStats[card.key].toLocaleString()
+                                ) : (
+                                    <Skeleton className="h-7 w-16" />
+                                )}
                             </p>
                         </button>
                     ))}
@@ -2991,9 +2998,13 @@ export default function Dashboard({
                                     <p className="text-xs font-medium text-muted-foreground">
                                         Matching Participants
                                     </p>
-                                    <p className="mt-1 text-2xl font-semibold tracking-tight">
-                                        {filteredStatisticParticipants.length.toLocaleString()}
-                                    </p>
+                                    {statisticsLoaded ? (
+                                        <p className="mt-1 text-2xl font-semibold tracking-tight">
+                                            {filteredStatisticParticipants.length.toLocaleString()}
+                                        </p>
+                                    ) : (
+                                        <Skeleton className="mt-2 ml-auto h-7 w-16" />
+                                    )}
                                 </div>
                                 <button
                                     type="button"
