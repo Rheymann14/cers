@@ -53,8 +53,9 @@ class ParticipantsController extends Controller
                     'province:id,code,name',
                     'municipality:id,code,name',
                     'createdBy:id,name',
-                    'eventRegistrations:id,user_id,event_id,organization,participant_type,created_at',
+                    'eventRegistrations:id,user_id,event_id,organization,participant_type,created_by_user_id,created_at',
                     'eventRegistrations.event:id,slug',
+                    'eventRegistrations.createdBy:id,name',
                 ])
                 ->latest()
                 ->get($columns),
@@ -65,8 +66,9 @@ class ParticipantsController extends Controller
                     'municipality:id,code,name',
                     'createdBy:id,name',
                     'deletedBy:id,name',
-                    'eventRegistrations:id,user_id,event_id,organization,participant_type,created_at',
+                    'eventRegistrations:id,user_id,event_id,organization,participant_type,created_by_user_id,created_at',
                     'eventRegistrations.event:id,slug',
+                    'eventRegistrations.createdBy:id,name',
                 ])
                 ->latest('deleted_at')
                 ->get($columns),

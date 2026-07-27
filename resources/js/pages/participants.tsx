@@ -122,6 +122,7 @@ type ParticipantEventRegistration = {
     id: number;
     organization: string | null;
     participant_type: string | null;
+    created_by: CreatedByUser | null;
     created_at: string;
     event: {
         id: number;
@@ -219,6 +220,7 @@ function participantForEvent(
         event_name: eventSlug,
         organization: registration.organization,
         participant_type: registration.participant_type,
+        created_by: registration.created_by,
         created_at: registration.created_at,
     };
 }
@@ -1878,6 +1880,20 @@ export default function Participants({
                   }),
         [eventFilter, participants],
     );
+    const eventFilterDeletedParticipants = useMemo(
+        () =>
+            eventFilter === 'all'
+                ? deletedParticipants
+                : deletedParticipants.flatMap((participant) => {
+                      const eventParticipant = participantForEvent(
+                          participant,
+                          eventFilter,
+                      );
+
+                      return eventParticipant ? [eventParticipant] : [];
+                  }),
+        [deletedParticipants, eventFilter],
+    );
 
     const normalizedAddedByOptions = useMemo(() => {
         const seen = new Set<string>();
@@ -1896,14 +1912,14 @@ export default function Participants({
     const addedByCounts = useMemo(() => {
         const counts = new Map<string, number>();
 
-        participants.forEach((participant) => {
+        eventFilterParticipants.forEach((participant) => {
             const value = getAddedByFilterValue(participant);
 
             counts.set(value, (counts.get(value) ?? 0) + 1);
         });
 
         return counts;
-    }, [participants]);
+    }, [eventFilterParticipants]);
 
     const participantTypeCounts = useMemo(() => {
         const counts = new Map<string, number>();
@@ -2165,6 +2181,7 @@ export default function Participants({
 
     function updateEventFilter(value: string) {
         setEventFilter(value);
+        setAddedByFilter('all');
         setTypeFilter('all');
         setPage(1);
     }
@@ -2584,7 +2601,7 @@ export default function Participants({
                                     value={addedByFilter}
                                     options={normalizedAddedByOptions}
                                     counts={addedByCounts}
-                                    totalCount={participants.length}
+                                    totalCount={eventFilterParticipants.length}
                                     onChange={updateAddedByFilter}
                                 />
                                 <ParticipantTypeFilter
@@ -2628,12 +2645,15 @@ export default function Participants({
                                 >
                                     <UserX className="size-3.5" />
                                     Deleted
-                                    {deletedParticipants.length > 0 && (
+                                    {eventFilterDeletedParticipants.length >
+                                        0 && (
                                         <Badge
                                             variant="secondary"
                                             className="ml-0.5 px-1.5 py-0 text-[10px]"
                                         >
-                                            {deletedParticipants.length}
+                                            {
+                                                eventFilterDeletedParticipants.length
+                                            }
                                         </Badge>
                                     )}
                                 </Button>
@@ -4055,63 +4075,65 @@ export default function Participants({
                     </DialogHeader>
 
                     <div className="max-h-[min(24rem,calc(100dvh-8rem))] space-y-2 overflow-y-auto pr-1">
-                        {deletedParticipants.length > 0 ? (
-                            deletedParticipants.map((participant) => (
-                                <div
-                                    key={participant.id}
-                                    className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between"
-                                >
-                                    <div className="flex min-w-0 items-center gap-2">
-                                        <ParticipantAvatarThumbnail
-                                            participant={participant}
-                                            getInitials={getInitials}
-                                            sizeClassName="size-8"
-                                            fallbackClassName="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
-                                            onViewImage={
-                                                setViewingImageParticipant
-                                            }
-                                        />
-                                        <div className="min-w-0">
-                                            <p className="truncate text-xs font-semibold text-foreground">
-                                                {participant.name}
-                                            </p>
-                                            <p className="truncate text-[11px] text-muted-foreground">
-                                                {participant.email ?? '-'}
-                                            </p>
-                                            <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                                Deleted{' '}
-                                                {participant.deleted_at
-                                                    ? formatDate(
-                                                          participant.deleted_at,
-                                                      )
-                                                    : '-'}
-                                            </p>
-                                            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                                                Deleted by{' '}
-                                                <span className="font-medium text-foreground">
-                                                    {getDeletedByLabel(
-                                                        participant,
-                                                    )}
-                                                </span>
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            submitRestore(participant)
-                                        }
-                                        disabled={restoring}
-                                        className="h-8 w-full text-xs sm:w-auto"
+                        {eventFilterDeletedParticipants.length > 0 ? (
+                            eventFilterDeletedParticipants.map(
+                                (participant) => (
+                                    <div
+                                        key={participant.id}
+                                        className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between"
                                     >
-                                        <RotateCcw className="size-3.5" />
-                                        Restore
-                                    </Button>
-                                </div>
-                            ))
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <ParticipantAvatarThumbnail
+                                                participant={participant}
+                                                getInitials={getInitials}
+                                                sizeClassName="size-8"
+                                                fallbackClassName="bg-[#eef5ff] text-[11px] font-semibold text-[#0038A8] dark:bg-blue-950/50 dark:text-blue-300"
+                                                onViewImage={
+                                                    setViewingImageParticipant
+                                                }
+                                            />
+                                            <div className="min-w-0">
+                                                <p className="truncate text-xs font-semibold text-foreground">
+                                                    {participant.name}
+                                                </p>
+                                                <p className="truncate text-[11px] text-muted-foreground">
+                                                    {participant.email ?? '-'}
+                                                </p>
+                                                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                                    Deleted{' '}
+                                                    {participant.deleted_at
+                                                        ? formatDate(
+                                                              participant.deleted_at,
+                                                          )
+                                                        : '-'}
+                                                </p>
+                                                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                                                    Deleted by{' '}
+                                                    <span className="font-medium text-foreground">
+                                                        {getDeletedByLabel(
+                                                            participant,
+                                                        )}
+                                                    </span>
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                submitRestore(participant)
+                                            }
+                                            disabled={restoring}
+                                            className="h-8 w-full text-xs sm:w-auto"
+                                        >
+                                            <RotateCcw className="size-3.5" />
+                                            Restore
+                                        </Button>
+                                    </div>
+                                ),
+                            )
                         ) : (
                             <div className="rounded-md border border-dashed p-6 text-center text-xs text-muted-foreground">
                                 <UserX className="mx-auto mb-2 size-5 opacity-60" />

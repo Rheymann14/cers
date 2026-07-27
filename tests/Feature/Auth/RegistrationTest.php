@@ -140,6 +140,10 @@ test('one participant account can register for multiple events but not the same 
         ->and($participant->eventRegistrations()->count())->toBe(2)
         ->and($participant->participant_id)->toBe($participant->fresh()->participant_id);
 
+    $participant->eventRegistrations()
+        ->where('event_id', $events[1]->id)
+        ->update(['created_by_user_id' => $admin->id]);
+
     $this->actingAs($admin)
         ->get(route('participants'))
         ->assertOk()
@@ -150,6 +154,10 @@ test('one participant account can register for multiple events but not the same 
             ->where(
                 'participants.0.event_registrations.1.event.slug',
                 $events[1]->slug,
+            )
+            ->where(
+                'participants.0.event_registrations.1.created_by.id',
+                $admin->id,
             ));
 
     $this->post(route('event-registration.store'), [
@@ -160,4 +168,17 @@ test('one participant account can register for multiple events but not the same 
     ]);
 
     expect($participant->eventRegistrations()->count())->toBe(2);
+
+    $participant->delete();
+
+    $this->get(route('participants'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('participants')
+            ->where('deletedParticipants.0.id', $participant->id)
+            ->has('deletedParticipants.0.event_registrations', 2)
+            ->where(
+                'deletedParticipants.0.event_registrations.1.created_by.id',
+                $admin->id,
+            ));
 });
