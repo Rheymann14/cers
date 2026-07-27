@@ -32,6 +32,8 @@ test('dashboard attendance totals use event registered participants', function (
         'name' => 'Dashboard Count Test',
         'slug' => 'dashboard-count-test',
         'is_active' => true,
+        'starts_at' => now()->startOfDay(),
+        'ends_at' => now()->addDay()->endOfDay(),
     ]);
     $checkedInParticipant = User::factory()->create([
         'participant_type' => 'participant',
@@ -81,6 +83,18 @@ test('dashboard attendance totals use event registered participants', function (
             ->where('attendanceStatus.0.count', 1)
             ->where('attendanceStatus.1.count', 6)
             ->has('checkedInParticipants', 2)
+            ->has('notCheckedInParticipants', 12)
+            ->where(
+                'eventAttendanceSummary',
+                function ($summaries) use ($event) {
+                    $dailyAttendance = collect($summaries)
+                        ->firstWhere('id', $event->id)['daily_attendance'] ?? [];
+
+                    return count($dailyAttendance) === 2
+                        && $dailyAttendance[0]['checked_in_count'] === 1
+                        && $dailyAttendance[1]['checked_in_count'] === 1;
+                },
+            )
             ->where(
                 'checkedInParticipants.0.attendance_date',
                 now()->addDay()->toDateString(),
@@ -89,7 +103,6 @@ test('dashboard attendance totals use event registered participants', function (
                 'checkedInParticipants.1.attendance_date',
                 now()->toDateString(),
             )
-            ->has('notCheckedInParticipants', 6)
         );
 });
 

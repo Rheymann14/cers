@@ -112,12 +112,22 @@ type EventAttendanceSummary = {
     checked_in_count: number;
     not_checked_in_count: number;
     attendance_rate: number;
+    daily_attendance: DailyAttendanceSummary[];
+};
+
+type DailyAttendanceSummary = {
+    date: string;
+    participants_count: number;
+    checked_in_count: number;
+    not_checked_in_count: number;
+    attendance_rate: number;
 };
 
 type EventStatus = 'ongoing' | 'upcoming' | 'closed';
 
 type AttendanceParticipant = {
     id: number;
+    row_key: string;
     participant_id: string | null;
     name: string;
     given_name: string | null;
@@ -479,18 +489,6 @@ function formatDate(value: string): string {
     }).format(new Date(value));
 }
 
-function formatEventDate(value: string | null): string {
-    if (!value) {
-        return '-';
-    }
-
-    return new Intl.DateTimeFormat('en', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-    }).format(new Date(value));
-}
-
 function formatDateTime(value: string | null): string {
     if (!value) {
         return '-';
@@ -517,6 +515,45 @@ function formatAttendanceDay(value: string | null): string {
         day: 'numeric',
         year: 'numeric',
     }).format(new Date(year, month - 1, day));
+}
+
+function getAttendanceDays(
+    events: EventAttendanceSummary[],
+    eventSlug: string,
+): string[] {
+    return [
+        ...new Set(
+            events
+                .filter(
+                    (event) => eventSlug === 'all' || event.slug === eventSlug,
+                )
+                .flatMap((event) =>
+                    event.daily_attendance.map((attendance) => attendance.date),
+                ),
+        ),
+    ].sort();
+}
+
+function getNearestAttendanceDay(
+    events: EventAttendanceSummary[],
+    eventSlug: string,
+): string {
+    const dates = getAttendanceDays(events, eventSlug);
+
+    if (dates.length === 0) {
+        return 'all';
+    }
+
+    const now = new Date();
+    const today = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+    ].join('-');
+
+    return (
+        dates.find((date) => date >= today) ?? dates[dates.length - 1] ?? 'all'
+    );
 }
 
 function toEventDate(value: string | null): Date | null {
@@ -1879,16 +1916,12 @@ function AttendanceParticipantCard({
                                 : participant.registered_at,
                         )}
                     </p>
+                    <p className="mt-2 font-medium text-foreground">
+                        Attendance Day
+                    </p>
+                    <p>{formatAttendanceDay(participant.attendance_date)}</p>
                     {selectedAttendanceStatus === 'checked-in' ? (
                         <>
-                            <p className="mt-2 font-medium text-foreground">
-                                Attendance Day
-                            </p>
-                            <p>
-                                {formatAttendanceDay(
-                                    participant.attendance_date,
-                                )}
-                            </p>
                             <p className="mt-2 font-medium text-foreground">
                                 Scanned By
                             </p>
@@ -1910,6 +1943,7 @@ export default function Dashboard({
     notCheckedInParticipants,
     participantStatistics,
 }: Props) {
+    const initialEventFilter = getNearestEventSlug(eventAttendanceSummary);
     const [selectedAttendanceStatus, setSelectedAttendanceStatus] = useState<
         'checked-in' | 'not-checked-in' | null
     >(null);
@@ -1918,8 +1952,9 @@ export default function Dashboard({
     const [attendancePageSize, setAttendancePageSize] =
         useState<(typeof attendancePageSizeOptions)[number]>(25);
     const [isExportingAttendance, setIsExportingAttendance] = useState(false);
-    const [eventFilter, setEventFilter] = useState(() =>
-        getNearestEventSlug(eventAttendanceSummary),
+    const [eventFilter, setEventFilter] = useState(initialEventFilter);
+    const [attendanceDayFilter, setAttendanceDayFilter] = useState(() =>
+        getNearestAttendanceDay(eventAttendanceSummary, initialEventFilter),
     );
     const [statisticFilters, setStatisticFilters] = useState<StatisticFilters>({
         provinceId: allStatisticFilterValue,
@@ -1929,23 +1964,31 @@ export default function Dashboard({
         organizationId: allStatisticFilterValue,
     });
 
+    const availableAttendanceDays = useMemo(
+        () => getAttendanceDays(eventAttendanceSummary, eventFilter),
+        [eventAttendanceSummary, eventFilter],
+    );
     const eventCheckedInParticipants = useMemo(
         () =>
-            eventFilter === 'all'
-                ? checkedInParticipants
-                : checkedInParticipants.filter(
-                      (participant) => participant.event_slug === eventFilter,
-                  ),
-        [checkedInParticipants, eventFilter],
+            checkedInParticipants.filter(
+                (participant) =>
+                    (eventFilter === 'all' ||
+                        participant.event_slug === eventFilter) &&
+                    (attendanceDayFilter === 'all' ||
+                        participant.attendance_date === attendanceDayFilter),
+            ),
+        [attendanceDayFilter, checkedInParticipants, eventFilter],
     );
     const eventNotCheckedInParticipants = useMemo(
         () =>
-            eventFilter === 'all'
-                ? notCheckedInParticipants
-                : notCheckedInParticipants.filter(
-                      (participant) => participant.event_slug === eventFilter,
-                  ),
-        [eventFilter, notCheckedInParticipants],
+            notCheckedInParticipants.filter(
+                (participant) =>
+                    (eventFilter === 'all' ||
+                        participant.event_slug === eventFilter) &&
+                    (attendanceDayFilter === 'all' ||
+                        participant.attendance_date === attendanceDayFilter),
+            ),
+        [attendanceDayFilter, eventFilter, notCheckedInParticipants],
     );
     const filteredStats: Stats = {
         participants:
@@ -2019,8 +2062,29 @@ export default function Dashboard({
 
     const selectedAttendanceTitle =
         selectedAttendanceStatus === 'checked-in'
-            ? 'Checked In Participants'
-            : 'Participants Not Checked In';
+            ? 'Daily Checked-In Participants'
+            : 'Participants Missing Daily Check-In';
+
+    const dailyAttendanceRows = useMemo(
+        () =>
+            eventAttendanceSummary.flatMap((event) =>
+                event.daily_attendance
+                    .filter(
+                        (attendance) =>
+                            (eventFilter === 'all' ||
+                                event.slug === eventFilter) &&
+                            (attendanceDayFilter === 'all' ||
+                                attendance.date === attendanceDayFilter),
+                    )
+                    .map((attendance) => ({
+                        ...attendance,
+                        event_id: event.id,
+                        event_name: event.name,
+                        event_slug: event.slug,
+                    })),
+            ),
+        [attendanceDayFilter, eventAttendanceSummary, eventFilter],
+    );
 
     const maxEventParticipants = Math.max(
         1,
@@ -2372,6 +2436,19 @@ export default function Dashboard({
         });
     }
 
+    function updateEventFilter(value: string) {
+        setEventFilter(value);
+        setAttendanceDayFilter(
+            getNearestAttendanceDay(eventAttendanceSummary, value),
+        );
+        setAttendancePage(1);
+    }
+
+    function updateAttendanceDayFilter(value: string) {
+        setAttendanceDayFilter(value);
+        setAttendancePage(1);
+    }
+
     function openAttendanceDialog(status: 'checked-in' | 'not-checked-in') {
         setAttendanceSearch('');
         setAttendancePage(1);
@@ -2463,11 +2540,37 @@ export default function Dashboard({
                             and setup coverage.
                         </p>
                     </div>
-                    <DashboardEventFilter
-                        value={eventFilter}
-                        options={eventAttendanceSummary}
-                        onChange={setEventFilter}
-                    />
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <DashboardEventFilter
+                            value={eventFilter}
+                            options={eventAttendanceSummary}
+                            onChange={updateEventFilter}
+                        />
+                        <label className="flex min-h-9 items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs font-medium shadow-sm">
+                            <CalendarDays className="size-3.5 text-muted-foreground" />
+                            <span className="sr-only">Attendance day</span>
+                            <select
+                                value={attendanceDayFilter}
+                                onChange={(event) =>
+                                    updateAttendanceDayFilter(
+                                        event.target.value,
+                                    )
+                                }
+                                className="min-w-0 bg-transparent outline-none"
+                                aria-label="Filter dashboard by attendance day"
+                            >
+                                <option value="all">
+                                    All event days (
+                                    {availableAttendanceDays.length})
+                                </option>
+                                {availableAttendanceDays.map((date) => (
+                                    <option key={date} value={date}>
+                                        {formatAttendanceDay(date)}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -2492,7 +2595,10 @@ export default function Dashboard({
                         >
                             <div className="flex items-center justify-between gap-3">
                                 <p className="text-sm font-medium text-muted-foreground">
-                                    {card.title}
+                                    {card.key === 'participants' &&
+                                    attendanceDayFilter === 'all'
+                                        ? 'Expected Attendances'
+                                        : card.title}
                                 </p>
                                 <card.icon className="size-4 text-muted-foreground" />
                             </div>
@@ -2534,8 +2640,8 @@ export default function Dashboard({
                                         Attendance Status
                                     </h2>
                                     <p className="mt-1 text-sm text-muted-foreground">
-                                        Checked-in vs not checked-in
-                                        participants.
+                                        Checked-in vs missing check-ins for the
+                                        selected attendance day.
                                     </p>
                                 </div>
                             </div>
@@ -2561,11 +2667,11 @@ export default function Dashboard({
                 <section className="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
                     <div className="border-b p-4">
                         <h2 className="text-base font-semibold">
-                            Attendance Per Event
+                            Attendance Per Event Day
                         </h2>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Shows registered participants, successful check-ins,
-                            and participants who did not scan or check in.
+                            Each event date is measured independently, including
+                            registered, checked-in, and missing participants.
                         </p>
                     </div>
                     <div className="overflow-x-auto">
@@ -2589,27 +2695,26 @@ export default function Dashboard({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {eventAttendanceSummary.length > 0 ? (
-                                    eventAttendanceSummary.map((event) => (
-                                        <TableRow key={event.id}>
+                                {dailyAttendanceRows.length > 0 ? (
+                                    dailyAttendanceRows.map((attendance) => (
+                                        <TableRow
+                                            key={`${attendance.event_id}:${attendance.date}`}
+                                        >
                                             <TableCell>
                                                 <div>
                                                     <p className="font-medium text-foreground">
-                                                        {event.name}
+                                                        {attendance.event_name}
                                                     </p>
-                                                    {/* <p className="text-xs text-muted-foreground">
-                            {event.slug}
-                          </p> */}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right font-medium">
-                                                {event.participants_count.toLocaleString()}
+                                                {attendance.participants_count.toLocaleString()}
                                             </TableCell>
                                             <TableCell className="text-right text-emerald-700 dark:text-emerald-300">
-                                                {event.checked_in_count.toLocaleString()}
+                                                {attendance.checked_in_count.toLocaleString()}
                                             </TableCell>
                                             <TableCell className="text-right text-amber-700 dark:text-amber-300">
-                                                {event.not_checked_in_count.toLocaleString()}
+                                                {attendance.not_checked_in_count.toLocaleString()}
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
@@ -2618,21 +2723,21 @@ export default function Dashboard({
                                                             className="h-full rounded-full bg-[#0038A8]"
                                                             style={{
                                                                 width: percent(
-                                                                    event.attendance_rate,
+                                                                    attendance.attendance_rate,
                                                                 ),
                                                             }}
                                                         />
                                                     </div>
                                                     <span className="w-10 text-right text-xs font-medium">
                                                         {percent(
-                                                            event.attendance_rate,
+                                                            attendance.attendance_rate,
                                                         )}
                                                     </span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                {formatEventDate(
-                                                    event.starts_at,
+                                                {formatAttendanceDay(
+                                                    attendance.date,
                                                 )}
                                             </TableCell>
                                         </TableRow>
@@ -3049,8 +3154,8 @@ export default function Dashboard({
                         </DialogTitle>
                         <DialogDescription className="text-xs leading-5 sm:text-sm">
                             {selectedAttendanceStatus === 'checked-in'
-                                ? 'Participants who already scanned or were manually checked in, including attendance date and time.'
-                                : 'Registered event participants who have not scanned or checked in yet.'}
+                                ? 'Participants checked in for the selected event day, including scan date and time.'
+                                : 'Registered participants who have not checked in for the selected event day.'}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -3085,16 +3190,14 @@ export default function Dashboard({
                                 <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
                                     <TableRow>
                                         <TableHead>Participant</TableHead>
+                                        <TableHead className="w-40">
+                                            Attendance Day
+                                        </TableHead>
                                         {selectedAttendanceStatus ===
                                         'checked-in' ? (
-                                            <>
-                                                <TableHead className="w-40">
-                                                    Attendance Day
-                                                </TableHead>
-                                                <TableHead className="w-48">
-                                                    Scanned By
-                                                </TableHead>
-                                            </>
+                                            <TableHead className="w-48">
+                                                Scanned By
+                                            </TableHead>
                                         ) : null}
                                         <TableHead className="w-56 text-right">
                                             {selectedAttendanceStatus ===
@@ -3109,7 +3212,9 @@ export default function Dashboard({
                                     0 ? (
                                         paginatedAttendanceParticipants.map(
                                             (participant) => (
-                                                <TableRow key={participant.id}>
+                                                <TableRow
+                                                    key={participant.row_key}
+                                                >
                                                     <TableCell>
                                                         <div>
                                                             <p className="font-medium text-foreground">
@@ -3127,14 +3232,14 @@ export default function Dashboard({
                                                             </p>
                                                         </div>
                                                     </TableCell>
+                                                    <TableCell>
+                                                        {formatAttendanceDay(
+                                                            participant.attendance_date,
+                                                        )}
+                                                    </TableCell>
                                                     {selectedAttendanceStatus ===
                                                     'checked-in' ? (
                                                         <>
-                                                            <TableCell>
-                                                                {formatAttendanceDay(
-                                                                    participant.attendance_date,
-                                                                )}
-                                                            </TableCell>
                                                             <TableCell>
                                                                 {participant.scanned_by ??
                                                                     '-'}
@@ -3159,7 +3264,7 @@ export default function Dashboard({
                                                     selectedAttendanceStatus ===
                                                     'checked-in'
                                                         ? 4
-                                                        : 2
+                                                        : 3
                                                 }
                                                 className="h-24 text-center text-sm text-muted-foreground"
                                             >
@@ -3176,7 +3281,7 @@ export default function Dashboard({
                                 paginatedAttendanceParticipants.map(
                                     (participant) => (
                                         <AttendanceParticipantCard
-                                            key={participant.id}
+                                            key={participant.row_key}
                                             participant={participant}
                                             selectedAttendanceStatus={
                                                 selectedAttendanceStatus

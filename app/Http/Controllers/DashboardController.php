@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\Province;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -41,10 +42,50 @@ class DashboardController extends Controller
             ->groupBy('event_id')
             ->pluck('checked_in_count', 'event_id');
 
-        $eventAttendanceSummary = $events->map(function (Event $event) use ($checkedInByEvent) {
+        $checkedInByEventAndDate = EventAttendance::query()
+            ->selectRaw('event_id, attendance_date, count(distinct user_id) as checked_in_count')
+            ->whereHas('participant', function ($query) {
+                $query->whereHas('eventRegistrations', function ($query) {
+                    $query->whereColumn('event_registrations.event_id', 'event_attendances.event_id');
+                });
+            })
+            ->groupBy('event_id', 'attendance_date')
+            ->get()
+            ->keyBy(fn (EventAttendance $attendance) => $attendance->event_id.':'.$attendance->attendance_date->toDateString());
+
+        $eventDatesById = $events->mapWithKeys(fn (Event $event) => [
+            $event->id => $this->eventDates($event),
+        ]);
+
+        $eventAttendanceSummary = $events->map(function (Event $event) use (
+            $checkedInByEvent,
+            $checkedInByEventAndDate,
+            $eventDatesById,
+        ) {
             $participantsCount = (int) $event->users_count;
             $checkedInCount = (int) ($checkedInByEvent[$event->id] ?? 0);
             $notCheckedInCount = max(0, $participantsCount - $checkedInCount);
+            $dailyAttendance = $eventDatesById[$event->id]
+                ->map(function (string $date) use (
+                    $checkedInByEventAndDate,
+                    $event,
+                    $participantsCount,
+                ) {
+                    $dailyCheckedInCount = (int) (
+                        $checkedInByEventAndDate[$event->id.':'.$date]?->checked_in_count ?? 0
+                    );
+
+                    return [
+                        'date' => $date,
+                        'participants_count' => $participantsCount,
+                        'checked_in_count' => $dailyCheckedInCount,
+                        'not_checked_in_count' => max(0, $participantsCount - $dailyCheckedInCount),
+                        'attendance_rate' => $participantsCount > 0
+                            ? round(($dailyCheckedInCount / $participantsCount) * 100, 2)
+                            : 0,
+                    ];
+                })
+                ->values();
 
             return [
                 'id' => $event->id,
@@ -58,6 +99,7 @@ class DashboardController extends Controller
                 'attendance_rate' => $participantsCount > 0
                     ? round(($checkedInCount / $participantsCount) * 100, 2)
                     : 0,
+                'daily_attendance' => $dailyAttendance,
             ];
         })->values();
 
@@ -104,6 +146,7 @@ class DashboardController extends Controller
 
                 return [
                     'id' => $attendance->id,
+                    'row_key' => 'attendance-'.$attendance->id,
                     'participant_id' => $participant->participant_id,
                     'name' => $participant->name,
                     'given_name' => $participant->given_name,
@@ -128,9 +171,9 @@ class DashboardController extends Controller
             ->values();
 
         $checkedInKeys = EventAttendance::query()
-            ->get(['event_id', 'user_id'])
+            ->get(['event_id', 'user_id', 'attendance_date'])
             ->mapWithKeys(fn (EventAttendance $attendance) => [
-                $attendance->event_id.':'.$attendance->user_id => true,
+                $attendance->event_id.':'.$attendance->user_id.':'.$attendance->attendance_date->toDateString() => true,
             ]);
         $notCheckedInParticipantsList = EventRegistration::query()
             ->whereHas('user')
@@ -142,35 +185,40 @@ class DashboardController extends Controller
             ])
             ->latest()
             ->get()
-            ->reject(fn (EventRegistration $registration) => $checkedInKeys->has(
-                $registration->event_id.':'.$registration->user_id,
-            ))
-            ->map(function (EventRegistration $registration) {
+            ->flatMap(function (EventRegistration $registration) use (
+                $checkedInKeys,
+                $eventDatesById,
+            ) {
                 $participant = $registration->user;
                 $event = $registration->event;
 
-                return [
-                    'id' => $registration->id,
-                    'participant_id' => $participant->participant_id,
-                    'name' => $participant->name,
-                    'given_name' => $participant->given_name,
-                    'middle_name' => $participant->middle_name,
-                    'surname' => $participant->surname,
-                    'email' => $participant->email,
-                    'phone' => $participant->phone,
-                    'organization' => $registration->organization,
-                    'participant_type' => $registration->participant_type,
-                    'sex' => $participant->sex,
-                    'province' => $participant->province?->name,
-                    'municipality' => $participant->municipality?->name,
-                    'is_active' => $participant->is_active,
-                    'event_name' => $event?->name,
-                    'event_slug' => $event?->slug,
-                    'registered_at' => $registration->created_at?->toIso8601String(),
-                    'attendance_date' => null,
-                    'checked_in_at' => null,
-                    'scanned_by' => null,
-                ];
+                return ($eventDatesById[$registration->event_id] ?? collect())
+                    ->reject(fn (string $date) => $checkedInKeys->has(
+                        $registration->event_id.':'.$registration->user_id.':'.$date,
+                    ))
+                    ->map(fn (string $date) => [
+                        'id' => $registration->id,
+                        'row_key' => 'registration-'.$registration->id.'-'.$date,
+                        'participant_id' => $participant->participant_id,
+                        'name' => $participant->name,
+                        'given_name' => $participant->given_name,
+                        'middle_name' => $participant->middle_name,
+                        'surname' => $participant->surname,
+                        'email' => $participant->email,
+                        'phone' => $participant->phone,
+                        'organization' => $registration->organization,
+                        'participant_type' => $registration->participant_type,
+                        'sex' => $participant->sex,
+                        'province' => $participant->province?->name,
+                        'municipality' => $participant->municipality?->name,
+                        'is_active' => $participant->is_active,
+                        'event_name' => $event?->name,
+                        'event_slug' => $event?->slug,
+                        'registered_at' => $registration->created_at?->toIso8601String(),
+                        'attendance_date' => $date,
+                        'checked_in_at' => null,
+                        'scanned_by' => null,
+                    ]);
             })
             ->values();
 
@@ -264,5 +312,26 @@ class DashboardController extends Controller
                     ->get(),
             ],
         ]);
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    private function eventDates(Event $event): Collection
+    {
+        $startsOn = $event->starts_at?->copy()->startOfDay();
+        $endsOn = ($event->ends_at ?? $event->starts_at)?->copy()->startOfDay();
+
+        if (! $startsOn || ! $endsOn) {
+            return collect();
+        }
+
+        $dates = collect();
+
+        for ($date = $startsOn->copy(); $date->lte($endsOn); $date = $date->addDay()) {
+            $dates->push($date->toDateString());
+        }
+
+        return $dates;
     }
 }
