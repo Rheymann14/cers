@@ -214,6 +214,7 @@ type ParticipantFormData = {
     participant_type: string;
     sex: string;
     event_name: string;
+    original_event_name?: string;
 };
 
 type AddParticipantFormData = ParticipantFormData & {
@@ -2325,6 +2326,7 @@ export default function Participants({
             participant_type: participant.participant_type ?? '',
             sex: participant.sex ?? '',
             event_name: participant.event_name ?? '',
+            original_event_name: participant.event_name ?? '',
         });
         setEditMunicipalityOptions(
             participant.municipality

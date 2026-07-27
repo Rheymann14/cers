@@ -501,6 +501,11 @@ class ParticipantsController extends Controller
                 'string',
                 Rule::exists('events', 'slug'),
             ],
+            'original_event_name' => [
+                'nullable',
+                'string',
+                Rule::exists('events', 'slug'),
+            ],
         ]);
 
         $validated['name'] = trim(collect([
@@ -568,14 +573,24 @@ class ParticipantsController extends Controller
         $validated['event_id'] = $event->id;
         $validated['event_name'] = $event->slug;
 
+        $originalEventId = filled($validated['original_event_name'] ?? null)
+            ? Event::query()
+                ->where('slug', $validated['original_event_name'])
+                ->value('id')
+            : $participant->event_id;
         $registration = $participant->eventRegistrations()
-            ->where('event_id', $participant->event_id)
+            ->where('event_id', $originalEventId)
             ->first();
+        $registrationWasPrimary = $registration
+            && (int) $registration->event_id === (int) $participant->event_id;
 
         if (
             $registration
             && (int) $registration->event_id !== (int) $event->id
-            && $participant->eventRegistrations()->where('event_id', $event->id)->exists()
+            && $participant->eventRegistrations()
+                ->where('event_id', $event->id)
+                ->whereKeyNot($registration->id)
+                ->exists()
         ) {
             return back()
                 ->withErrors(['event_name' => 'This participant is already registered for the selected event.'])
@@ -588,6 +603,18 @@ class ParticipantsController extends Controller
             'organization' => $validated['organization'],
             'participant_type' => $validated['participant_type'],
         ]);
+
+        unset($validated['original_event_name']);
+
+        if ($registration && ! $registrationWasPrimary) {
+            unset(
+                $validated['organization_id'],
+                $validated['organization'],
+                $validated['participant_type'],
+                $validated['event_id'],
+                $validated['event_name'],
+            );
+        }
 
         $participant->update($validated);
 
