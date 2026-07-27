@@ -243,13 +243,6 @@ class DashboardController extends Controller
                     'event_name' => $registration->event?->slug,
                     'created_at' => $registration->created_at,
                 ]),
-            'eventSummary' => EventRegistration::query()
-                ->whereHas('user')
-                ->join('events', 'events.id', '=', 'event_registrations.event_id')
-                ->selectRaw('events.slug as event_name, count(*) as participants_count')
-                ->groupBy('events.slug')
-                ->orderByDesc('participants_count')
-                ->get(),
             'registrationTrend' => $registrationTrend,
             'attendanceStatus' => [
                 [

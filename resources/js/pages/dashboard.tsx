@@ -86,11 +86,6 @@ type RecentParticipant = {
     created_at: string;
 };
 
-type EventSummary = {
-    event_name: string;
-    participants_count: number;
-};
-
 type RegistrationTrend = {
     date: string;
     label: string;
@@ -223,7 +218,6 @@ type StatisticChartType = 'bar' | 'pie' | 'line';
 type Props = {
     stats: Stats;
     recentParticipants: RecentParticipant[];
-    eventSummary: EventSummary[];
     registrationTrend: RegistrationTrend[];
     attendanceStatus: AttendanceStatus[];
     eventAttendanceSummary: EventAttendanceSummary[];
@@ -1936,7 +1930,6 @@ function AttendanceParticipantCard({
 
 export default function Dashboard({
     recentParticipants,
-    eventSummary,
     registrationTrend,
     eventAttendanceSummary,
     checkedInParticipants,
@@ -2086,10 +2079,6 @@ export default function Dashboard({
         [attendanceDayFilter, eventAttendanceSummary, eventFilter],
     );
 
-    const maxEventParticipants = Math.max(
-        1,
-        ...eventSummary.map((event) => event.participants_count),
-    );
     const filteredStatisticMunicipalities = useMemo(() => {
         if (statisticFilters.provinceId === allStatisticFilterValue) {
             return participantStatistics.municipalities;
@@ -2111,33 +2100,56 @@ export default function Dashboard({
             ),
         [participantStatistics.organizations],
     );
+    const statisticEventSlugs = useMemo(
+        () =>
+            new Set(
+                eventAttendanceSummary
+                    .filter(
+                        (event) =>
+                            (eventFilter === 'all' ||
+                                event.slug === eventFilter) &&
+                            (attendanceDayFilter === 'all' ||
+                                event.daily_attendance.some(
+                                    (attendance) =>
+                                        attendance.date === attendanceDayFilter,
+                                )),
+                    )
+                    .map((event) => event.slug),
+            ),
+        [attendanceDayFilter, eventAttendanceSummary, eventFilter],
+    );
     const eventStatisticParticipants = useMemo(
         () =>
-            eventFilter === 'all'
-                ? participantStatistics.participants
-                : participantStatistics.participants.filter(
-                      (participant) => participant.event_name === eventFilter,
-                  ),
-        [eventFilter, participantStatistics.participants],
+            participantStatistics.participants.filter((participant) =>
+                participant.event_name
+                    ? statisticEventSlugs.has(participant.event_name)
+                    : false,
+            ),
+        [participantStatistics.participants, statisticEventSlugs],
     );
     const eventParticipantTypes = useMemo(() => {
-        if (eventFilter !== 'all') {
-            return participantStatistics.participantTypes.filter(
-                (participantType) => participantType.event_slug === eventFilter,
+        const participantTypesForSelectedEvents =
+            participantStatistics.participantTypes.filter((participantType) =>
+                statisticEventSlugs.has(participantType.event_slug),
             );
+
+        if (eventFilter !== 'all') {
+            return participantTypesForSelectedEvents;
         }
 
         return Array.from(
             new Map(
-                participantStatistics.participantTypes.map(
-                    (participantType) => [
-                        participantType.slug,
-                        participantType,
-                    ],
-                ),
+                participantTypesForSelectedEvents.map((participantType) => [
+                    participantType.slug,
+                    participantType,
+                ]),
             ).values(),
         );
-    }, [eventFilter, participantStatistics.participantTypes]);
+    }, [
+        eventFilter,
+        participantStatistics.participantTypes,
+        statisticEventSlugs,
+    ]);
     const filteredStatisticParticipants = useMemo(
         () =>
             eventStatisticParticipants.filter((participant) =>
@@ -2757,7 +2769,7 @@ export default function Dashboard({
                     </div>
                 </section>
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+                <div className="grid gap-4">
                     <section className="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
                         <div className="border-b p-4">
                             <div>
@@ -2932,55 +2944,6 @@ export default function Dashboard({
                                     )}
                                 </TableBody>
                             </Table>
-                        </div>
-                    </section>
-
-                    <section className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-                        <div className="mb-4 flex items-center gap-2">
-                            <CalendarDays className="size-4 text-muted-foreground" />
-                            <h2 className="text-base font-semibold">
-                                Event Summary
-                            </h2>
-                        </div>
-                        <div className="space-y-4">
-                            {eventSummary.length > 0 ? (
-                                eventSummary.map((event) => {
-                                    const width = `${Math.max(
-                                        8,
-                                        (event.participants_count /
-                                            maxEventParticipants) *
-                                            100,
-                                    )}%`;
-
-                                    return (
-                                        <div
-                                            key={event.event_name}
-                                            className="space-y-2"
-                                        >
-                                            <div className="flex items-center justify-between gap-3 text-sm">
-                                                <p className="font-medium">
-                                                    {formatLabel(
-                                                        event.event_name,
-                                                    )}
-                                                </p>
-                                                <span className="text-muted-foreground">
-                                                    {event.participants_count.toLocaleString()}
-                                                </span>
-                                            </div>
-                                            <div className="h-2 rounded-full bg-muted">
-                                                <div
-                                                    className="h-full rounded-full bg-[#0038A8]"
-                                                    style={{ width }}
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                                    No event registrations found.
-                                </div>
-                            )}
                         </div>
                     </section>
                 </div>
