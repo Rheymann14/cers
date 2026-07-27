@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -35,6 +36,7 @@ class AttendanceQrScannerController extends Controller
     {
         $validated = $request->validate([
             'event_id' => ['required', 'integer', Rule::exists('events', 'id')],
+            'attendance_date' => ['required', 'date_format:Y-m-d'],
             'mode' => ['required', Rule::in(['qr', 'manual'])],
             'value' => ['required', 'string', 'max:255'],
         ]);
@@ -44,6 +46,22 @@ class AttendanceQrScannerController extends Controller
         if ($this->isClosedEvent($event)) {
             return response()->json([
                 'message' => 'Selected event is closed and cannot accept attendance check-ins.',
+            ], 422);
+        }
+
+        $attendanceDate = Carbon::createFromFormat('Y-m-d', $validated['attendance_date'])
+            ->startOfDay();
+        $eventStartsOn = $event->starts_at?->copy()->startOfDay();
+        $eventEndsOn = ($event->ends_at ?? $event->starts_at)?->copy()->startOfDay();
+
+        if (
+            ! $eventStartsOn
+            || ! $eventEndsOn
+            || $attendanceDate->lt($eventStartsOn)
+            || $attendanceDate->gt($eventEndsOn)
+        ) {
+            return response()->json([
+                'message' => 'The attendance date must be one of the selected event dates.',
             ], 422);
         }
 
@@ -87,6 +105,7 @@ class AttendanceQrScannerController extends Controller
             [
                 'event_id' => $event->id,
                 'user_id' => $participant->id,
+                'attendance_date' => $attendanceDate,
             ],
             [
                 'checked_in_by_user_id' => $request->user()?->id,
@@ -100,6 +119,7 @@ class AttendanceQrScannerController extends Controller
                 : 'Participant was already checked in.',
             'already_checked_in' => ! $attendance->wasRecentlyCreated,
             'checked_in_at' => $attendance->checked_in_at?->toIso8601String(),
+            'attendance_date' => $attendance->attendance_date?->toDateString(),
             'participant' => [
                 'id' => $participant->id,
                 'participant_id' => $participant->participant_id,

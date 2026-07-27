@@ -134,6 +134,7 @@ type AttendanceParticipant = {
     event_name: string | null;
     event_slug: string | null;
     registered_at: string | null;
+    attendance_date: string | null;
     checked_in_at: string | null;
     scanned_by: string | null;
 };
@@ -277,6 +278,7 @@ const attendanceExportColumns: AttendanceExportColumn[] = [
     { header: 'Municipality / City', key: 'municipality', width: 24 },
     { header: 'Event', key: 'event_name', width: 34 },
     { header: 'Registered At', key: 'registered_at', width: 24 },
+    { header: 'Attendance Day', key: 'attendance_date', width: 22 },
     { header: 'Checked In At', key: 'checked_in_at', width: 24 },
     { header: 'Attendance Status', key: 'attendance_status', width: 20 },
     { header: 'Account Status', key: 'account_status', width: 18 },
@@ -297,6 +299,7 @@ const checkedInAttendanceExportColumns: AttendanceExportColumn[] = [
     { header: 'Municipality / City', key: 'municipality', width: 24 },
     { header: 'Event', key: 'event_name', width: 34 },
     { header: 'Registered At', key: 'registered_at', width: 24 },
+    { header: 'Attendance Day', key: 'attendance_date', width: 22 },
     { header: 'Checked In At', key: 'checked_in_at', width: 24 },
     { header: 'Scanned By', key: 'scanned_by', width: 24 },
     { header: 'Attendance Status', key: 'attendance_status', width: 20 },
@@ -502,6 +505,20 @@ function formatDateTime(value: string | null): string {
     }).format(new Date(value));
 }
 
+function formatAttendanceDay(value: string | null): string {
+    if (!value) {
+        return '-';
+    }
+
+    const [year, month, day] = value.split('-').map(Number);
+
+    return new Intl.DateTimeFormat('en', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    }).format(new Date(year, month - 1, day));
+}
+
 function toEventDate(value: string | null): Date | null {
     if (!value) {
         return null;
@@ -644,6 +661,7 @@ function attendanceExportRow(
         municipality: participant.municipality ?? '-',
         event_name: participant.event_name ?? '-',
         registered_at: formatDateTime(participant.registered_at),
+        attendance_date: formatAttendanceDay(participant.attendance_date),
         checked_in_at: formatDateTime(participant.checked_in_at),
         scanned_by: participant.scanned_by ?? '-',
         attendance_status: status,
@@ -1864,6 +1882,14 @@ function AttendanceParticipantCard({
                     {selectedAttendanceStatus === 'checked-in' ? (
                         <>
                             <p className="mt-2 font-medium text-foreground">
+                                Attendance Day
+                            </p>
+                            <p>
+                                {formatAttendanceDay(
+                                    participant.attendance_date,
+                                )}
+                            </p>
+                            <p className="mt-2 font-medium text-foreground">
                                 Scanned By
                             </p>
                             <p>{participant.scanned_by ?? '-'}</p>
@@ -3061,9 +3087,14 @@ export default function Dashboard({
                                         <TableHead>Participant</TableHead>
                                         {selectedAttendanceStatus ===
                                         'checked-in' ? (
-                                            <TableHead className="w-48">
-                                                Scanned By
-                                            </TableHead>
+                                            <>
+                                                <TableHead className="w-40">
+                                                    Attendance Day
+                                                </TableHead>
+                                                <TableHead className="w-48">
+                                                    Scanned By
+                                                </TableHead>
+                                            </>
                                         ) : null}
                                         <TableHead className="w-56 text-right">
                                             {selectedAttendanceStatus ===
@@ -3098,10 +3129,17 @@ export default function Dashboard({
                                                     </TableCell>
                                                     {selectedAttendanceStatus ===
                                                     'checked-in' ? (
-                                                        <TableCell>
-                                                            {participant.scanned_by ??
-                                                                '-'}
-                                                        </TableCell>
+                                                        <>
+                                                            <TableCell>
+                                                                {formatAttendanceDay(
+                                                                    participant.attendance_date,
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {participant.scanned_by ??
+                                                                    '-'}
+                                                            </TableCell>
+                                                        </>
                                                     ) : null}
                                                     <TableCell className="text-right">
                                                         {formatDateTime(
@@ -3120,7 +3158,7 @@ export default function Dashboard({
                                                 colSpan={
                                                     selectedAttendanceStatus ===
                                                     'checked-in'
-                                                        ? 3
+                                                        ? 4
                                                         : 2
                                                 }
                                                 className="h-24 text-center text-sm text-muted-foreground"

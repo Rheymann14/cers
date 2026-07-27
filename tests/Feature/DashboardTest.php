@@ -57,8 +57,16 @@ test('dashboard attendance totals use event registered participants', function (
     EventAttendance::query()->create([
         'event_id' => $event->id,
         'user_id' => $checkedInParticipant->id,
+        'attendance_date' => now()->toDateString(),
         'checked_in_by_user_id' => $admin->id,
         'checked_in_at' => now(),
+    ]);
+    EventAttendance::query()->create([
+        'event_id' => $event->id,
+        'user_id' => $checkedInParticipant->id,
+        'attendance_date' => now()->addDay()->toDateString(),
+        'checked_in_by_user_id' => $admin->id,
+        'checked_in_at' => now()->addDay(),
     ]);
 
     $this->actingAs($admin);
@@ -72,7 +80,15 @@ test('dashboard attendance totals use event registered participants', function (
             ->where('stats.notCheckedInParticipants', 6)
             ->where('attendanceStatus.0.count', 1)
             ->where('attendanceStatus.1.count', 6)
-            ->has('checkedInParticipants', 1)
+            ->has('checkedInParticipants', 2)
+            ->where(
+                'checkedInParticipants.0.attendance_date',
+                now()->addDay()->toDateString(),
+            )
+            ->where(
+                'checkedInParticipants.1.attendance_date',
+                now()->toDateString(),
+            )
             ->has('notCheckedInParticipants', 6)
         );
 });

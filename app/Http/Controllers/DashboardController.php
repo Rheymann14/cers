@@ -120,6 +120,7 @@ class DashboardController extends Controller
                     'event_name' => $event->name,
                     'event_slug' => $event->slug,
                     'registered_at' => $registration?->created_at?->toIso8601String(),
+                    'attendance_date' => $attendance->attendance_date?->toDateString(),
                     'checked_in_at' => $attendance->checked_in_at?->toIso8601String(),
                     'scanned_by' => $attendance->checkedInBy?->name,
                 ];
@@ -166,6 +167,7 @@ class DashboardController extends Controller
                     'event_name' => $event?->name,
                     'event_slug' => $event?->slug,
                     'registered_at' => $registration->created_at?->toIso8601String(),
+                    'attendance_date' => null,
                     'checked_in_at' => null,
                     'scanned_by' => null,
                 ];

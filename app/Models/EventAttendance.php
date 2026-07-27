@@ -13,6 +13,7 @@ class EventAttendance extends Model
     protected $fillable = [
         'event_id',
         'user_id',
+        'attendance_date',
         'checked_in_by_user_id',
         'checked_in_at',
     ];
@@ -20,6 +21,7 @@ class EventAttendance extends Model
     protected function casts(): array
     {
         return [
+            'attendance_date' => 'date',
             'checked_in_at' => 'datetime',
         ];
     }

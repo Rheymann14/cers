@@ -79,6 +79,7 @@ type CheckInResult = {
     message: string;
     already_checked_in: boolean;
     checked_in_at: string | null;
+    attendance_date: string;
     participant: CheckInParticipant;
     event: {
         id: number;
@@ -100,6 +101,13 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
     minute: '2-digit',
 });
 
+const attendanceDateFormatter = new Intl.DateTimeFormat(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+});
+
 function toDate(value: string | null) {
     if (!value) {
         return null;
@@ -114,6 +122,55 @@ function formatDateTime(value: string | null) {
     const date = toDate(value);
 
     return date ? dateTimeFormatter.format(date) : '-';
+}
+
+function toLocalDateKey(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
+function getEventDateKeys(event: ScannerEvent | null | undefined) {
+    const startsAt = toDate(event?.starts_at ?? null);
+    const endsAt = toDate(event?.ends_at ?? event?.starts_at ?? null);
+
+    if (!startsAt || !endsAt) {
+        return [];
+    }
+
+    const date = new Date(
+        startsAt.getFullYear(),
+        startsAt.getMonth(),
+        startsAt.getDate(),
+    );
+    const lastDate = new Date(
+        endsAt.getFullYear(),
+        endsAt.getMonth(),
+        endsAt.getDate(),
+    );
+    const dates: string[] = [];
+
+    while (date <= lastDate) {
+        dates.push(toLocalDateKey(date));
+        date.setDate(date.getDate() + 1);
+    }
+
+    return dates;
+}
+
+function getDefaultAttendanceDate(event: ScannerEvent | null | undefined) {
+    const eventDates = getEventDateKeys(event);
+    const today = toLocalDateKey(new Date());
+
+    return eventDates.includes(today) ? today : (eventDates[0] ?? '');
+}
+
+function formatAttendanceDate(value: string) {
+    const [year, month, day] = value.split('-').map(Number);
+
+    return attendanceDateFormatter.format(new Date(year, month - 1, day));
 }
 
 function getEventStatus(event: ScannerEvent): EventStatus {
@@ -308,6 +365,9 @@ export default function AttendanceQrScanner({ events }: Props) {
     const [selectedEventId, setSelectedEventId] = useState(
         initialSelectedEvent?.id ? String(initialSelectedEvent.id) : '',
     );
+    const [attendanceDate, setAttendanceDate] = useState(
+        getDefaultAttendanceDate(initialSelectedEvent),
+    );
     const [cameraState, setCameraState] = useState<
         'idle' | 'starting' | 'scanning' | 'error'
     >(initialEventClosed ? 'error' : 'idle');
@@ -337,8 +397,15 @@ export default function AttendanceQrScanner({ events }: Props) {
     const selectedEventStatus = selectedEvent
         ? getEventStatus(selectedEvent)
         : null;
+    const attendanceDates = useMemo(
+        () => getEventDateKeys(selectedEvent),
+        [selectedEvent],
+    );
     const scannerEnabled = Boolean(
-        selectedEvent && selectedEventStatus !== 'closed' && !scanPaused,
+        selectedEvent &&
+        attendanceDate &&
+        selectedEventStatus !== 'closed' &&
+        !scanPaused,
     );
 
     const csrfToken = useMemo(
@@ -438,6 +505,15 @@ export default function AttendanceQrScanner({ events }: Props) {
                 return false;
             }
 
+            if (!attendanceDate) {
+                pauseScannerWithError(
+                    'Select an attendance day before checking attendance.',
+                    'Scanner Not Ready',
+                );
+
+                return false;
+            }
+
             if (selectedEventStatus === 'closed') {
                 pauseScannerWithError(
                     'Selected event is closed and cannot accept attendance check-ins.',
@@ -464,6 +540,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                         },
                         body: JSON.stringify({
                             event_id: Number(selectedEventId),
+                            attendance_date: attendanceDate,
                             mode,
                             value: value.trim(),
                         }),
@@ -499,6 +576,7 @@ export default function AttendanceQrScanner({ events }: Props) {
         },
         [
             csrfToken,
+            attendanceDate,
             pauseScannerWithError,
             playScanSound,
             selectedEventId,
@@ -764,6 +842,11 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                                     event.id,
                                                                 ),
                                                             );
+                                                            setAttendanceDate(
+                                                                getDefaultAttendanceDate(
+                                                                    event,
+                                                                ),
+                                                            );
                                                             setEventOpen(false);
                                                             lastDetectedRef.current =
                                                                 '';
@@ -840,6 +923,42 @@ export default function AttendanceQrScanner({ events }: Props) {
                                 </Command>
                             </PopoverContent>
                         </Popover>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="attendance_date">Attendance day</Label>
+                        <select
+                            id="attendance_date"
+                            value={attendanceDate}
+                            onChange={(event) => {
+                                setAttendanceDate(event.target.value);
+                                setCheckInResult(null);
+                                lastDetectedRef.current = '';
+                            }}
+                            disabled={
+                                !selectedEvent ||
+                                selectedEventStatus === 'closed' ||
+                                attendanceDates.length === 0
+                            }
+                            className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {attendanceDates.length === 0 && (
+                                <option value="">
+                                    Event dates are unavailable
+                                </option>
+                            )}
+                            {attendanceDates.map((date) => (
+                                <option key={date} value={date}>
+                                    {formatAttendanceDate(date)}
+                                </option>
+                            ))}
+                        </select>
+                        {attendanceDates.length > 1 && (
+                            <p className="text-xs text-muted-foreground">
+                                This event has {attendanceDates.length}{' '}
+                                attendance days. Select the day being checked
+                                in.
+                            </p>
+                        )}
                     </div>
                 </section>
 
@@ -962,6 +1081,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                                 disabled={
                                     checkingIn ||
                                     !selectedEventId ||
+                                    !attendanceDate ||
                                     selectedEventStatus === 'closed'
                                 }
                             >
@@ -986,7 +1106,10 @@ export default function AttendanceQrScanner({ events }: Props) {
                                     {formatDateTime(
                                         checkInResult.checked_in_at,
                                     )}{' '}
-                                    for {checkInResult.event.name}
+                                    for {checkInResult.event.name} on{' '}
+                                    {formatAttendanceDate(
+                                        checkInResult.attendance_date,
+                                    )}
                                 </p>
                                 <Button
                                     type="button"
@@ -1027,7 +1150,9 @@ export default function AttendanceQrScanner({ events }: Props) {
                             {checkInResult &&
                                 `Checked in at ${formatDateTime(
                                     checkInResult.checked_in_at,
-                                )} for ${checkInResult.event.name}.`}
+                                )} for ${checkInResult.event.name} on ${formatAttendanceDate(
+                                    checkInResult.attendance_date,
+                                )}.`}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -1075,7 +1200,17 @@ export default function AttendanceQrScanner({ events }: Props) {
                                 </div>
                                 <div>
                                     <p className="text-xs font-medium text-muted-foreground">
-                                        Checked-In Date and Time
+                                        Attendance Day
+                                    </p>
+                                    <p className="font-semibold">
+                                        {formatAttendanceDate(
+                                            checkInResult.attendance_date,
+                                        )}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                        Scan Date and Time
                                     </p>
                                     <p className="font-semibold">
                                         {formatDateTime(
