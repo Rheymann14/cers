@@ -71,11 +71,19 @@ class AttendanceQrScannerController extends Controller
             ], 422);
         }
 
+        $manualParticipantId = $validated['mode'] === 'manual'
+            ? $this->normalizeManualParticipantId($validated['value'])
+            : null;
+
+        if ($validated['mode'] === 'manual' && ! $manualParticipantId) {
+            return response()->json([
+                'message' => 'Enter the four characters from the middle of the Participant ID.',
+            ], 422);
+        }
+
         $participant = $validated['mode'] === 'qr'
             ? $this->findParticipantByQrToken($validated['value'])
-            : User::query()
-                ->where('participant_id', mb_strtoupper(trim($validated['value'])))
-                ->first();
+            : User::query()->where('participant_id', $manualParticipantId)->first();
 
         if (! $participant) {
             return response()->json([
@@ -150,6 +158,18 @@ class AttendanceQrScannerController extends Controller
             ->get(['id', 'participant_id', 'name', 'email', 'avatar', 'organization', 'is_active'])
             ->first(fn (User $participant) => hash_equals($this->createQrToken($participant), $qrToken)
                 || hash_equals($this->createLegacyQrToken($participant), $qrToken));
+    }
+
+    private function normalizeManualParticipantId(string $value): ?string
+    {
+        $value = mb_strtoupper(trim($value));
+
+        if (preg_match('/^[A-Z0-9]{4}$/', $value)) {
+            return 'CERS-'.$value.'-2026';
+        }
+
+        // Retain compatibility with clients that still send the complete ID.
+        return preg_match('/^CERS-[A-Z0-9]{4}-2026$/', $value) ? $value : null;
     }
 
     private function isClosedEvent(Event $event): bool

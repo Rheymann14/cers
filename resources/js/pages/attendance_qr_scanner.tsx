@@ -754,8 +754,17 @@ export default function AttendanceQrScanner({ events }: Props) {
 
         if (!value) {
             pauseScannerWithError(
-                'Enter a Participant ID.',
-                'Participant ID Required',
+                'Enter the four characters from the middle of the Participant ID.',
+                'Participant Code Required',
+            );
+
+            return;
+        }
+
+        if (!/^[A-Z0-9]{4}$/.test(value)) {
+            pauseScannerWithError(
+                'The participant code must contain exactly four letters or numbers.',
+                'Invalid Participant Code',
             );
 
             return;
@@ -1064,17 +1073,37 @@ export default function AttendanceQrScanner({ events }: Props) {
                                 <Label htmlFor="participant_id">
                                     Participant ID
                                 </Label>
-                                <Input
-                                    id="participant_id"
-                                    value={manualParticipantId}
-                                    onChange={(event) =>
-                                        setManualParticipantId(
-                                            event.target.value.toUpperCase(),
-                                        )
-                                    }
-                                    placeholder="CERS-XXXX-2026"
-                                    autoComplete="off"
-                                />
+                                <div className="flex h-11 items-center rounded-md border border-input bg-background shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+                                    <span className="pl-3 text-sm font-medium text-muted-foreground">
+                                        CERS-
+                                    </span>
+                                    <Input
+                                        id="participant_id"
+                                        value={manualParticipantId}
+                                        onChange={(event) =>
+                                            setManualParticipantId(
+                                                event.target.value
+                                                    .toUpperCase()
+                                                    .replace(/[^A-Z0-9]/g, '')
+                                                    .slice(0, 4),
+                                            )
+                                        }
+                                        placeholder="XXXX"
+                                        maxLength={4}
+                                        pattern="[A-Za-z0-9]{4}"
+                                        autoCapitalize="characters"
+                                        autoComplete="off"
+                                        aria-label="Four-character participant code"
+                                        className="h-full min-w-0 flex-1 rounded-none border-0 px-1 text-center font-mono tracking-[0.2em] shadow-none focus-visible:ring-0"
+                                    />
+                                    <span className="pr-3 text-sm font-medium text-muted-foreground">
+                                        -2026
+                                    </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Enter only the four characters shown between
+                                    CERS and 2026.
+                                </p>
                             </div>
                             <Button
                                 type="submit"
@@ -1082,6 +1111,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                                     checkingIn ||
                                     !selectedEventId ||
                                     !attendanceDate ||
+                                    manualParticipantId.length !== 4 ||
                                     selectedEventStatus === 'closed'
                                 }
                             >

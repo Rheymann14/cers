@@ -41,7 +41,7 @@ test('a participant can check in to every event they are registered for', functi
             'event_id' => $event->id,
             'attendance_date' => now()->toDateString(),
             'mode' => 'manual',
-            'value' => $participant->participant_id,
+            'value' => 'MULT',
         ])->assertOk()
             ->assertJsonPath('already_checked_in', false);
     }
@@ -86,7 +86,7 @@ test('a participant can check in once on every day of a multi-day event', functi
         'participant_type' => 'admin',
     ]);
     $participant = User::factory()->create([
-        'participant_id' => 'CERS-DAILY-2026',
+        'participant_id' => 'CERS-DAY1-2026',
         'participant_type' => 'participant',
         'is_active' => true,
     ]);
@@ -111,7 +111,7 @@ test('a participant can check in once on every day of a multi-day event', functi
             'event_id' => $event->id,
             'attendance_date' => $attendanceDate,
             'mode' => 'manual',
-            'value' => $participant->participant_id,
+            'value' => 'DAY1',
         ])->assertOk()
             ->assertJsonPath('already_checked_in', false)
             ->assertJsonPath('attendance_date', $attendanceDate);
@@ -126,7 +126,7 @@ test('a participant can check in once on every day of a multi-day event', functi
         'event_id' => $event->id,
         'attendance_date' => '2026-08-05',
         'mode' => 'manual',
-        'value' => $participant->participant_id,
+        'value' => 'DAY1',
     ])->assertOk()
         ->assertJsonPath('already_checked_in', true);
 
