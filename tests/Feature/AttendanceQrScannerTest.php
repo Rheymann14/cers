@@ -107,6 +107,11 @@ test('a participant can check in once on every day of a multi-day event', functi
     $this->actingAs($admin);
 
     foreach (['2026-08-04', '2026-08-05', '2026-08-06'] as $attendanceDate) {
+        Carbon::setTestNow(Carbon::parse(
+            $attendanceDate.' 09:00:00',
+            config('app.attendance_timezone'),
+        ));
+
         $this->postJson(route('attendance-qr-scanner.check-in'), [
             'event_id' => $event->id,
             'attendance_date' => $attendanceDate,
@@ -122,6 +127,11 @@ test('a participant can check in once on every day of a multi-day event', functi
         ->and($participant->attendances->pluck('attendance_date')->map->toDateString()->all())
         ->toBe(['2026-08-04', '2026-08-05', '2026-08-06']);
 
+    Carbon::setTestNow(Carbon::parse(
+        '2026-08-05 12:00:00',
+        config('app.attendance_timezone'),
+    ));
+
     $this->postJson(route('attendance-qr-scanner.check-in'), [
         'event_id' => $event->id,
         'attendance_date' => '2026-08-05',
@@ -131,6 +141,50 @@ test('a participant can check in once on every day of a multi-day event', functi
         ->assertJsonPath('already_checked_in', true);
 
     expect($participant->attendances()->count())->toBe(3);
+});
+
+test('attendance cannot be recorded for another event day', function () {
+    Carbon::setTestNow(Carbon::parse(
+        '2026-07-28 09:00:00',
+        config('app.attendance_timezone'),
+    ));
+
+    $admin = User::factory()->create(['participant_type' => 'admin']);
+    $participant = User::factory()->create([
+        'participant_id' => 'CERS-TDAY-2026',
+        'participant_type' => 'participant',
+        'is_active' => true,
+    ]);
+    $event = Event::query()->create([
+        'name' => 'July Conference',
+        'slug' => 'july-conference',
+        'starts_at' => '2026-07-27 00:00:00',
+        'ends_at' => '2026-07-29 09:00:00',
+        'is_active' => true,
+    ]);
+
+    EventRegistration::query()->create([
+        'user_id' => $participant->id,
+        'event_id' => $event->id,
+        'participant_type' => 'participant',
+    ]);
+
+    foreach (['2026-07-27', '2026-07-29'] as $attendanceDate) {
+        $this->actingAs($admin)
+            ->postJson(route('attendance-qr-scanner.check-in'), [
+                'event_id' => $event->id,
+                'attendance_date' => $attendanceDate,
+                'mode' => 'manual',
+                'value' => 'TDAY',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'Attendance can only be recorded for today.',
+            );
+    }
+
+    expect($participant->attendances()->count())->toBe(0);
 });
 
 test('attendance cannot be recorded outside the event date range', function () {

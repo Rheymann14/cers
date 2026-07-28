@@ -16,7 +16,10 @@ class AttendanceQrScannerController extends Controller
 {
     public function __invoke(): Response
     {
+        $attendanceTimezone = config('app.attendance_timezone', 'Asia/Manila');
+
         return Inertia::render('attendance_qr_scanner', [
+            'today' => Carbon::now($attendanceTimezone)->toDateString(),
             'events' => Event::query()
                 ->withCount(['registrations as users_count'])
                 ->orderBy('starts_at')
@@ -70,6 +73,15 @@ class AttendanceQrScannerController extends Controller
         ) {
             return response()->json([
                 'message' => 'The attendance date must be one of the selected event dates.',
+            ], 422);
+        }
+
+        if (
+            $attendanceDate->toDateString()
+            !== Carbon::now($attendanceTimezone)->toDateString()
+        ) {
+            return response()->json([
+                'message' => 'Attendance can only be recorded for today.',
             ], 422);
         }
 

@@ -89,6 +89,7 @@ type CheckInResult = {
 
 type Props = {
     events: ScannerEvent[];
+    today: string;
 };
 
 type EventStatus = 'ongoing' | 'upcoming' | 'closed';
@@ -160,9 +161,11 @@ function getEventDateKeys(event: ScannerEvent | null | undefined) {
     return dates;
 }
 
-function getDefaultAttendanceDate(event: ScannerEvent | null | undefined) {
+function getDefaultAttendanceDate(
+    event: ScannerEvent | null | undefined,
+    today: string,
+) {
     const eventDates = getEventDateKeys(event);
-    const today = toLocalDateKey(new Date());
 
     return eventDates.includes(today) ? today : (eventDates[0] ?? '');
 }
@@ -354,32 +357,48 @@ function isCersVirtualIdQr(value: string) {
 
 const closedEventScanError =
     'Selected event is closed and cannot accept attendance check-ins.';
+const invalidAttendanceDayScanError =
+    "Attendance can only be checked in for today's attendance day.";
 
-export default function AttendanceQrScanner({ events }: Props) {
+export default function AttendanceQrScanner({ events, today }: Props) {
     const initialSelectedEvent = events[0] ?? null;
     const initialSelectedEventStatus = initialSelectedEvent
         ? getEventStatus(initialSelectedEvent)
         : null;
     const initialEventClosed = initialSelectedEventStatus === 'closed';
+    const initialAttendanceDate = getDefaultAttendanceDate(
+        initialSelectedEvent,
+        today,
+    );
+    const initialAttendanceDayInvalid =
+        Boolean(initialAttendanceDate) && initialAttendanceDate !== today;
+    const initialScannerDisabled =
+        initialEventClosed || initialAttendanceDayInvalid;
     const [eventOpen, setEventOpen] = useState(false);
     const [attendanceDateOpen, setAttendanceDateOpen] = useState(false);
     const [selectedEventId, setSelectedEventId] = useState(
         initialSelectedEvent?.id ? String(initialSelectedEvent.id) : '',
     );
-    const [attendanceDate, setAttendanceDate] = useState(
-        getDefaultAttendanceDate(initialSelectedEvent),
-    );
+    const [attendanceDate, setAttendanceDate] = useState(initialAttendanceDate);
     const [cameraState, setCameraState] = useState<
         'idle' | 'starting' | 'scanning' | 'error'
-    >(initialEventClosed ? 'error' : 'idle');
+    >(initialScannerDisabled ? 'error' : 'idle');
     const [scanError, setScanError] = useState(
-        initialEventClosed ? closedEventScanError : '',
+        initialEventClosed
+            ? closedEventScanError
+            : initialAttendanceDayInvalid
+              ? invalidAttendanceDayScanError
+              : '',
     );
     const [scanErrorTitle, setScanErrorTitle] = useState(
-        initialEventClosed ? 'Event Closed' : 'Scan Validation Failed',
+        initialEventClosed
+            ? 'Event Closed'
+            : initialAttendanceDayInvalid
+              ? 'Attendance Day Unavailable'
+              : 'Scan Validation Failed',
     );
     const [scanErrorDialogOpen, setScanErrorDialogOpen] = useState(false);
-    const [scanPaused, setScanPaused] = useState(initialEventClosed);
+    const [scanPaused, setScanPaused] = useState(initialScannerDisabled);
     const [manualParticipantId, setManualParticipantId] = useState('');
     const [checkingIn, setCheckingIn] = useState(false);
     const [checkInResult, setCheckInResult] = useState<CheckInResult | null>(
@@ -402,9 +421,11 @@ export default function AttendanceQrScanner({ events }: Props) {
         () => getEventDateKeys(selectedEvent),
         [selectedEvent],
     );
+    const selectedAttendanceDayIsToday = attendanceDate === today;
     const scannerEnabled = Boolean(
         selectedEvent &&
         attendanceDate &&
+        selectedAttendanceDayIsToday &&
         selectedEventStatus !== 'closed' &&
         !scanPaused,
     );
@@ -515,6 +536,15 @@ export default function AttendanceQrScanner({ events }: Props) {
                 return false;
             }
 
+            if (!selectedAttendanceDayIsToday) {
+                pauseScannerWithError(
+                    invalidAttendanceDayScanError,
+                    'Attendance Day Unavailable',
+                );
+
+                return false;
+            }
+
             if (selectedEventStatus === 'closed') {
                 pauseScannerWithError(
                     'Selected event is closed and cannot accept attendance check-ins.',
@@ -582,6 +612,7 @@ export default function AttendanceQrScanner({ events }: Props) {
             playScanSound,
             selectedEventId,
             selectedEventStatus,
+            selectedAttendanceDayIsToday,
         ],
     );
 
@@ -855,6 +886,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                             setAttendanceDate(
                                                                 getDefaultAttendanceDate(
                                                                     event,
+                                                                    today,
                                                                 ),
                                                             );
                                                             setEventOpen(false);
@@ -885,6 +917,35 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                                 );
                                                                 setScanErrorDialogOpen(
                                                                     true,
+                                                                );
+
+                                                                return;
+                                                            }
+
+                                                            const defaultAttendanceDate =
+                                                                getDefaultAttendanceDate(
+                                                                    event,
+                                                                    today,
+                                                                );
+
+                                                            if (
+                                                                defaultAttendanceDate !==
+                                                                today
+                                                            ) {
+                                                                setCameraState(
+                                                                    'error',
+                                                                );
+                                                                setScanError(
+                                                                    invalidAttendanceDayScanError,
+                                                                );
+                                                                setScanErrorTitle(
+                                                                    'Attendance Day Unavailable',
+                                                                );
+                                                                setScanPaused(
+                                                                    true,
+                                                                );
+                                                                setScanErrorDialogOpen(
+                                                                    false,
                                                                 );
 
                                                                 return;
@@ -995,6 +1056,26 @@ export default function AttendanceQrScanner({ events }: Props) {
                                                         setCheckInResult(null);
                                                         lastDetectedRef.current =
                                                             '';
+
+                                                        if (date !== today) {
+                                                            setCameraState(
+                                                                'error',
+                                                            );
+                                                            setScanError(
+                                                                invalidAttendanceDayScanError,
+                                                            );
+                                                            setScanErrorTitle(
+                                                                'Attendance Day Unavailable',
+                                                            );
+                                                            setScanPaused(true);
+                                                            setScanErrorDialogOpen(
+                                                                false,
+                                                            );
+
+                                                            return;
+                                                        }
+
+                                                        restartScanner();
                                                     }}
                                                     className="min-h-11 py-2.5"
                                                 >
@@ -1026,6 +1107,15 @@ export default function AttendanceQrScanner({ events }: Props) {
                                 in.
                             </p>
                         )}
+                        {attendanceDate &&
+                            !selectedAttendanceDayIsToday &&
+                            selectedEventStatus !== 'closed' && (
+                                <p className="text-xs font-medium text-destructive">
+                                    {invalidAttendanceDayScanError} Select{' '}
+                                    {formatAttendanceDate(today)} to enable the
+                                    scanner.
+                                </p>
+                            )}
                     </div>
                 </section>
 
@@ -1049,13 +1139,16 @@ export default function AttendanceQrScanner({ events }: Props) {
                             <Badge variant="outline">
                                 {selectedEventStatus === 'closed'
                                     ? 'Event closed'
-                                    : scanPaused
-                                      ? 'Scan paused'
-                                      : cameraState === 'scanning'
-                                        ? 'Auto scanning'
-                                        : cameraState === 'starting'
-                                          ? 'Starting'
-                                          : 'Scanner ready'}
+                                    : attendanceDate &&
+                                        !selectedAttendanceDayIsToday
+                                      ? 'Attendance day unavailable'
+                                      : scanPaused
+                                        ? 'Scan paused'
+                                        : cameraState === 'scanning'
+                                          ? 'Auto scanning'
+                                          : cameraState === 'starting'
+                                            ? 'Starting'
+                                            : 'Scanner ready'}
                             </Badge>
                         </div>
 
@@ -1091,7 +1184,10 @@ export default function AttendanceQrScanner({ events }: Props) {
                                     {cameraState === 'error' &&
                                         (selectedEventStatus === 'closed'
                                             ? 'Event closed'
-                                            : 'Camera unavailable')}
+                                            : attendanceDate &&
+                                                !selectedAttendanceDayIsToday
+                                              ? 'Select today to scan'
+                                              : 'Camera unavailable')}
                                     {cameraState === 'idle' &&
                                         'Select an event'}
                                 </span>
@@ -1169,6 +1265,7 @@ export default function AttendanceQrScanner({ events }: Props) {
                                     checkingIn ||
                                     !selectedEventId ||
                                     !attendanceDate ||
+                                    !selectedAttendanceDayIsToday ||
                                     manualParticipantId.length !== 4 ||
                                     selectedEventStatus === 'closed'
                                 }
