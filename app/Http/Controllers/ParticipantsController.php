@@ -407,7 +407,9 @@ class ParticipantsController extends Controller
             EventAttendance::query()->create([
                 'event_id' => $event->id,
                 'user_id' => $participant->id,
-                'attendance_date' => now()->toDateString(),
+                'attendance_date' => now(
+                    config('app.attendance_timezone', 'Asia/Manila'),
+                )->toDateString(),
                 'checked_in_by_user_id' => $request->user()?->id,
                 'checked_in_at' => now(),
             ]);
