@@ -6,10 +6,12 @@ import {
     Check,
     CheckCircle2,
     ChevronsUpDown,
+    FlipHorizontal2,
     Keyboard,
     LoaderCircle,
     QrCode,
     RotateCcw,
+    SwitchCamera,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { FormEvent } from 'react';
@@ -29,6 +31,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -190,6 +193,30 @@ function getEventStatus(event: ScannerEvent): EventStatus {
     }
 
     return 'ongoing';
+}
+
+function getDefaultScannerEvent(events: ScannerEvent[]) {
+    const ongoingEvents = events
+        .filter((event) => getEventStatus(event) === 'ongoing')
+        .sort(
+            (first, second) =>
+                (toDate(second.starts_at)?.getTime() ?? 0) -
+                (toDate(first.starts_at)?.getTime() ?? 0),
+        );
+
+    if (ongoingEvents[0]) {
+        return ongoingEvents[0];
+    }
+
+    const upcomingEvents = events
+        .filter((event) => getEventStatus(event) === 'upcoming')
+        .sort(
+            (first, second) =>
+                (toDate(first.starts_at)?.getTime() ?? Number.MAX_VALUE) -
+                (toDate(second.starts_at)?.getTime() ?? Number.MAX_VALUE),
+        );
+
+    return upcomingEvents[0] ?? events[0] ?? null;
 }
 
 function EventStatusBadge({ status }: { status: EventStatus }) {
@@ -361,7 +388,7 @@ const invalidAttendanceDayScanError =
     "Attendance can only be checked in for today's attendance day.";
 
 export default function AttendanceQrScanner({ events, today }: Props) {
-    const initialSelectedEvent = events[0] ?? null;
+    const initialSelectedEvent = getDefaultScannerEvent(events);
     const initialSelectedEventStatus = initialSelectedEvent
         ? getEventStatus(initialSelectedEvent)
         : null;
@@ -383,6 +410,10 @@ export default function AttendanceQrScanner({ events, today }: Props) {
     const [cameraState, setCameraState] = useState<
         'idle' | 'starting' | 'scanning' | 'error'
     >(initialScannerDisabled ? 'error' : 'idle');
+    const [cameraFacingMode, setCameraFacingMode] = useState<
+        'environment' | 'user'
+    >('environment');
+    const [cameraPreviewMirrored, setCameraPreviewMirrored] = useState(false);
     const [scanError, setScanError] = useState(
         initialEventClosed
             ? closedEventScanError
@@ -736,7 +767,7 @@ export default function AttendanceQrScanner({ events, today }: Props) {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        facingMode: { ideal: 'environment' },
+                        facingMode: { ideal: cameraFacingMode },
                     },
                     audio: false,
                 });
@@ -772,6 +803,7 @@ export default function AttendanceQrScanner({ events, today }: Props) {
             }
         };
     }, [
+        cameraFacingMode,
         pauseScannerWithError,
         scannerEnabled,
         selectedEventId,
@@ -1156,12 +1188,58 @@ export default function AttendanceQrScanner({ events, today }: Props) {
                             <video
                                 ref={videoRef}
                                 className={cn(
-                                    'size-full object-cover',
+                                    'size-full object-cover transition-transform',
+                                    cameraPreviewMirrored && '-scale-x-100',
                                     !scannerEnabled && 'opacity-30',
                                 )}
                                 muted
                                 playsInline
                             />
+                            <div className="absolute top-3 right-3 z-10 flex gap-2">
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="icon"
+                                    className="bg-black/70 text-white hover:bg-black/85 hover:text-white"
+                                    onClick={() =>
+                                        setCameraFacingMode((current) =>
+                                            current === 'environment'
+                                                ? 'user'
+                                                : 'environment',
+                                        )
+                                    }
+                                    disabled={
+                                        !scannerEnabled ||
+                                        cameraState === 'starting' ||
+                                        checkingIn
+                                    }
+                                    aria-label={`Switch to ${cameraFacingMode === 'environment' ? 'front' : 'back'} camera`}
+                                    title={`Switch to ${cameraFacingMode === 'environment' ? 'front' : 'back'} camera`}
+                                >
+                                    <SwitchCamera className="size-4" />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="icon"
+                                    className="bg-black/70 text-white hover:bg-black/85 hover:text-white"
+                                    onClick={() =>
+                                        setCameraPreviewMirrored(
+                                            (mirrored) => !mirrored,
+                                        )
+                                    }
+                                    disabled={
+                                        !scannerEnabled ||
+                                        cameraState !== 'scanning' ||
+                                        checkingIn
+                                    }
+                                    aria-label={`${cameraPreviewMirrored ? 'Turn off' : 'Turn on'} mirrored camera preview`}
+                                    aria-pressed={cameraPreviewMirrored}
+                                    title={`${cameraPreviewMirrored ? 'Turn off' : 'Turn on'} mirrored camera preview`}
+                                >
+                                    <FlipHorizontal2 className="size-4" />
+                                </Button>
+                            </div>
                             <div className="pointer-events-none absolute inset-0 grid place-items-center p-8">
                                 <div className="aspect-square w-full max-w-sm rounded-2xl border-2 border-white/80 shadow-[0_0_0_999px_rgba(0,0,0,0.28)]" />
                             </div>
@@ -1322,7 +1400,7 @@ export default function AttendanceQrScanner({ events, today }: Props) {
                     }
                 }}
             >
-                <DialogContent className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-lg">
+                <DialogContent className="max-h-[calc(100dvh-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-4 sm:max-w-lg">
                     <DialogHeader className="gap-1">
                         <DialogTitle className="inline-flex items-center gap-2 text-base">
                             <CheckCircle2 className="size-4 text-emerald-600" />
@@ -1342,7 +1420,7 @@ export default function AttendanceQrScanner({ events, today }: Props) {
                     </DialogHeader>
 
                     {checkInResult && (
-                        <>
+                        <div className="grid min-h-0 gap-3 overflow-y-auto pr-1">
                             <VirtualIdCard
                                 participant={checkInResult.participant}
                             />
@@ -1404,8 +1482,19 @@ export default function AttendanceQrScanner({ events, today }: Props) {
                                     </p>
                                 </div>
                             </div>
-                        </>
+                        </div>
                     )}
+
+                    <DialogFooter className="border-t pt-3">
+                        <Button
+                            type="button"
+                            className="w-full sm:w-auto"
+                            onClick={closeSuccessDialog}
+                        >
+                            <RotateCcw className="size-4" />
+                            Scan again
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
