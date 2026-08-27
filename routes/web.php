@@ -44,8 +44,12 @@ Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
     Route::get('participants', ParticipantsController::class)->name('participants');
     Route::get('participants-export', [ParticipantsController::class, 'export'])
         ->name('participants.export');
+    Route::get('participants-eligible', [ParticipantsController::class, 'eligible'])
+        ->name('participants.eligible');
     Route::post('participants', [ParticipantsController::class, 'store'])
         ->name('participants.store');
+    Route::post('participants/{participant}/registrations', [ParticipantsController::class, 'registerExisting'])
+        ->name('participants.registrations.store');
     Route::patch('participants/{participant}', [ParticipantsController::class, 'update'])
         ->name('participants.update');
     Route::delete('participants/{participant}', [ParticipantsController::class, 'destroy'])

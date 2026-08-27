@@ -22,6 +22,8 @@ import {
     Trash2,
     ToggleLeft,
     ToggleRight,
+    UserPlus,
+    Users,
     UserX,
     X,
 } from 'lucide-react';
@@ -130,6 +132,7 @@ type ParticipantEventRegistration = {
     event: {
         id: number;
         slug: string;
+        name?: string;
     } | null;
 };
 
@@ -221,6 +224,21 @@ type AddParticipantFormData = ParticipantFormData & {
     avatar: string;
     check_in: boolean;
 };
+
+type ExistingParticipantRegistrationFormData = {
+    event_name: string;
+    organization: string;
+    participant_type: string;
+    check_in: boolean;
+};
+
+const emptyExistingParticipantRegistrationFormData: ExistingParticipantRegistrationFormData =
+    {
+        event_name: '',
+        organization: '',
+        participant_type: '',
+        check_in: false,
+    };
 
 function getEventRegistration(
     participant: Participant,
@@ -1572,7 +1590,19 @@ export default function Participants({
     const [pageSize, setPageSize] = useState(filters.per_page);
     const [page, setPage] = useState(participantPagination.current_page);
     const initialParticipantRequest = useRef(true);
+    const [addChoiceDialogOpen, setAddChoiceDialogOpen] = useState(false);
     const [addDialogOpen, setAddDialogOpen] = useState(false);
+    const [existingParticipantDialogOpen, setExistingParticipantDialogOpen] =
+        useState(false);
+    const [eligibleParticipants, setEligibleParticipants] = useState<
+        Participant[]
+    >([]);
+    const [eligibleParticipantsLoading, setEligibleParticipantsLoading] =
+        useState(false);
+    const [eligibleParticipantSearch, setEligibleParticipantSearch] =
+        useState('');
+    const [selectedExistingParticipant, setSelectedExistingParticipant] =
+        useState<Participant | null>(null);
     const [addStep, setAddStep] = useState(0);
     const [addAvatarPreview, setAddAvatarPreview] = useState('');
     const [addAvatarError, setAddAvatarError] = useState('');
@@ -1627,6 +1657,17 @@ export default function Participants({
         reset: resetAddForm,
         clearErrors: clearAddErrors,
     } = useForm<AddParticipantFormData>(emptyAddParticipantFormData);
+    const {
+        data: existingRegistrationData,
+        setData: setExistingRegistrationData,
+        post: postExistingRegistration,
+        processing: registeringExistingParticipant,
+        errors: existingRegistrationErrors,
+        reset: resetExistingRegistration,
+        clearErrors: clearExistingRegistrationErrors,
+    } = useForm<ExistingParticipantRegistrationFormData>(
+        emptyExistingParticipantRegistrationFormData,
+    );
     const { delete: destroyParticipant, processing: deleting } = useForm({});
     const { post: postPasswordReset, processing: resettingPassword } = useForm(
         {},
@@ -1636,6 +1677,7 @@ export default function Participants({
         useForm({});
     const tableLoading =
         addingParticipant ||
+        registeringExistingParticipant ||
         processing ||
         deleting ||
         resettingPassword ||
@@ -1712,6 +1754,16 @@ export default function Participants({
             ),
         [data.event_name, organizations],
     );
+    const existingRegistrationOrganizations = useMemo(
+        () =>
+            organizations.filter(
+                (organization) =>
+                    !organization.event_slug ||
+                    organization.event_slug ===
+                        existingRegistrationData.event_name,
+            ),
+        [existingRegistrationData.event_name, organizations],
+    );
     const addOrganizationOptions = useMemo(
         () =>
             addOrganizations.filter(
@@ -1760,6 +1812,14 @@ export default function Participants({
                 (type) => type.event_slug === data.event_name,
             ),
         [data.event_name, participantTypes],
+    );
+    const existingRegistrationParticipantTypes = useMemo(
+        () =>
+            participantTypes.filter(
+                (type) =>
+                    type.event_slug === existingRegistrationData.event_name,
+            ),
+        [existingRegistrationData.event_name, participantTypes],
     );
     const addFourPsParticipantTypes = useMemo(
         () =>
@@ -2021,6 +2081,72 @@ export default function Participants({
         return () => controller.abort();
     }, [data.province, editingParticipant, setData]);
 
+    useEffect(() => {
+        if (
+            !existingParticipantDialogOpen ||
+            !existingRegistrationData.event_name
+        ) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = window.setTimeout(async () => {
+            setEligibleParticipantsLoading(true);
+
+            try {
+                const searchParams = new URLSearchParams({
+                    event: existingRegistrationData.event_name,
+                    ...(eligibleParticipantSearch
+                        ? { search: eligibleParticipantSearch }
+                        : {}),
+                });
+                const response = await fetch(
+                    `/participants-eligible?${searchParams.toString()}`,
+                    {
+                        headers: { Accept: 'application/json' },
+                        signal: controller.signal,
+                    },
+                );
+
+                if (!response.ok) {
+                    throw new Error('Unable to load previous participants.');
+                }
+
+                const candidates = (await response.json()) as Participant[];
+                setEligibleParticipants(candidates);
+                setSelectedExistingParticipant((selected) =>
+                    selected &&
+                    candidates.some((candidate) => candidate.id === selected.id)
+                        ? selected
+                        : null,
+                );
+            } catch (error) {
+                if (
+                    error instanceof DOMException &&
+                    error.name === 'AbortError'
+                ) {
+                    return;
+                }
+
+                setEligibleParticipants([]);
+                toast.error('Previous participants could not be loaded.');
+            } finally {
+                if (!controller.signal.aborted) {
+                    setEligibleParticipantsLoading(false);
+                }
+            }
+        }, 250);
+
+        return () => {
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [
+        eligibleParticipantSearch,
+        existingParticipantDialogOpen,
+        existingRegistrationData.event_name,
+    ]);
+
     const filteredParticipants = useMemo(() => {
         return [...eventFilterParticipants].sort((a, b) => {
             const aValue = getSortValue(a, sortKey);
@@ -2171,9 +2297,66 @@ export default function Participants({
     }
 
     function openAddDialog() {
+        setAddChoiceDialogOpen(true);
+    }
+
+    function openNewParticipantDialog() {
+        setAddChoiceDialogOpen(false);
         clearAddErrors();
         setAddAvatarError('');
         setAddDialogOpen(true);
+    }
+
+    function openExistingParticipantDialog() {
+        const initialEvent = eventFilter === 'all' ? '' : eventFilter;
+
+        setAddChoiceDialogOpen(false);
+        clearExistingRegistrationErrors();
+        resetExistingRegistration();
+        setExistingRegistrationData('event_name', initialEvent);
+        setEligibleParticipantSearch('');
+        setSelectedExistingParticipant(null);
+        setExistingParticipantDialogOpen(true);
+    }
+
+    function closeExistingParticipantDialog() {
+        if (registeringExistingParticipant) {
+            return;
+        }
+
+        setExistingParticipantDialogOpen(false);
+        setEligibleParticipants([]);
+        setEligibleParticipantSearch('');
+        setSelectedExistingParticipant(null);
+        clearExistingRegistrationErrors();
+        resetExistingRegistration();
+    }
+
+    function submitExistingRegistration(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        if (!selectedExistingParticipant) {
+            toast.error('Select a participant from a previous event.');
+
+            return;
+        }
+
+        postExistingRegistration(
+            `/participants/${selectedExistingParticipant.id}/registrations`,
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setExistingParticipantDialogOpen(false);
+                    setEligibleParticipants([]);
+                    setEligibleParticipantSearch('');
+                    setSelectedExistingParticipant(null);
+                    clearExistingRegistrationErrors();
+                    resetExistingRegistration();
+                },
+                onError: () =>
+                    toast.error('Please review the highlighted fields.'),
+            },
+        );
     }
 
     function closeAddDialog() {
@@ -3065,12 +3248,309 @@ export default function Participants({
                 </div>
             </div>
             <Dialog
+                open={addChoiceDialogOpen}
+                onOpenChange={setAddChoiceDialogOpen}
+            >
+                <DialogContent className="gap-4 p-4 sm:max-w-lg">
+                    <DialogHeader className="gap-1">
+                        <DialogTitle className="inline-flex items-center gap-2 text-base">
+                            <Plus className="size-4 text-muted-foreground" />
+                            Add participant
+                        </DialogTitle>
+                        <DialogDescription className="text-xs leading-5">
+                            Choose whether to register an existing participant
+                            or create a new participant record.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <button
+                            type="button"
+                            onClick={openExistingParticipantDialog}
+                            className="grid gap-2 rounded-lg border p-4 text-left transition-colors hover:border-primary hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        >
+                            <Users className="size-6 text-primary" />
+                            <span className="font-semibold">
+                                From previous events
+                            </span>
+                            <span className="text-xs leading-5 text-muted-foreground">
+                                Register an existing participant with the same
+                                participant ID and QR code.
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={openNewParticipantDialog}
+                            className="grid gap-2 rounded-lg border p-4 text-left transition-colors hover:border-primary hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        >
+                            <UserPlus className="size-6 text-primary" />
+                            <span className="font-semibold">
+                                New participant
+                            </span>
+                            <span className="text-xs leading-5 text-muted-foreground">
+                                Create a new participant record and generate a
+                                new participant ID and QR code.
+                            </span>
+                        </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={existingParticipantDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeExistingParticipantDialog();
+                    }
+                }}
+            >
+                <DialogContent
+                    className="max-h-[calc(100dvh-1rem)] gap-3 overflow-y-auto p-4 sm:max-w-2xl"
+                    onPointerDownOutside={preventDialogOutsideClose}
+                >
+                    <DialogHeader className="gap-1">
+                        <DialogTitle className="inline-flex items-center gap-2 text-base">
+                            <Users className="size-4 text-muted-foreground" />
+                            Register from previous events
+                        </DialogTitle>
+                        <DialogDescription className="text-xs leading-5">
+                            Only participants not yet registered for the
+                            selected event are shown. Their participant ID and
+                            QR code will stay the same.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form
+                        onSubmit={submitExistingRegistration}
+                        className="grid gap-4"
+                    >
+                        <SearchableOptionField
+                            id="existing_event_name"
+                            label="Event"
+                            value={existingRegistrationData.event_name}
+                            options={events}
+                            placeholder="Search and select event"
+                            searchPlaceholder="Search event..."
+                            emptyMessage="No event found."
+                            error={existingRegistrationErrors.event_name}
+                            onValueChange={(value) => {
+                                setExistingRegistrationData(
+                                    'event_name',
+                                    value,
+                                );
+                                setExistingRegistrationData(
+                                    'participant_type',
+                                    '',
+                                );
+                                setExistingRegistrationData('organization', '');
+                                setEligibleParticipants([]);
+                                setSelectedExistingParticipant(null);
+                            }}
+                        />
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="eligible_participant_search">
+                                Participant from previous events
+                            </Label>
+                            <div className="relative">
+                                <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    id="eligible_participant_search"
+                                    value={eligibleParticipantSearch}
+                                    onChange={(event) =>
+                                        setEligibleParticipantSearch(
+                                            event.target.value,
+                                        )
+                                    }
+                                    disabled={
+                                        !existingRegistrationData.event_name
+                                    }
+                                    placeholder={
+                                        existingRegistrationData.event_name
+                                            ? 'Search name, participant ID, email, or phone'
+                                            : 'Select an event first'
+                                    }
+                                    className="pl-9"
+                                />
+                            </div>
+
+                            <div className="max-h-60 overflow-y-auto rounded-md border p-2">
+                                {eligibleParticipantsLoading ? (
+                                    <div className="grid gap-2">
+                                        <Skeleton className="h-16 w-full" />
+                                        <Skeleton className="h-16 w-full" />
+                                    </div>
+                                ) : eligibleParticipants.length > 0 ? (
+                                    <div className="grid gap-2">
+                                        {eligibleParticipants.map(
+                                            (participant) => (
+                                                <button
+                                                    key={participant.id}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setSelectedExistingParticipant(
+                                                            participant,
+                                                        )
+                                                    }
+                                                    className={cn(
+                                                        'flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors',
+                                                        selectedExistingParticipant?.id ===
+                                                            participant.id
+                                                            ? 'border-primary bg-primary/5'
+                                                            : 'hover:bg-muted/40',
+                                                    )}
+                                                >
+                                                    <Avatar className="size-10">
+                                                        <AvatarImage
+                                                            src={
+                                                                participant.avatar ??
+                                                                undefined
+                                                            }
+                                                            alt={
+                                                                participant.name
+                                                            }
+                                                        />
+                                                        <AvatarFallback>
+                                                            {getInitials(
+                                                                participant.name,
+                                                            )}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block truncate text-sm font-semibold">
+                                                            {participant.name}
+                                                        </span>
+                                                        <span className="block truncate text-xs text-muted-foreground">
+                                                            {participant.participant_id ??
+                                                                'No participant ID'}
+                                                            {participant.email
+                                                                ? ` · ${participant.email}`
+                                                                : ''}
+                                                        </span>
+                                                    </span>
+                                                    {selectedExistingParticipant?.id ===
+                                                        participant.id && (
+                                                        <Check className="size-4 shrink-0 text-primary" />
+                                                    )}
+                                                </button>
+                                            ),
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="px-3 py-8 text-center text-sm text-muted-foreground">
+                                        {existingRegistrationData.event_name
+                                            ? 'No eligible previous participants found.'
+                                            : 'Select an event to see eligible participants.'}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <SearchableOptionField
+                                id="existing_participant_type"
+                                label="Participant type"
+                                value={
+                                    existingRegistrationData.participant_type
+                                }
+                                options={existingRegistrationParticipantTypes}
+                                placeholder={
+                                    existingRegistrationData.event_name
+                                        ? 'Search and select type'
+                                        : 'Select an event first'
+                                }
+                                searchPlaceholder="Search participant type..."
+                                emptyMessage="No type found."
+                                error={
+                                    existingRegistrationErrors.participant_type
+                                }
+                                disabled={!existingRegistrationData.event_name}
+                                onValueChange={(value) =>
+                                    setExistingRegistrationData(
+                                        'participant_type',
+                                        value,
+                                    )
+                                }
+                            />
+                            <SearchableOptionField
+                                id="existing_organization"
+                                label="School or organization"
+                                value={existingRegistrationData.organization}
+                                options={existingRegistrationOrganizations}
+                                placeholder="Search and select organization"
+                                searchPlaceholder="Search organization..."
+                                emptyMessage="No organization found."
+                                error={existingRegistrationErrors.organization}
+                                disabled={!existingRegistrationData.event_name}
+                                onValueChange={(value) =>
+                                    setExistingRegistrationData(
+                                        'organization',
+                                        value,
+                                    )
+                                }
+                            />
+                        </div>
+
+                        <label
+                            htmlFor="existing_check_in"
+                            className="flex cursor-pointer items-start gap-3 rounded-md border bg-muted/20 p-3"
+                        >
+                            <Checkbox
+                                id="existing_check_in"
+                                checked={existingRegistrationData.check_in}
+                                onCheckedChange={(checked) =>
+                                    setExistingRegistrationData(
+                                        'check_in',
+                                        checked === true,
+                                    )
+                                }
+                                className="mt-0.5"
+                            />
+                            <span>
+                                <span className="text-sm font-medium">
+                                    Check in after registration
+                                </span>
+                                <span className="mt-1 block text-xs text-muted-foreground">
+                                    Record attendance immediately for onsite
+                                    registration.
+                                </span>
+                                <InputError
+                                    message={
+                                        existingRegistrationErrors.check_in
+                                    }
+                                />
+                            </span>
+                        </label>
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={closeExistingParticipantDialog}
+                                disabled={registeringExistingParticipant}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={
+                                    registeringExistingParticipant ||
+                                    !selectedExistingParticipant
+                                }
+                            >
+                                <Save className="size-4" />
+                                Register participant
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
                 open={addDialogOpen}
                 onOpenChange={(open) => {
                     if (!open) {
                         closeAddDialog();
-                    } else {
-                        openAddDialog();
                     }
                 }}
             >

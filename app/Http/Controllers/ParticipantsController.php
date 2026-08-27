@@ -129,6 +129,51 @@ class ParticipantsController extends Controller
         );
     }
 
+    public function eligible(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'event' => [
+                'required',
+                'string',
+                Rule::exists('events', 'slug')->where('is_active', true),
+            ],
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+        $event = Event::query()
+            ->where('slug', $validated['event'])
+            ->where('is_active', true)
+            ->firstOrFail();
+        $search = trim($validated['search'] ?? '');
+
+        $participants = User::query()
+            ->where('is_active', true)
+            ->whereHas('eventRegistrations')
+            ->whereDoesntHave(
+                'eventRegistrations',
+                fn (Builder $query) => $query->where('event_id', $event->id),
+            )
+            ->when($search !== '', function (Builder $query) use ($search) {
+                $like = '%'.$search.'%';
+
+                $query->where(fn (Builder $query) => $query
+                    ->where('name', 'like', $like)
+                    ->orWhere('participant_id', 'like', $like)
+                    ->orWhere('email', 'like', $like)
+                    ->orWhere('phone', 'like', $like));
+            })
+            ->with([
+                'province:id,code,name',
+                'municipality:id,code,name',
+                'eventRegistrations:id,user_id,event_id',
+                'eventRegistrations.event:id,name,slug',
+            ])
+            ->orderBy('name')
+            ->limit(50)
+            ->get($this->participantColumns());
+
+        return response()->json($participants);
+    }
+
     private function participantQuery(Request $request, bool $trashed = false): Builder
     {
         $query = User::query()
@@ -443,6 +488,136 @@ class ParticipantsController extends Controller
             'message' => ($validated['check_in'] ?? false)
                 ? 'Participant added and checked in successfully.'
                 : 'Participant added successfully.',
+        ]);
+
+        return back();
+    }
+
+    public function registerExisting(
+        Request $request,
+        User $participant,
+        BrevoEmailService $brevoEmailService,
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'event_name' => [
+                'required',
+                'string',
+                Rule::exists('events', 'slug')->where('is_active', true),
+            ],
+            'organization' => ['nullable', 'string', 'max:255'],
+            'participant_type' => ['required', 'string'],
+            'check_in' => ['boolean'],
+        ]);
+        $event = Event::query()
+            ->where('slug', $validated['event_name'])
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        if (! $participant->is_active) {
+            return back()->withErrors([
+                'participant' => 'This participant is inactive and cannot be registered.',
+            ]);
+        }
+
+        if (! $participant->eventRegistrations()->exists()) {
+            return back()->withErrors([
+                'participant' => 'Select a participant registered for a previous event.',
+            ]);
+        }
+
+        if ($participant->eventRegistrations()->where('event_id', $event->id)->exists()) {
+            return back()->withErrors([
+                'participant' => 'This participant is already registered for the selected event.',
+            ]);
+        }
+
+        $participantTypeIsValid = ParticipantType::query()
+            ->where('event_id', $event->id)
+            ->where('slug', $validated['participant_type'])
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $participantTypeIsValid) {
+            return back()->withErrors([
+                'participant_type' => 'Select a valid participant type for this event.',
+            ]);
+        }
+
+        $organization = null;
+
+        if (filled($validated['organization'] ?? null)) {
+            $organizationSlug = str($validated['organization'])->slug()->toString();
+            $organization = Organization::query()
+                ->where('slug', $organizationSlug)
+                ->where('is_active', true)
+                ->where(fn ($query) => $query
+                    ->whereNull('event_id')
+                    ->orWhere('event_id', $event->id))
+                ->orderByRaw('event_id is null desc')
+                ->first();
+
+            if (! $organization) {
+                return back()->withErrors([
+                    'organization' => 'Select a valid organization for this event.',
+                ]);
+            }
+        }
+
+        if (
+            ($validated['check_in'] ?? false)
+            && $event->ends_at
+            && now()->greaterThan($event->ends_at)
+        ) {
+            return back()->withErrors([
+                'check_in' => 'The selected event is closed and cannot accept attendance check-ins.',
+            ]);
+        }
+
+        $registration = EventRegistration::query()->create([
+            'user_id' => $participant->id,
+            'event_id' => $event->id,
+            'organization_id' => $organization?->id,
+            'organization' => $validated['organization'] ?? null,
+            'participant_type' => $validated['participant_type'],
+            'created_by_user_id' => $request->user()?->id,
+            'registration_consent_accepted_at' => now(),
+        ]);
+
+        if ($validated['check_in'] ?? false) {
+            EventAttendance::query()->create([
+                'event_id' => $event->id,
+                'user_id' => $participant->id,
+                'attendance_date' => now(
+                    config('app.attendance_timezone', 'Asia/Manila'),
+                )->toDateString(),
+                'checked_in_by_user_id' => $request->user()?->id,
+                'checked_in_at' => now(),
+            ]);
+        }
+
+        if (filled($participant->email)) {
+            try {
+                $brevoEmailService->sendRegistrationSuccess([
+                    'participant_id' => $participant->participant_id,
+                    'name' => $participant->name,
+                    'email' => $participant->email,
+                    'organization' => $registration->organization,
+                    'event_name' => $event->name,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Brevo registration email failed for an existing participant.', [
+                    'participant_id' => $participant->participant_id,
+                    'email' => $participant->email,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => ($validated['check_in'] ?? false)
+                ? 'Participant registered and checked in successfully.'
+                : 'Participant registered successfully using the same ID and QR code.',
         ]);
 
         return back();

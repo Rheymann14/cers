@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\Event;
+use App\Models\EventRegistration;
 use App\Models\Municipality;
+use App\Models\ParticipantType;
 use App\Models\Province;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -185,4 +187,73 @@ test('one participant account can register for multiple events but not the same 
                     ),
                 'deletedParticipants',
             ));
+});
+
+test('an admin can register an eligible previous participant for another event with the same id', function () {
+    $admin = User::factory()->create([
+        'participant_type' => 'admin',
+        'is_active' => true,
+    ]);
+    $events = Event::query()->limit(2)->get();
+    expect($events)->toHaveCount(2);
+    $events->each->update(['is_active' => true]);
+
+    $participantType = ParticipantType::query()
+        ->where('event_id', $events[1]->id)
+        ->where('is_active', true)
+        ->firstOrFail();
+    $participant = User::factory()->create([
+        'name' => 'Returning Participant',
+        'participant_id' => 'CERS-SAME-2026',
+        'email' => null,
+        'participant_type' => $participantType->slug,
+        'is_active' => true,
+    ]);
+
+    EventRegistration::query()->create([
+        'user_id' => $participant->id,
+        'event_id' => $events[0]->id,
+        'participant_type' => $participantType->slug,
+        'registration_consent_accepted_at' => now(),
+    ]);
+
+    $this->actingAs($admin)
+        ->getJson(route('participants.eligible', [
+            'event' => $events[1]->slug,
+            'search' => 'CERS-SAME',
+        ]))
+        ->assertOk()
+        ->assertJsonFragment([
+            'id' => $participant->id,
+            'participant_id' => 'CERS-SAME-2026',
+        ]);
+
+    $this->actingAs($admin)
+        ->post(route('participants.registrations.store', $participant), [
+            'event_name' => $events[1]->slug,
+            'participant_type' => $participantType->slug,
+            'organization' => '',
+            'check_in' => false,
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect($participant->fresh()->participant_id)->toBe('CERS-SAME-2026')
+        ->and($participant->eventRegistrations()->count())->toBe(2);
+
+    $this->actingAs($admin)
+        ->getJson(route('participants.eligible', [
+            'event' => $events[1]->slug,
+            'search' => 'CERS-SAME',
+        ]))
+        ->assertOk()
+        ->assertJsonMissing(['id' => $participant->id]);
+
+    $this->actingAs($admin)
+        ->post(route('participants.registrations.store', $participant), [
+            'event_name' => $events[1]->slug,
+            'participant_type' => $participantType->slug,
+            'check_in' => false,
+        ])
+        ->assertSessionHasErrors('participant');
 });
