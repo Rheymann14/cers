@@ -57,7 +57,7 @@ class DashboardController extends Controller
             ],
             [
                 'checked_in_by_user_id' => $request->user()->id,
-                'checked_in_at' => $checkedInAt,
+                'checked_in_at' => $checkedInAt->utc(),
             ],
         );
 

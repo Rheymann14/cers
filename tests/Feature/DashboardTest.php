@@ -213,7 +213,7 @@ test('an administrator can manually check in a participant for a closed event at
     $this->actingAs($admin)
         ->post(route('dashboard.attendance.check-in', $registration), [
             'attendance_date' => '2026-08-10',
-            'checked_in_at' => '2026-08-10T14:35',
+            'checked_in_at' => '2026-08-10T13:00',
         ])
         ->assertRedirect();
 
@@ -222,8 +222,12 @@ test('an administrator can manually check in a participant for a closed event at
         'user_id' => $participant->id,
         'attendance_date' => '2026-08-10 00:00:00',
         'checked_in_by_user_id' => $admin->id,
-        'checked_in_at' => '2026-08-10 14:35:00',
+        'checked_in_at' => '2026-08-10 05:00:00',
     ]);
+
+    expect(
+        EventAttendance::query()->firstOrFail()->checked_in_at->toIso8601String(),
+    )->toBe('2026-08-10T05:00:00+00:00');
 });
 
 test('manual dashboard check-in time must match the event attendance day', function () {
