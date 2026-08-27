@@ -37,6 +37,8 @@ Route::middleware(['auth', 'active', 'verified', 'participant'])->group(function
 
 Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::post('dashboard/attendance/{registration}/check-in', [DashboardController::class, 'checkIn'])
+        ->name('dashboard.attendance.check-in');
     Route::get('attendance-qr-scanner', AttendanceQrScannerController::class)
         ->name('attendance-qr-scanner');
     Route::post('attendance-qr-scanner/check-in', [AttendanceQrScannerController::class, 'checkIn'])

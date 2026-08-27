@@ -190,6 +190,74 @@ test('dashboard treats a UTC-spanning Philippine event as one local attendance d
         );
 });
 
+test('an administrator can manually check in a participant for a closed event at an edited time', function () {
+    $admin = User::factory()->create([
+        'participant_type' => 'admin',
+    ]);
+    $participant = User::factory()->create([
+        'participant_type' => 'participant',
+    ]);
+    $event = Event::query()->create([
+        'name' => 'Closed Manual Check-In Test',
+        'slug' => 'closed-manual-check-in-test',
+        'is_active' => false,
+        'starts_at' => '2026-08-10 00:00:00',
+        'ends_at' => '2026-08-10 09:00:00',
+    ]);
+    $registration = EventRegistration::query()->create([
+        'user_id' => $participant->id,
+        'event_id' => $event->id,
+        'participant_type' => 'participant',
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('dashboard.attendance.check-in', $registration), [
+            'attendance_date' => '2026-08-10',
+            'checked_in_at' => '2026-08-10T14:35',
+        ])
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('event_attendances', [
+        'event_id' => $event->id,
+        'user_id' => $participant->id,
+        'attendance_date' => '2026-08-10 00:00:00',
+        'checked_in_by_user_id' => $admin->id,
+        'checked_in_at' => '2026-08-10 14:35:00',
+    ]);
+});
+
+test('manual dashboard check-in time must match the event attendance day', function () {
+    $admin = User::factory()->create([
+        'participant_type' => 'admin',
+    ]);
+    $participant = User::factory()->create([
+        'participant_type' => 'participant',
+    ]);
+    $event = Event::query()->create([
+        'name' => 'Manual Check-In Date Validation Test',
+        'slug' => 'manual-check-in-date-validation-test',
+        'is_active' => false,
+        'starts_at' => '2026-08-10 00:00:00',
+        'ends_at' => '2026-08-10 09:00:00',
+    ]);
+    $registration = EventRegistration::query()->create([
+        'user_id' => $participant->id,
+        'event_id' => $event->id,
+        'participant_type' => 'participant',
+    ]);
+
+    $this->actingAs($admin)
+        ->from(route('dashboard'))
+        ->post(route('dashboard.attendance.check-in', $registration), [
+            'attendance_date' => '2026-08-10',
+            'checked_in_at' => '2026-08-11T09:00',
+        ])
+        ->assertRedirect(route('dashboard'))
+        ->assertSessionHasErrors('checked_in_at');
+
+    $this->assertDatabaseCount('event_attendances', 0);
+});
+
 test('non administrator users are redirected away from the dashboard', function () {
     $user = User::factory()->create([
         'participant_type' => 'participant',

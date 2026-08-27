@@ -32,6 +32,7 @@ import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
     Command,
     CommandEmpty,
@@ -44,10 +45,12 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Popover,
     PopoverContent,
@@ -1891,9 +1894,11 @@ function DoughnutChart({
 function AttendanceParticipantCard({
     participant,
     selectedAttendanceStatus,
+    onCheckIn,
 }: {
     participant: AttendanceParticipant;
     selectedAttendanceStatus: 'checked-in' | 'not-checked-in' | null;
+    onCheckIn?: (participant: AttendanceParticipant) => void;
 }) {
     return (
         <article className="rounded-lg border bg-card p-3 text-sm shadow-sm">
@@ -1931,6 +1936,18 @@ function AttendanceParticipantCard({
                             </p>
                             <p>{participant.scanned_by ?? '-'}</p>
                         </>
+                    ) : null}
+                    {selectedAttendanceStatus === 'not-checked-in' &&
+                    onCheckIn ? (
+                        <Button
+                            type="button"
+                            size="sm"
+                            className="mt-3 w-full"
+                            onClick={() => onCheckIn(participant)}
+                        >
+                            <UserCheck className="size-4" />
+                            Check In
+                        </Button>
                     ) : null}
                 </div>
             </div>
@@ -1970,6 +1987,11 @@ export default function Dashboard({
     const [attendancePageSize, setAttendancePageSize] =
         useState<(typeof attendancePageSizeOptions)[number]>(25);
     const [isExportingAttendance, setIsExportingAttendance] = useState(false);
+    const [manualCheckInParticipant, setManualCheckInParticipant] =
+        useState<AttendanceParticipant | null>(null);
+    const [manualCheckInAt, setManualCheckInAt] = useState('');
+    const [isManualCheckInProcessing, setIsManualCheckInProcessing] =
+        useState(false);
     const [eventFilter, setEventFilter] = useState(initialEventFilter);
     const [attendanceDayFilter, setAttendanceDayFilter] = useState(() =>
         getNearestAttendanceDay(eventAttendanceSummary, initialEventFilter),
@@ -2498,6 +2520,58 @@ export default function Dashboard({
         setSelectedAttendanceStatus(null);
         setAttendanceSearch('');
         setAttendancePage(1);
+    }
+
+    function openManualCheckIn(participant: AttendanceParticipant) {
+        if (!participant.attendance_date) {
+            toast.error('No attendance day is available for this participant.');
+
+            return;
+        }
+
+        const now = new Date();
+        const localToday = [
+            now.getFullYear(),
+            String(now.getMonth() + 1).padStart(2, '0'),
+            String(now.getDate()).padStart(2, '0'),
+        ].join('-');
+        const time =
+            participant.attendance_date === localToday
+                ? `${String(now.getHours()).padStart(2, '0')}:${String(
+                      now.getMinutes(),
+                  ).padStart(2, '0')}`
+                : '09:00';
+
+        setManualCheckInParticipant(participant);
+        setManualCheckInAt(`${participant.attendance_date}T${time}`);
+    }
+
+    function submitManualCheckIn() {
+        if (!manualCheckInParticipant?.attendance_date || !manualCheckInAt) {
+            return;
+        }
+
+        router.post(
+            `/dashboard/attendance/${manualCheckInParticipant.id}/check-in`,
+            {
+                attendance_date: manualCheckInParticipant.attendance_date,
+                checked_in_at: manualCheckInAt,
+            },
+            {
+                preserveScroll: true,
+                onStart: () => setIsManualCheckInProcessing(true),
+                onSuccess: () => setManualCheckInParticipant(null),
+                onError: (errors) =>
+                    toast.error(
+                        String(
+                            errors.checked_in_at ??
+                                errors.attendance_date ??
+                                'Unable to check in participant.',
+                        ),
+                    ),
+                onFinish: () => setIsManualCheckInProcessing(false),
+            },
+        );
     }
 
     function updateAttendanceSearch(value: string) {
@@ -3245,6 +3319,12 @@ export default function Dashboard({
                                                 ? 'Checked In At'
                                                 : 'Registered At'}
                                         </TableHead>
+                                        {selectedAttendanceStatus ===
+                                        'not-checked-in' ? (
+                                            <TableHead className="w-28 text-right">
+                                                Action
+                                            </TableHead>
+                                        ) : null}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -3294,6 +3374,23 @@ export default function Dashboard({
                                                                 : participant.registered_at,
                                                         )}
                                                     </TableCell>
+                                                    {selectedAttendanceStatus ===
+                                                    'not-checked-in' ? (
+                                                        <TableCell className="text-right">
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    openManualCheckIn(
+                                                                        participant,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <UserCheck className="size-4" />
+                                                                Check In
+                                                            </Button>
+                                                        </TableCell>
+                                                    ) : null}
                                                 </TableRow>
                                             ),
                                         )
@@ -3304,7 +3401,7 @@ export default function Dashboard({
                                                     selectedAttendanceStatus ===
                                                     'checked-in'
                                                         ? 4
-                                                        : 3
+                                                        : 4
                                                 }
                                                 className="h-24 text-center text-sm text-muted-foreground"
                                             >
@@ -3326,6 +3423,7 @@ export default function Dashboard({
                                             selectedAttendanceStatus={
                                                 selectedAttendanceStatus
                                             }
+                                            onCheckIn={openManualCheckIn}
                                         />
                                     ),
                                 )
@@ -3407,6 +3505,90 @@ export default function Dashboard({
                             </div>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={manualCheckInParticipant !== null}
+                onOpenChange={(open) => {
+                    if (!open && !isManualCheckInProcessing) {
+                        setManualCheckInParticipant(null);
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Check In Participant</DialogTitle>
+                        <DialogDescription>
+                            Record a manual check-in for{' '}
+                            <span className="font-medium text-foreground">
+                                {manualCheckInParticipant?.name}
+                            </span>
+                            . This administrative action is available even after
+                            the event has closed.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 py-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="manual-check-in-day">
+                                Attendance day
+                            </Label>
+                            <Input
+                                id="manual-check-in-day"
+                                value={formatAttendanceDay(
+                                    manualCheckInParticipant?.attendance_date ??
+                                        null,
+                                )}
+                                disabled
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="manual-check-in-at">
+                                Check-in date and time
+                            </Label>
+                            <Input
+                                id="manual-check-in-at"
+                                type="datetime-local"
+                                value={manualCheckInAt}
+                                min={`${manualCheckInParticipant?.attendance_date ?? ''}T00:00`}
+                                max={`${manualCheckInParticipant?.attendance_date ?? ''}T23:59`}
+                                onChange={(event) =>
+                                    setManualCheckInAt(event.target.value)
+                                }
+                                disabled={isManualCheckInProcessing}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Set the actual historical check-in time for this
+                                event day.
+                            </p>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isManualCheckInProcessing}
+                            onClick={() => setManualCheckInParticipant(null)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={
+                                isManualCheckInProcessing || !manualCheckInAt
+                            }
+                            onClick={submitManualCheckIn}
+                        >
+                            {isManualCheckInProcessing ? (
+                                <Spinner className="size-4" />
+                            ) : (
+                                <UserCheck className="size-4" />
+                            )}
+                            Confirm Check-In
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </>

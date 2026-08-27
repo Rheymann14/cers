@@ -10,12 +10,71 @@ use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\Province;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public function checkIn(Request $request, EventRegistration $registration): RedirectResponse
+    {
+        $validated = $request->validate([
+            'attendance_date' => ['required', 'date_format:Y-m-d'],
+            'checked_in_at' => ['required', 'date_format:Y-m-d\\TH:i'],
+        ]);
+
+        $registration->loadMissing('event');
+        $event = $registration->event;
+
+        abort_unless($event, 404);
+
+        if (! $this->eventDates($event)->contains($validated['attendance_date'])) {
+            return back()->withErrors([
+                'attendance_date' => 'The attendance date must be one of the registered event dates.',
+            ]);
+        }
+
+        $attendanceTimezone = config('app.attendance_timezone', 'Asia/Manila');
+        $checkedInAt = Carbon::createFromFormat(
+            'Y-m-d\\TH:i',
+            $validated['checked_in_at'],
+            $attendanceTimezone,
+        );
+
+        if ($checkedInAt->toDateString() !== $validated['attendance_date']) {
+            return back()->withErrors([
+                'checked_in_at' => 'The check-in time must be on the selected attendance day.',
+            ]);
+        }
+
+        $attendance = EventAttendance::query()->firstOrCreate(
+            [
+                'event_id' => $registration->event_id,
+                'user_id' => $registration->user_id,
+                'attendance_date' => $validated['attendance_date'],
+            ],
+            [
+                'checked_in_by_user_id' => $request->user()->id,
+                'checked_in_at' => $checkedInAt,
+            ],
+        );
+
+        if (! $attendance->wasRecentlyCreated) {
+            return back()->withErrors([
+                'attendance_date' => 'This participant is already checked in for the selected event day.',
+            ]);
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => 'Participant checked in successfully.',
+        ]);
+
+        return back();
+    }
+
     public function __invoke(): Response
     {
         $events = Event::query()
