@@ -63,12 +63,12 @@ class Event extends Model
 
     public function getImageUrlAttribute(): ?string
     {
-        return $this->image_path ? asset('storage/'.$this->image_path) : null;
+        return $this->image_path ? route('media.show', $this->image_path) : null;
     }
 
     public function getPdfUrlAttribute(): ?string
     {
-        return $this->pdf_path ? asset('storage/'.$this->pdf_path) : null;
+        return $this->pdf_path ? route('media.show', $this->pdf_path) : null;
     }
 
     public function users(): HasMany

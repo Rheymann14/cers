@@ -261,13 +261,13 @@ class EventsManagementController extends Controller
             return null;
         }
 
-        return $request->file($field)?->store($directory, 'public');
+        return $request->file($field)?->store($directory);
     }
 
     private function deleteStoredFile(?string $path): void
     {
         if ($path) {
-            Storage::disk('public')->delete($path);
+            Storage::disk()->delete($path);
         }
     }
 
@@ -324,7 +324,7 @@ class EventsManagementController extends Controller
             }
 
             $path = 'event-materials/'.Str::uuid().'.'.$extension;
-            Storage::disk('public')->put($path, $contents);
+            Storage::disk()->put($path, $contents);
 
             $event->materials()->create([
                 'original_name' => $originalName,

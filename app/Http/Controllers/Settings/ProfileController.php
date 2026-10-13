@@ -46,7 +46,7 @@ class ProfileController extends Controller
         }
 
         if ($removeAvatar || $avatar) {
-            $this->deleteAvatar($user->avatar);
+            $this->deleteAvatar($user->getRawOriginal('avatar'));
             $user->avatar = $avatar ? $this->storeAvatar($avatar) : null;
         }
 
@@ -89,21 +89,17 @@ class ProfileController extends Controller
         $extension = $matches[1] === 'png' ? 'png' : 'jpg';
         $path = 'profile-photos/'.Str::uuid().'.'.$extension;
 
-        Storage::disk('public')->put($path, $contents);
+        Storage::disk()->put($path, $contents);
 
-        return Storage::url($path);
+        return $path;
     }
 
     private function deleteAvatar(?string $avatar): void
     {
-        if (! $avatar) {
+        if (! $avatar || Str::startsWith($avatar, ['http://', 'https://'])) {
             return;
         }
 
-        $storagePath = Str::after($avatar, '/storage/');
-
-        if ($storagePath !== $avatar) {
-            Storage::disk('public')->delete($storagePath);
-        }
+        Storage::disk()->delete(Str::after($avatar, '/storage/'));
     }
 }

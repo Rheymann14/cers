@@ -52,7 +52,7 @@ test('email verification status is unchanged when the email address is unchanged
 });
 
 test('profile image can be updated', function () {
-    Storage::fake('public');
+    Storage::fake();
 
     $user = User::factory()->create();
     $avatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -72,13 +72,18 @@ test('profile image can be updated', function () {
 
     $user->refresh();
 
-    expect($user->avatar)->toStartWith('/storage/profile-photos/');
-    Storage::disk('public')->assertExists(str_replace('/storage/', '', $user->avatar));
+    $path = $user->getRawOriginal('avatar');
+
+    expect($path)->toStartWith('profile-photos/');
+    expect($user->avatar)->toBe(route('media.show', $path));
+    Storage::disk()->assertExists($path);
+
+    $this->get($user->avatar)->assertOk();
 });
 
 test('profile image can be removed', function () {
-    Storage::fake('public');
-    Storage::disk('public')->put('profile-photos/avatar.jpg', 'avatar');
+    Storage::fake();
+    Storage::disk()->put('profile-photos/avatar.jpg', 'avatar');
 
     $user = User::factory()->create([
         'avatar' => '/storage/profile-photos/avatar.jpg',
@@ -98,7 +103,18 @@ test('profile image can be removed', function () {
         ->assertRedirect(route('profile.edit'));
 
     expect($user->refresh()->avatar)->toBeNull();
-    Storage::disk('public')->assertMissing('profile-photos/avatar.jpg');
+    Storage::disk()->assertMissing('profile-photos/avatar.jpg');
+});
+
+test('media route only serves files from upload directories', function () {
+    Storage::fake();
+    Storage::disk()->put('profile-photos/avatar.jpg', 'avatar');
+    Storage::disk()->put('secret.txt', 'secret');
+
+    $this->get('/media/profile-photos/avatar.jpg')->assertOk();
+    $this->get('/media/profile-photos/missing.jpg')->assertNotFound();
+    $this->get('/media/secret.txt')->assertNotFound();
+    $this->get('/media/profile-photos/../secret.txt')->assertNotFound();
 });
 
 test('user can delete their account', function () {

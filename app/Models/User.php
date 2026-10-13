@@ -90,6 +90,18 @@ class User extends Authenticatable
         $this->attributes['participant_type'] = $this->normalizeParticipantType($value);
     }
 
+    /**
+     * Resolve the stored avatar path (or legacy "/storage/..." URL) to a media URL.
+     */
+    public function getAvatarAttribute(?string $value): ?string
+    {
+        if (! $value || Str::startsWith($value, ['http://', 'https://'])) {
+            return $value;
+        }
+
+        return route('media.show', Str::after($value, '/storage/'));
+    }
+
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);

@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventRegistrationController;
 use App\Http\Controllers\EventsController;
 use App\Http\Controllers\EventsManagementController;
+use App\Http\Controllers\MediaController;
 use App\Http\Controllers\PageSettingsController;
 use App\Http\Controllers\ParticipantProfileController;
 use App\Http\Controllers\ParticipantsController;
@@ -17,6 +18,9 @@ Route::get('/home', WelcomeController::class);
 Route::get('/events', EventsController::class)->name('events');
 Route::get('/registration', WelcomeController::class)->name('registration');
 Route::get('/features', WelcomeController::class);
+Route::get('/media/{path}', MediaController::class)
+    ->where('path', '.*')
+    ->name('media.show');
 Route::get('/welcome-lookups', [WelcomeLookupController::class, 'index'])
     ->middleware('throttle:60,1')
     ->name('welcome.lookups');

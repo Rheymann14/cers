@@ -25,7 +25,7 @@ class EventMaterial extends Model
 
     public function getUrlAttribute(): string
     {
-        return asset('storage/'.$this->path);
+        return route('media.show', $this->path);
     }
 
     public function event(): BelongsTo

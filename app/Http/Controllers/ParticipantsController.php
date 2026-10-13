@@ -899,8 +899,8 @@ class ParticipantsController extends Controller
         $extension = $matches[1] === 'png' ? 'png' : 'jpg';
         $path = 'profile-photos/'.Str::uuid().'.'.$extension;
 
-        Storage::disk('public')->put($path, $contents);
+        Storage::disk()->put($path, $contents);
 
-        return Storage::url($path);
+        return $path;
     }
 }
