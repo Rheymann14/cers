@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         MakeAdmin::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*');
         $middleware->encryptCookies(except: ['appearance', 'layout', 'sidebar_state']);
 
         $middleware->alias([
