@@ -1,0 +1,48 @@
+# Keep the build context small and free of secrets.
+
+# Secrets / local env (values come from Coolify at runtime)
+.env
+.env.*
+!.env.example
+auth.json
+
+# Installed dependencies (reinstalled inside the build)
+node_modules
+vendor
+
+# Build output and generated files (rebuilt inside the build)
+public/build
+public/hot
+public/storage
+bootstrap/ssr
+bootstrap/cache/*.php
+resources/js/actions
+resources/js/routes
+resources/js/wayfinder
+
+# Runtime junk from local development
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing/*
+storage/app/private/*
+storage/app/public/*
+storage/pail
+!storage/**/.gitignore
+database/*.sqlite
+
+# Not needed in the image
+.git
+.github
+.vscode
+.idea
+.fleet
+.zed
+.phpunit.cache
+.phpunit.result.cache
+tests
+docs
+**/*.md
+Dockerfile
+.dockerignore
