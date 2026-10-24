@@ -4,7 +4,7 @@
 # node_modules stay in the build stages, which keeps the final image small.
 
 # ---- 1. PHP dependencies (production only) ----
-FROM serversideup/php:8.4-cli-alpine AS vendor
+FROM serversideup/php:8.5.12-cli-alpine AS vendor
 USER root
 WORKDIR /app
 COPY composer.json composer.lock ./
@@ -14,7 +14,7 @@ COPY . .
 RUN composer dump-autoload --optimize --no-dev
 
 # ---- 2. Frontend assets (Vite). The Wayfinder plugin runs artisan, so this stage needs PHP too ----
-FROM serversideup/php:8.4-cli-alpine AS assets
+FROM serversideup/php:8.5.12-cli-alpine AS assets
 USER root
 RUN apk add --no-cache nodejs npm
 WORKDIR /app
@@ -25,7 +25,7 @@ COPY --from=vendor /app/vendor ./vendor
 RUN npm run build
 
 # ---- 3. Runtime: Nginx + PHP-FPM on Alpine, listens on 8080 ----
-FROM serversideup/php:8.4-fpm-nginx-alpine AS runtime
+FROM serversideup/php:8.5.12-fpm-nginx-alpine AS runtime
 
 ENV PHP_OPCACHE_ENABLE=1 \
     AUTORUN_ENABLED=true \
