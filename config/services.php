@@ -36,9 +36,17 @@ return [
     ],
 
     'brevo' => [
-    'api_key' => env('BREVO_API_KEY'),
-    'sender_name' => env('BREVO_SENDER_NAME', config('app.name')),
-    'sender_email' => env('BREVO_SENDER_EMAIL'),
+        'api_key' => env('BREVO_API_KEY'),
+        'sender_name' => env('BREVO_SENDER_NAME', config('app.name')),
+        'sender_email' => env('BREVO_SENDER_EMAIL'),
+    ],
+
+    'auther_space' => [
+        'base_url' => env('AUTHER_SPACE_URL', 'https://systems.chedro12.com'),
+        'client_id' => env('AUTHER_SPACE_CLIENT_ID'),
+        'client_secret' => env('AUTHER_SPACE_CLIENT_SECRET'),
+        'redirect' => env('AUTHER_SPACE_REDIRECT_URI'),
+        'post_logout_redirect' => env('AUTHER_SPACE_POST_LOGOUT_REDIRECT_URI'),
     ],
 
 ];

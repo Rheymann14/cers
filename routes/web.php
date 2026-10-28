@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AttendanceQrScannerController;
+use App\Http\Controllers\Auth\AutherSpaceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventRegistrationController;
 use App\Http\Controllers\EventsController;
@@ -31,6 +32,13 @@ Route::get('/welcome-lookups/municipalities', [WelcomeLookupController::class, '
 Route::post('event-registration', [EventRegistrationController::class, 'store'])
     ->middleware('throttle:10,1')
     ->name('event-registration.store');
+
+Route::middleware('guest')->group(function () {
+    Route::get('auth/redirect', [AutherSpaceController::class, 'redirect'])
+        ->name('auther-space.redirect');
+    Route::get('auth/callback', [AutherSpaceController::class, 'callback'])
+        ->name('auther-space.callback');
+});
 
 Route::middleware(['auth', 'active', 'verified', 'participant'])->group(function () {
     Route::get('participant-profile', [ParticipantProfileController::class, 'edit'])

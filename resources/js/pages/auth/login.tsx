@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, usePage } from '@inertiajs/react';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import TextLink from '@/components/text-link';
@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { redirect as chedSignIn } from '@/routes/auther-space';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 
@@ -21,9 +22,30 @@ export default function Login({
     canResetPassword,
     canRegister,
 }: Props) {
+    const { errors: pageErrors } = usePage().props;
+
     return (
         <>
             <Head title="Log in" />
+
+            <div className="mb-6 grid gap-2">
+                {/* Full-page navigation: the CHED XII sign-in page is on another site. */}
+                <Button
+                    asChild
+                    className="h-11 w-full rounded-xl bg-[#0038A8] font-semibold text-white shadow-sm shadow-[#0038A8]/15 hover:bg-[#002f8f] focus-visible:ring-[#0038A8]/20"
+                >
+                    <a href={chedSignIn().url} data-test="ched-sign-in-button">
+                        Sign in with CHED XII
+                    </a>
+                </Button>
+                <InputError message={pageErrors.sso} />
+
+                <div className="mt-4 flex items-center gap-3 text-xs text-slate-500 dark:text-neutral-400">
+                    <span className="h-px flex-1 bg-[#d9e5f5] dark:bg-neutral-700" />
+                    or use your CERS password
+                    <span className="h-px flex-1 bg-[#d9e5f5] dark:bg-neutral-700" />
+                </div>
+            </div>
 
             <Form
                 {...store.form()}
@@ -113,6 +135,7 @@ export default function Login({
 
 Login.layout = {
     title: 'Access CERS',
-    description: 'Enter your email and password to continue.',
+    description:
+        'Sign in with your CHED XII account or your CERS email and password.',
     background: 'welcome-banner',
 };
