@@ -1,4 +1,9 @@
-import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import {
+    ChevronLeft,
+    ChevronRight,
+    ExternalLink,
+    FileText,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Button } from '@/components/ui/button';
@@ -12,13 +17,15 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 export default function CertificatePdfViewer({
+    file,
     url,
     generating,
     statusLabel,
     error,
     className,
 }: {
-    url: string | null;
+    file: Blob | null;
+    url?: string | null;
     generating: boolean;
     statusLabel?: string;
     error?: string | null;
@@ -26,12 +33,24 @@ export default function CertificatePdfViewer({
 }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-    const [loadedPages, setLoadedPages] = useState({ url: '', count: 0 });
-    const [pageState, setPageState] = useState({ url: '', page: 1 });
+    const [loadedPages, setLoadedPages] = useState<{
+        file: Blob | null;
+        count: number;
+    }>({ file: null, count: 0 });
+    const [pageState, setPageState] = useState<{
+        file: Blob | null;
+        page: number;
+    }>({ file: null, page: 1 });
+    const [loadError, setLoadError] = useState<{
+        file: Blob | null;
+        message: string;
+    } | null>(null);
     // Reset to the first page whenever a new PDF is shown.
-    const numPages = loadedPages.url === url ? loadedPages.count : 0;
+    const numPages = loadedPages.file === file ? loadedPages.count : 0;
     const pageNumber =
-        pageState.url === url ? Math.min(pageState.page, numPages || 1) : 1;
+        pageState.file === file ? Math.min(pageState.page, numPages || 1) : 1;
+    const loadErrorMessage =
+        loadError && loadError.file === file ? loadError.message : null;
 
     useEffect(() => {
         const container = containerRef.current;
@@ -54,7 +73,7 @@ export default function CertificatePdfViewer({
     }, []);
 
     function goToPage(page: number) {
-        setPageState({ url: url ?? '', page });
+        setPageState({ file, page });
     }
 
     // Fit the whole portrait page in view (pages are roughly 1:1.3–1:1.53).
@@ -78,9 +97,9 @@ export default function CertificatePdfViewer({
                     <p className="max-w-sm text-center text-sm text-destructive">
                         {error}
                     </p>
-                ) : url ? (
+                ) : file ? (
                     <Document
-                        file={url}
+                        file={file}
                         aria-label="Certificates PDF preview"
                         loading={
                             <Skeleton
@@ -92,13 +111,57 @@ export default function CertificatePdfViewer({
                             />
                         }
                         error={
-                            <p className="text-center text-sm text-destructive">
-                                The PDF preview could not be loaded.
-                            </p>
+                            <div className="flex max-w-sm flex-col items-center gap-2 text-center text-sm">
+                                <p className="text-destructive">
+                                    The PDF preview could not be loaded.
+                                </p>
+                                {loadErrorMessage && (
+                                    <p className="text-xs break-words text-muted-foreground">
+                                        {loadErrorMessage}
+                                    </p>
+                                )}
+                                {url && (
+                                    <Button
+                                        asChild
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 px-2 text-xs"
+                                    >
+                                        <a
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener"
+                                        >
+                                            <ExternalLink className="size-3.5" />
+                                            Open PDF in a new tab
+                                        </a>
+                                    </Button>
+                                )}
+                            </div>
                         }
                         onLoadSuccess={({ numPages: count }) =>
-                            setLoadedPages({ url, count })
+                            setLoadedPages({ file, count })
                         }
+                        onLoadError={(loadFailure) => {
+                            console.error(
+                                'Certificate PDF preview failed to load.',
+                                loadFailure,
+                            );
+                            setLoadError({
+                                file,
+                                message: loadFailure.message,
+                            });
+                        }}
+                        onSourceError={(sourceFailure) => {
+                            console.error(
+                                'Certificate PDF preview source failed.',
+                                sourceFailure,
+                            );
+                            setLoadError({
+                                file,
+                                message: sourceFailure.message,
+                            });
+                        }}
                     >
                         {containerSize.width > 0 && (
                             <Page

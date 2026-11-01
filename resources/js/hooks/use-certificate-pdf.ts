@@ -15,6 +15,9 @@ export type CertificatePdfRequest = {
 };
 
 type CertificatePdfState = {
+    // The viewer reads the Blob directly so it never re-fetches the PDF; the
+    // object URL is only for printing and downloading.
+    blob: Blob | null;
     url: string | null;
     generating: boolean;
     error: string | null;
@@ -34,6 +37,7 @@ export function useCertificatePdf(
             ? JSON.stringify(request)
             : null;
     const [state, setState] = useState<CertificatePdfState>({
+        blob: null,
         url: null,
         generating: false,
         error: null,
@@ -64,12 +68,13 @@ export function useCertificatePdf(
                     return;
                 }
 
+                const blob = new Blob([result.bytes as BlobPart], {
+                    type: 'application/pdf',
+                });
+
                 setState({
-                    url: URL.createObjectURL(
-                        new Blob([result.bytes as BlobPart], {
-                            type: 'application/pdf',
-                        }),
-                    ),
+                    blob,
+                    url: URL.createObjectURL(blob),
                     generating: false,
                     error: null,
                     missingAssets: result.missingAssets,
@@ -103,5 +108,11 @@ export function useCertificatePdf(
 
     return requestKey
         ? state
-        : { url: null, generating: false, error: null, missingAssets: [] };
+        : {
+              blob: null,
+              url: null,
+              generating: false,
+              error: null,
+              missingAssets: [],
+          };
 }

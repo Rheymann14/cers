@@ -797,6 +797,7 @@ function CertificateSettingsForm({
                         }
                     >
                         <CertificatePdfViewer
+                            file={preview.blob}
                             url={preview.url}
                             generating={preview.generating}
                             statusLabel="Updating preview..."

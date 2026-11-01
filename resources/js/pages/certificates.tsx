@@ -630,7 +630,8 @@ function CertificatePrintDialog({
                     }
                 >
                     <CertificatePdfViewer
-                        url={error ? null : pdf.url}
+                        file={error ? null : pdf.blob}
+                        url={pdf.url}
                         generating={!error && (!loaded || pdf.generating)}
                         statusLabel={
                             loaded
