@@ -355,7 +355,7 @@ function drawCertificate(
     if (assets.logo) {
         drawImageContained(page, assets.logo, {
             centerX,
-            top: at(0.235),
+            top: at(0.215),
             maxWidth: region.width * 0.5,
             maxHeight: region.height * 0.11,
         });
@@ -367,7 +367,7 @@ function drawCertificate(
         17 * scale,
         region.width * 0.86,
     );
-    let cursor = at(0.4);
+    let cursor = at(0.38);
     drawCenteredText(page, sanitize(fonts.bold, content.title), {
         font: fonts.bold,
         size: titleSize,
@@ -405,13 +405,16 @@ function drawCertificate(
         baseline: cursor,
     });
     cursor += 4 * scale;
+    // The first paragraph sits close to the name; later ones get a blank-line gap.
+    let paragraphGap = 14 * scale;
 
     for (const text of [content.body, content.footer]) {
         if (!text.trim()) {
             continue;
         }
 
-        cursor += 14 * scale;
+        cursor += paragraphGap;
+        paragraphGap = 22 * scale;
 
         for (const line of wrapText(
             fillPlaceholders(text, placeholders),
