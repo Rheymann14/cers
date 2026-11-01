@@ -190,6 +190,7 @@ class EventsManagementController extends Controller
         $this->deleteStoredFile($event->image_path);
         $this->deleteStoredFile($event->pdf_path);
         $event->materials->each(fn (EventMaterial $material) => $this->deleteStoredFile($material->path));
+        collect($event->certificate?->storedPaths())->each(fn (string $path) => $this->deleteStoredFile($path));
         $event->delete();
 
         Inertia::flash('toast', [

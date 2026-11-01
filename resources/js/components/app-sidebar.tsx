@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    Award,
     CalendarDays,
     LayoutDashboard,
     QrCode,
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/sidebar';
 import {
     attendanceQrScanner,
+    certificates,
     dashboard,
     pageSettings,
     participants,
@@ -43,6 +45,11 @@ const standardAdminNavItems: NavItem[] = [
         title: 'QR Scanner',
         href: attendanceQrScanner(),
         icon: QrCode,
+    },
+    {
+        title: 'Certificates',
+        href: certificates(),
+        icon: Award,
     },
 ];
 
@@ -66,6 +73,11 @@ const chedAdminNavItems: NavItem[] = [
         title: 'QR Scanner',
         href: attendanceQrScanner(),
         icon: QrCode,
+    },
+    {
+        title: 'Certificates',
+        href: certificates(),
+        icon: Award,
     },
 ];
 

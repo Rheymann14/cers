@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AttendanceQrScannerController;
 use App\Http\Controllers\Auth\AutherSpaceController;
+use App\Http\Controllers\CertificatesController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventRegistrationController;
 use App\Http\Controllers\EventsController;
@@ -74,6 +75,14 @@ Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
         ->name('participants.password-reset');
     Route::patch('participants/{participant}/restore', [ParticipantsController::class, 'restore'])
         ->name('participants.restore');
+    Route::get('certificates', CertificatesController::class)->name('certificates');
+    Route::get('certificates/assets/{path}', [CertificatesController::class, 'asset'])
+        ->where('path', '.*')
+        ->name('certificates.assets');
+    Route::get('certificates/{event}/recipients', [CertificatesController::class, 'recipients'])
+        ->name('certificates.recipients');
+    Route::patch('certificates/{event}', [CertificatesController::class, 'update'])
+        ->name('certificates.update');
 
     Route::middleware('ched-admin')->group(function () {
         Route::get('events-management', EventsManagementController::class)->name('events-management');
