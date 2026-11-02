@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -27,6 +28,23 @@ class ParticipantsController extends Controller
     public function __invoke(Request $request): Response
     {
         $perPage = max(5, min(100, $request->integer('per_page', 10)));
+        $events = Event::query()
+            ->where('is_active', true)
+            ->orderByRaw('starts_at is null')
+            ->orderBy('starts_at')
+            ->orderBy('name')
+            ->get([
+                'slug as value',
+                'name as label',
+                'starts_at',
+                'ends_at',
+            ]);
+
+        // Default to the nearest event on first load so the page renders the
+        // right participants immediately instead of refetching client-side.
+        if (! $request->has('event') && $request->string('search')->isEmpty()) {
+            $request->merge(['event' => $this->nearestEventSlug($events)]);
+        }
 
         return Inertia::render('participants', [
             'participants' => $this->participantQuery($request)
@@ -81,17 +99,7 @@ class ParticipantsController extends Controller
                     'participant_types.type',
                     'events.slug as event_slug',
                 ]),
-            'events' => Event::query()
-                ->where('is_active', true)
-                ->orderByRaw('starts_at is null')
-                ->orderBy('starts_at')
-                ->orderBy('name')
-                ->get([
-                    'slug as value',
-                    'name as label',
-                    'starts_at',
-                    'ends_at',
-                ]),
+            'events' => $events,
             'addedByOptions' => collect([
                 ['value' => 'system', 'label' => 'System', 'type' => 'system'],
             ])->concat(
@@ -172,6 +180,44 @@ class ParticipantsController extends Controller
             ->get($this->participantColumns());
 
         return response()->json($participants);
+    }
+
+    /**
+     * @param  Collection<int, Event>  $events
+     */
+    private function nearestEventSlug(Collection $events): string
+    {
+        $now = now();
+        $distance = function (Event $event) use ($now): float {
+            if ($event->starts_at && $now->lt($event->starts_at)) {
+                return $now->diffInSeconds($event->starts_at, true);
+            }
+
+            if ($event->ends_at && $now->gt($event->ends_at)) {
+                return $now->diffInSeconds($event->ends_at, true);
+            }
+
+            return $event->starts_at || $event->ends_at ? 0 : INF;
+        };
+        $status = fn (Event $event): int => match (true) {
+            $event->ends_at && $now->gt($event->ends_at) => 2,
+            $event->starts_at && $now->lt($event->starts_at) => 1,
+            default => 0,
+        };
+
+        return $events
+            ->sort(fn (Event $a, Event $b) => [
+                $distance($a),
+                $status($a),
+                $a->starts_at?->getTimestamp() ?? INF,
+                $a->label,
+            ] <=> [
+                $distance($b),
+                $status($b),
+                $b->starts_at?->getTimestamp() ?? INF,
+                $b->label,
+            ])
+            ->first()?->value ?? 'all';
     }
 
     private function participantQuery(Request $request, bool $trashed = false): Builder

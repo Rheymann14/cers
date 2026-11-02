@@ -445,66 +445,6 @@ function getEventStatus(event: EventOption, now = new Date()): EventStatus {
     return 'ongoing';
 }
 
-function getEventDistance(event: EventOption, now: Date): number {
-    const startsAt = toDate(event.starts_at);
-    const endsAt = toDate(event.ends_at);
-
-    if (startsAt && now < startsAt) {
-        return startsAt.getTime() - now.getTime();
-    }
-
-    if (endsAt && now > endsAt) {
-        return now.getTime() - endsAt.getTime();
-    }
-
-    if (startsAt || endsAt) {
-        return 0;
-    }
-
-    return Number.POSITIVE_INFINITY;
-}
-
-function getNearestEventValue(events: EventOption[]): string {
-    if (events.length === 0) {
-        return 'all';
-    }
-
-    const now = new Date();
-
-    return [...events].sort((a, b) => {
-        const aDistance = getEventDistance(a, now);
-        const bDistance = getEventDistance(b, now);
-
-        if (aDistance !== bDistance) {
-            return aDistance < bDistance ? -1 : 1;
-        }
-
-        const statusOrder: Record<EventStatus, number> = {
-            ongoing: 0,
-            upcoming: 1,
-            closed: 2,
-        };
-        const statusDifference =
-            statusOrder[getEventStatus(a, now)] -
-            statusOrder[getEventStatus(b, now)];
-
-        if (statusDifference !== 0) {
-            return statusDifference;
-        }
-
-        const aStartsAt =
-            toDate(a.starts_at)?.getTime() ?? Number.POSITIVE_INFINITY;
-        const bStartsAt =
-            toDate(b.starts_at)?.getTime() ?? Number.POSITIVE_INFINITY;
-
-        if (aStartsAt === bStartsAt) {
-            return a.label.localeCompare(b.label);
-        }
-
-        return aStartsAt < bStartsAt ? -1 : 1;
-    })[0].value;
-}
-
 function formatFileDate(value: Date): string {
     const year = value.getFullYear();
     const month = String(value.getMonth() + 1).padStart(2, '0');
@@ -1576,11 +1516,7 @@ export default function Participants({
     const participants = participantPagination.data;
     const getInitials = useInitials();
     const [search, setSearch] = useState(filters.search);
-    const [eventFilter, setEventFilter] = useState(
-        filters.event === 'all' && !filters.search
-            ? getNearestEventValue(events)
-            : filters.event,
-    );
+    const [eventFilter, setEventFilter] = useState(filters.event);
     const [addedByFilter, setAddedByFilter] = useState(filters.added_by);
     const [typeFilter, setTypeFilter] = useState(filters.type);
     const [sortKey, setSortKey] = useState<SortKey>(filters.sort);
@@ -1589,7 +1525,21 @@ export default function Participants({
     );
     const [pageSize, setPageSize] = useState(filters.per_page);
     const [page, setPage] = useState(participantPagination.current_page);
-    const initialParticipantRequest = useRef(true);
+    const participantQueryParams = {
+        search: search || undefined,
+        event: eventFilter,
+        added_by: addedByFilter,
+        type: typeFilter,
+        sort: sortKey,
+        direction: sortDirection,
+        per_page: pageSize,
+        page,
+    };
+    const participantQueryKey = JSON.stringify(participantQueryParams);
+    // Tracks the query the current props came from. Comparing against it
+    // (instead of a "first run" flag) keeps StrictMode's double effect run
+    // from refetching the page right after it loads.
+    const lastParticipantQueryKey = useRef(participantQueryKey);
     const [addChoiceDialogOpen, setAddChoiceDialogOpen] = useState(false);
     const [addDialogOpen, setAddDialogOpen] = useState(false);
     const [existingParticipantDialogOpen, setExistingParticipantDialogOpen] =
@@ -1685,28 +1635,16 @@ export default function Participants({
         updatingStatus;
 
     useEffect(() => {
-        if (initialParticipantRequest.current) {
-            initialParticipantRequest.current = false;
-
-            if (eventFilter === filters.event) {
-                return;
-            }
+        if (participantQueryKey === lastParticipantQueryKey.current) {
+            return;
         }
 
         const timeout = window.setTimeout(
             () => {
+                lastParticipantQueryKey.current = participantQueryKey;
                 router.get(
                     '/participants',
-                    {
-                        search: search || undefined,
-                        event: eventFilter,
-                        added_by: addedByFilter,
-                        type: typeFilter,
-                        sort: sortKey,
-                        direction: sortDirection,
-                        per_page: pageSize,
-                        page,
-                    },
+                    JSON.parse(participantQueryKey),
                     {
                         only: [
                             'participants',
@@ -1723,18 +1661,7 @@ export default function Participants({
         );
 
         return () => window.clearTimeout(timeout);
-    }, [
-        addedByFilter,
-        eventFilter,
-        filters.event,
-        filters.search,
-        page,
-        pageSize,
-        search,
-        sortDirection,
-        sortKey,
-        typeFilter,
-    ]);
+    }, [filters.search, participantQueryKey, search]);
 
     const addOrganizations = useMemo(
         () =>

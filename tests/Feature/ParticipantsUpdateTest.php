@@ -154,3 +154,33 @@ test('moving a registration to an event already registered still reports a dupli
 
     expect($secondaryRegistration->fresh()->event_id)->toBe($secondaryEvent->id);
 });
+
+test('participants page defaults to the nearest event when no event filter is given', function () {
+    $admin = User::factory()->create(['participant_type' => 'admin']);
+    Event::query()->create([
+        'name' => 'Past Event',
+        'slug' => 'past-event',
+        'is_active' => true,
+        'starts_at' => now()->subMonths(2),
+        'ends_at' => now()->subMonths(2)->addDay(),
+    ]);
+    Event::query()->create([
+        'name' => 'Upcoming Event',
+        'slug' => 'upcoming-event',
+        'is_active' => true,
+        'starts_at' => now()->addWeek(),
+        'ends_at' => now()->addWeek()->addDay(),
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('participants'))
+        ->assertInertia(fn ($page) => $page->where('filters.event', 'upcoming-event'));
+
+    $this->actingAs($admin)
+        ->get(route('participants', ['event' => 'all']))
+        ->assertInertia(fn ($page) => $page->where('filters.event', 'all'));
+
+    $this->actingAs($admin)
+        ->get(route('participants', ['search' => 'someone']))
+        ->assertInertia(fn ($page) => $page->where('filters.event', 'all'));
+});

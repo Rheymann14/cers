@@ -16,11 +16,19 @@ initializeLayout();
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     defaults: {
+        // Only cross-fade real page navigations. Partial reloads (deferred
+        // props, filter requests, form submits) would otherwise snapshot and
+        // fade the whole page each time, which looks like a flicker.
         visitOptions: (_href, options) => ({
             ...options,
             viewTransition:
                 options.viewTransition ??
-                !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+                ((options.method ?? 'get') === 'get' &&
+                    !options.only?.length &&
+                    !options.except?.length &&
+                    !options.preserveState &&
+                    !window.matchMedia('(prefers-reduced-motion: reduce)')
+                        .matches),
         }),
     },
     layout: (name) => {
