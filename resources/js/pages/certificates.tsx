@@ -438,6 +438,7 @@ function CertificatePrintDialog({
         error: string | null;
     } | null>(null);
     const printFrameRef = useRef<HTMLIFrameElement | null>(null);
+    const open = request !== null;
     const requestKey = request
         ? JSON.stringify({ event: event.id, ...request })
         : null;
@@ -454,6 +455,18 @@ function CertificatePrintDialog({
               }
             : null,
     );
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        // Warm the PDF library and images while participants are loading.
+        void import('@/lib/certificate-pdf').then(
+            ({ preloadCertificateImages }) =>
+                preloadCertificateImages(settings),
+        );
+    }, [open, settings]);
 
     useEffect(() => {
         if (!requestKey) {
@@ -544,7 +557,7 @@ function CertificatePrintDialog({
 
     return (
         <Dialog
-            open={request !== null}
+            open={open}
             onOpenChange={(open) => {
                 if (!open) {
                     printFrameRef.current?.remove();

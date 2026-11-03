@@ -29,29 +29,31 @@ type EmbeddedAssets = {
 
 type Fonts = { regular: PDFFont; bold: PDFFont };
 
+// A certificate is at most ~7.5in wide, so this is still ~300 DPI. Larger
+// uploads only make pdf-lib and the pdf.js preview slower.
+const MAX_IMAGE_DIMENSION = 2400;
+const JPEG_QUALITY = 0.92;
+
 const imageCache = new Map<string, Promise<LoadedImage>>();
 
 function hasPrefix(bytes: Uint8Array, prefix: number[]): boolean {
     return prefix.every((byte, index) => bytes[index] === byte);
 }
 
-async function convertToPng(blob: Blob): Promise<Uint8Array> {
-    const bitmap = await createImageBitmap(blob);
-    const canvas = document.createElement('canvas');
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext('2d')?.drawImage(bitmap, 0, 0);
-    bitmap.close();
+function hasTransparency(
+    context: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+): boolean {
+    const { data } = context.getImageData(0, 0, width, height);
 
-    const png = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/png'),
-    );
-
-    if (!png) {
-        throw new Error('Unable to convert image.');
+    for (let index = 3; index < data.length; index += 4) {
+        if (data[index] < 255) {
+            return true;
+        }
     }
 
-    return new Uint8Array(await png.arrayBuffer());
+    return false;
 }
 
 async function fetchImage(url: string): Promise<LoadedImage> {
@@ -63,17 +65,60 @@ async function fetchImage(url: string): Promise<LoadedImage> {
 
     const blob = await response.blob();
     const bytes = new Uint8Array(await blob.arrayBuffer());
+    const isJpg = hasPrefix(bytes, [0xff, 0xd8, 0xff]);
+    const isPng = hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47]);
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(
+        1,
+        MAX_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height),
+    );
 
-    if (hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47])) {
-        return { bytes, type: 'png' };
-    }
+    // pdf-lib copies JPEGs without decoding them, so small ones embed as-is.
+    if (isJpg && scale === 1) {
+        bitmap.close();
 
-    if (hasPrefix(bytes, [0xff, 0xd8, 0xff])) {
         return { bytes, type: 'jpg' };
     }
 
-    // pdf-lib only embeds PNG and JPEG, so re-encode anything else (e.g. WebP).
-    return { bytes: await convertToPng(blob), type: 'png' };
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+
+    if (!context) {
+        bitmap.close();
+
+        throw new Error('Unable to convert image.');
+    }
+
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    // pdf-lib decodes and re-compresses every PNG pixel on each generation,
+    // so opaque images (usually the backgrounds) are stored as JPEG instead.
+    const transparent = !isJpg && hasTransparency(context, width, height);
+
+    if (transparent && isPng && scale === 1) {
+        return { bytes, type: 'png' };
+    }
+
+    const type = transparent ? 'png' : 'jpg';
+    const encoded = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(
+            resolve,
+            type === 'png' ? 'image/png' : 'image/jpeg',
+            JPEG_QUALITY,
+        ),
+    );
+
+    if (!encoded) {
+        throw new Error('Unable to convert image.');
+    }
+
+    return { bytes: new Uint8Array(await encoded.arrayBuffer()), type };
 }
 
 function loadImage(url: string): Promise<LoadedImage> {
@@ -91,6 +136,23 @@ function loadImage(url: string): Promise<LoadedImage> {
     imageCache.set(url, request);
 
     return request;
+}
+
+/**
+ * Start fetching and converting the template images ahead of generation.
+ */
+export function preloadCertificateImages(template: CertificateTemplate) {
+    [
+        template.logo_url,
+        template.appearance_background_url,
+        template.participation_background_url,
+        ...template.signatories.map((signatory) => signatory.signature_url),
+    ].forEach((url) => {
+        if (url) {
+            // Failures are reported when the PDF is generated.
+            loadImage(url).catch(() => {});
+        }
+    });
 }
 
 async function embedImage(
