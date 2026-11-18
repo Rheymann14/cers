@@ -40,7 +40,7 @@
                                         style="border-collapse: collapse; margin-bottom: 18px;">
                                         <tr>
                                             <td style="padding-right: 10px;">
-                                               <img src="https://events.chedro.com/ched_logo-128.png" alt="CHED" width="36" height="36"
+                                               <img src="{{ asset('ched_logo-128.png') }}" alt="CHED" width="36" height="36"
                                                     style="display: block; width: 36px; height: 36px; border-radius: 50%; background: #ffffff;">
                                             </td>
                                             <td>
