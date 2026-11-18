@@ -728,6 +728,16 @@ function scrollToFirstRegistrationError(errors: Record<string, unknown>) {
             );
 
         if (!field) {
+            // The error belongs to a field the form does not show, so surface it
+            // instead of failing silently.
+            const message = errors[firstField];
+
+            toast.error(
+                typeof message === 'string' && message !== ''
+                    ? message
+                    : 'Registration could not be submitted. Please try again.',
+            );
+
             return;
         }
 

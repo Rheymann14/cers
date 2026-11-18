@@ -7,6 +7,7 @@ use App\Models\ParticipantType;
 use App\Models\Province;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -187,6 +188,56 @@ test('one participant account can register for multiple events but not the same 
                     ),
                 'deletedParticipants',
             ));
+});
+
+test('welcome page registration succeeds under production password rules', function () {
+    // Same rules AppServiceProvider applies when APP_ENV=production.
+    Password::defaults(fn () => Password::min(12)
+        ->mixedCase()
+        ->letters()
+        ->numbers()
+        ->symbols()
+        ->uncompromised());
+
+    $event = Event::query()->firstOrFail();
+    $event->update([
+        'starts_at' => now()->subHour(),
+        'ends_at' => now()->addDay(),
+        'is_active' => true,
+        'is_registration_closed' => false,
+    ]);
+    $province = Province::query()->create([
+        'name' => 'Production Province',
+        'code' => '9900000011',
+        'region_code' => '9900000000',
+        'region_name' => 'Test Region',
+        'is_active' => true,
+    ]);
+    $municipality = Municipality::query()->create([
+        'province_id' => $province->id,
+        'name' => 'Production City',
+        'code' => '9900000012',
+        'type' => 'City',
+        'is_active' => true,
+    ]);
+
+    $this->post(route('event-registration.store'), [
+        'given_name' => 'Prod',
+        'surname' => 'User',
+        'email' => 'prod-user@example.com',
+        'province' => $province->code,
+        'municipality' => $municipality->code,
+        'organization' => 'Production University',
+        'participant_type' => 'attendee',
+        'sex' => 'male',
+        'event_name' => $event->slug,
+        'consent' => 'yes',
+    ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('home', absolute: false))
+        ->assertSessionHas('registration_success');
+
+    expect(User::query()->where('email', 'prod-user@example.com')->exists())->toBeTrue();
 });
 
 test('an admin can register an eligible previous participant for another event with the same id', function () {

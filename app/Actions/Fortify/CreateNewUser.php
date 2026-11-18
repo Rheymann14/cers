@@ -27,8 +27,10 @@ class CreateNewUser implements CreatesNewUsers
      * Validate and create a newly registered user.
      *
      * @param  array<string, string>  $input
+     * @param  bool  $usesDefaultPassword  The caller supplies the system default
+     *                                     participant password, so the strength rules are skipped.
      */
-    public function create(array $input): User
+    public function create(array $input, bool $usesDefaultPassword = false): User
     {
         $validator = Validator::make(
             $input,
@@ -73,7 +75,9 @@ class CreateNewUser implements CreatesNewUsers
                         ->where('ends_at', '>=', now())),
                 ],
                 'consent' => ['accepted'],
-                'password' => $this->passwordRules(),
+                'password' => $usesDefaultPassword
+                    ? ['required', 'string']
+                    : $this->passwordRules(),
             ],
             [
                 'event_name.exists' => 'Registration for the selected event is closed.',

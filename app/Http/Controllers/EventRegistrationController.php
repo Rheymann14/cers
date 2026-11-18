@@ -21,7 +21,7 @@ class EventRegistrationController extends Controller
             'password_confirmation' => 'cers2026',
         ]);
 
-        $user = $creator->create($request->all());
+        $user = $creator->create($request->all(), usesDefaultPassword: true);
         $registration = $user->eventRegistrations()
             ->with('event:id,name')
             ->whereHas('event', fn ($query) => $query
