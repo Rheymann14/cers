@@ -417,6 +417,9 @@ function EventCard({
     const isClosed = status === 'closed';
     const mapUrl = getMapUrl(event);
     const mapEmbedUrl = getMapEmbedUrl(event);
+    const hasVenue = Boolean(
+        event.venue_name || event.venue_address || mapUrl || mapEmbedUrl,
+    );
     const previewMaterials = event.materials.slice(0, 2);
     const hiddenMaterialsCount = Math.max(0, event.materials.length - 2);
 
@@ -463,7 +466,7 @@ function EventCard({
 
             <div
                 className={cn(
-                    'grid flex-1 content-start gap-3 pt-3',
+                    'flex flex-1 flex-col gap-3 pt-3',
                     isClosed && 'opacity-75 grayscale',
                 )}
             >
@@ -483,46 +486,62 @@ function EventCard({
                     ) : null}
                 </div>
 
-                <div className="grid gap-1 text-sm">
-                    <div className="flex items-start gap-2">
-                        <MapPin className="mt-0.5 size-3.5 shrink-0 text-[#0038A8] dark:text-blue-300" />
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold break-words text-slate-950 dark:text-white">
-                                {event.venue_name ?? 'Venue to be announced'}
-                            </p>
-                            {event.venue_address ? (
-                                <p className="mt-0.5 line-clamp-2 text-xs leading-5 break-words text-slate-600 dark:text-neutral-400">
-                                    {event.venue_address}
+                {hasVenue ? (
+                    <div className="grid gap-1 text-sm">
+                        <div className="flex items-start gap-2">
+                            <MapPin className="mt-0.5 size-3.5 shrink-0 text-[#0038A8] dark:text-blue-300" />
+                            <div className="min-w-0 flex-1">
+                                <p className="text-xs font-semibold break-words text-slate-950 dark:text-white">
+                                    {event.venue_name ??
+                                        'Venue to be announced'}
                                 </p>
-                            ) : null}
+                                {event.venue_address ? (
+                                    <p className="mt-0.5 line-clamp-2 text-xs leading-5 break-words text-slate-600 dark:text-neutral-400">
+                                        {event.venue_address}
+                                    </p>
+                                ) : null}
+                            </div>
                         </div>
+
+                        {mapUrl ? (
+                            <a
+                                href={mapUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-[#0038A8] hover:underline dark:text-blue-300"
+                            >
+                                <ExternalLink className="size-3.5" />
+                                Open Google Map
+                            </a>
+                        ) : null}
+
+                        {mapEmbedUrl ? (
+                            <div className="mt-1 overflow-hidden rounded-xl border border-[#d9e5f5] bg-[#eef5ff] dark:border-neutral-800 dark:bg-neutral-950">
+                                <iframe
+                                    src={mapEmbedUrl}
+                                    title={`${event.name} pinned venue map`}
+                                    className="h-40 w-full"
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer-when-downgrade"
+                                    allowFullScreen
+                                />
+                            </div>
+                        ) : null}
                     </div>
-
-                    {mapUrl ? (
-                        <a
-                            href={mapUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-[#0038A8] hover:underline dark:text-blue-300"
-                        >
-                            <ExternalLink className="size-3.5" />
-                            Open Google Map
-                        </a>
-                    ) : null}
-
-                    {mapEmbedUrl ? (
-                        <div className="mt-1 overflow-hidden rounded-xl border border-[#d9e5f5] bg-[#eef5ff] dark:border-neutral-800 dark:bg-neutral-950">
-                            <iframe
-                                src={mapEmbedUrl}
-                                title={`${event.name} pinned venue map`}
-                                className="h-40 w-full"
-                                loading="lazy"
-                                referrerPolicy="no-referrer-when-downgrade"
-                                allowFullScreen
-                            />
-                        </div>
-                    ) : null}
-                </div>
+                ) : (
+                    <div
+                        aria-label="Venue to be announced"
+                        className="pointer-events-none flex min-h-40 flex-1 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[#d9e5f5] text-center select-none dark:border-neutral-800"
+                    >
+                        <MapPin className="size-6 text-[#0038A8]/15 dark:text-blue-300/20" />
+                        <span className="text-6xl leading-none font-black tracking-[0.2em] text-[#0038A8]/10 dark:text-blue-300/15">
+                            TBA
+                        </span>
+                        <span className="text-[11px] font-semibold tracking-[0.25em] text-[#0038A8]/30 uppercase dark:text-blue-300/30">
+                            Venue to be announced
+                        </span>
+                    </div>
+                )}
 
                 {previewMaterials.length > 0 ? (
                     <div className="grid gap-1.5 text-xs">
