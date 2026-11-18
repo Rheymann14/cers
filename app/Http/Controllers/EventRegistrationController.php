@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Fortify\CreateNewUser;
-use App\Services\BrevoEmailService;
+use App\Services\ResendEmailService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +14,7 @@ class EventRegistrationController extends Controller
     public function store(
         Request $request,
         CreateNewUser $creator,
-        BrevoEmailService $brevoEmailService,
+        ResendEmailService $resendEmailService,
     ): RedirectResponse {
         $request->merge([
             'password' => 'cers2026',
@@ -35,12 +35,12 @@ class EventRegistrationController extends Controller
 
         if (filled($user->email)) {
             try {
-                Log::info('Sending Brevo registration email from EventRegistrationController.', [
+                Log::info('Sending Resend registration email from EventRegistrationController.', [
                     'participant_id' => $user->participant_id,
                     'email' => $user->email,
                 ]);
 
-                $brevoEmailService->sendRegistrationSuccess([
+                $resendEmailService->sendRegistrationSuccess([
                     'participant_id' => $user->participant_id,
                     'name' => $user->name,
                     'email' => $user->email,
@@ -49,7 +49,7 @@ class EventRegistrationController extends Controller
                     'qr_token' => $user->qr_token,
                 ]);
             } catch (\Throwable $e) {
-                Log::error('Brevo registration email failed.', [
+                Log::error('Resend registration email failed.', [
                     'participant_id' => $user->participant_id ?? null,
                     'email' => $user->email ?? null,
                     'message' => $e->getMessage(),

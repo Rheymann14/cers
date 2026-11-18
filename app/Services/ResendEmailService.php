@@ -5,14 +5,15 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class BrevoEmailService
+class ResendEmailService
 {
     public function sendRegistrationSuccess(array $participant): bool
     {
-        $apiKey = config('services.brevo.api_key');
+        $apiKey = config('services.resend.key');
+        $fromEmail = config('services.resend.from_email');
 
-        if (! $apiKey) {
-            Log::warning('Brevo API key is missing.');
+        if (! $apiKey || ! $fromEmail) {
+            Log::warning('Resend is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL.');
 
             return false;
         }
@@ -29,34 +30,27 @@ class BrevoEmailService
 
         $participant['initials'] = $this->getInitials($participant['name']);
 
-        $response = Http::withHeaders([
-            'api-key' => $apiKey,
-            'accept' => 'application/json',
-            'content-type' => 'application/json',
-        ])->post('https://api.brevo.com/v3/smtp/email', [
-            'sender' => [
-                'name' => config('services.brevo.sender_name'),
-                'email' => config('services.brevo.sender_email'),
-            ],
-            'to' => [
-                [
-                    'email' => $participant['email'],
-                    'name' => $participant['name'],
-                ],
-            ],
-            'subject' => 'Registration Successful - CHED Events Registration System',
-            'htmlContent' => view('emails.registration-success', [
-                'participant' => $participant,
-            ])->render(),
-        ]);
+        $fromName = str_replace(['"', '<', '>'], '', (string) config('services.resend.from_name'));
 
-        Log::info('Brevo email response.', [
+        $response = Http::withToken($apiKey)
+            ->acceptJson()
+            ->timeout(20)
+            ->post('https://api.resend.com/emails', [
+                'from' => $fromName !== '' ? sprintf('%s <%s>', $fromName, $fromEmail) : $fromEmail,
+                'to' => [$participant['email']],
+                'subject' => 'Registration Successful - CHED Events Registration System',
+                'html' => view('emails.registration-success', [
+                    'participant' => $participant,
+                ])->render(),
+            ]);
+
+        Log::info('Resend email response.', [
             'status' => $response->status(),
             'body' => $response->body(),
         ]);
 
         if ($response->failed()) {
-            Log::error('Brevo email sending failed.', [
+            Log::error('Resend email sending failed.', [
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);

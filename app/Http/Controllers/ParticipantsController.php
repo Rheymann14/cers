@@ -10,7 +10,7 @@ use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\Province;
 use App\Models\User;
-use App\Services\BrevoEmailService;
+use App\Services\ResendEmailService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -328,7 +328,7 @@ class ParticipantsController extends Controller
         ];
     }
 
-    public function store(Request $request, BrevoEmailService $brevoEmailService): RedirectResponse
+    public function store(Request $request, ResendEmailService $resendEmailService): RedirectResponse
     {
         $validated = $request->validate([
             'given_name' => ['required', 'string', 'max:255'],
@@ -508,12 +508,12 @@ class ParticipantsController extends Controller
 
         if (filled($participant->email)) {
             try {
-                Log::info('Sending Brevo registration email from ParticipantsController.', [
+                Log::info('Sending Resend registration email from ParticipantsController.', [
                     'participant_id' => $participant->participant_id,
                     'email' => $participant->email,
                 ]);
 
-                $brevoEmailService->sendRegistrationSuccess([
+                $resendEmailService->sendRegistrationSuccess([
                     'participant_id' => $participant->participant_id,
                     'name' => $participant->name,
                     'email' => $participant->email,
@@ -521,7 +521,7 @@ class ParticipantsController extends Controller
                     'event_name' => $event->name,
                 ]);
             } catch (\Throwable $e) {
-                Log::error('Brevo registration email failed from ParticipantsController.', [
+                Log::error('Resend registration email failed from ParticipantsController.', [
                     'participant_id' => $participant->participant_id ?? null,
                     'email' => $participant->email ?? null,
                     'message' => $e->getMessage(),
@@ -542,7 +542,7 @@ class ParticipantsController extends Controller
     public function registerExisting(
         Request $request,
         User $participant,
-        BrevoEmailService $brevoEmailService,
+        ResendEmailService $resendEmailService,
     ): RedirectResponse {
         $validated = $request->validate([
             'event_name' => [
@@ -643,7 +643,7 @@ class ParticipantsController extends Controller
 
         if (filled($participant->email)) {
             try {
-                $brevoEmailService->sendRegistrationSuccess([
+                $resendEmailService->sendRegistrationSuccess([
                     'participant_id' => $participant->participant_id,
                     'name' => $participant->name,
                     'email' => $participant->email,
@@ -651,7 +651,7 @@ class ParticipantsController extends Controller
                     'event_name' => $event->name,
                 ]);
             } catch (\Throwable $e) {
-                Log::error('Brevo registration email failed for an existing participant.', [
+                Log::error('Resend registration email failed for an existing participant.', [
                     'participant_id' => $participant->participant_id,
                     'email' => $participant->email,
                     'message' => $e->getMessage(),

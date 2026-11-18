@@ -20,6 +20,8 @@ return [
 
     'resend' => [
         'key' => env('RESEND_API_KEY'),
+        'from_email' => env('RESEND_FROM_EMAIL'),
+        'from_name' => env('RESEND_FROM_NAME', env('APP_NAME', 'CERS')),
     ],
 
     'ses' => [
@@ -33,12 +35,6 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
-    ],
-
-    'brevo' => [
-        'api_key' => env('BREVO_API_KEY'),
-        'sender_name' => env('BREVO_SENDER_NAME', config('app.name')),
-        'sender_email' => env('BREVO_SENDER_EMAIL'),
     ],
 
     'auther_space' => [
