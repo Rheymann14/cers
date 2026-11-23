@@ -17,7 +17,10 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
-import { FeedbackQrCard } from '@/components/feedback/feedback-qr-card';
+import {
+    displayUrl,
+    FeedbackQrCard,
+} from '@/components/feedback/feedback-qr-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -659,50 +662,101 @@ function EventFeedbackDialog({
 
     return (
         <Dialog open={event !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] gap-5 overflow-y-auto p-5 sm:max-w-xl sm:p-6">
+            <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] gap-6 overflow-y-auto p-5 sm:max-w-[min(92vw,72rem)] sm:p-8">
                 {event && feedbackUrl ? (
                     <>
                         <DialogHeader className="text-left">
-                            <DialogTitle className="text-xl">
+                            <DialogTitle className="text-xl sm:text-2xl">
                                 Event feedback
                             </DialogTitle>
-                            <DialogDescription>
-                                Scan the QR code with your phone camera, or type
-                                the link below in your browser.
+                            <DialogDescription className="sm:text-base">
+                                Tell us about {event.name}. Scan the QR code
+                                with your phone camera, or type the link in your
+                                browser.
                             </DialogDescription>
                         </DialogHeader>
-                        <FeedbackQrCard
-                            url={feedbackUrl}
-                            eventName={event.name}
-                            dateLabel={event.date_label}
-                            venueName={event.venue_name}
-                            showActions={false}
-                            size="large"
-                        />
-                        <DialogFooter className="gap-2 sm:justify-center">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => copyLink(feedbackUrl)}
-                                className="h-11 rounded-xl font-semibold"
-                            >
-                                {copied ? (
-                                    <Check className="size-4" />
-                                ) : (
-                                    <Copy className="size-4" />
-                                )}
-                                {copied ? 'Link copied' : 'Copy link'}
-                            </Button>
-                            <Button
-                                asChild
-                                className="h-11 rounded-xl bg-[#0038A8] font-semibold text-white hover:bg-[#002f8f] dark:bg-blue-600 dark:hover:bg-blue-500"
-                            >
-                                <a href={feedbackUrl}>
-                                    <MessageSquareText className="size-4" />
-                                    Open feedback form
-                                </a>
-                            </Button>
-                        </DialogFooter>
+
+                        <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-10">
+                            <FeedbackQrCard
+                                url={feedbackUrl}
+                                eventName={event.name}
+                                dateLabel={event.date_label}
+                                venueName={event.venue_name}
+                                showActions={false}
+                                size="large"
+                            />
+
+                            <ol className="grid gap-5">
+                                <li className="flex gap-4">
+                                    <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#0038A8] text-sm font-bold text-white dark:bg-blue-500">
+                                        1
+                                    </span>
+                                    <div className="grid gap-1 pt-1">
+                                        <p className="text-base font-semibold text-slate-900 dark:text-white">
+                                            Scan the QR code
+                                        </p>
+                                        <p className="text-sm leading-6 text-slate-600 dark:text-neutral-400">
+                                            Open your phone camera and point it
+                                            at the code. Tap the link that
+                                            appears.
+                                        </p>
+                                    </div>
+                                </li>
+                                <li className="flex gap-4">
+                                    <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#0038A8] text-sm font-bold text-white dark:bg-blue-500">
+                                        2
+                                    </span>
+                                    <div className="grid min-w-0 flex-1 gap-2 pt-1">
+                                        <p className="text-base font-semibold text-slate-900 dark:text-white">
+                                            Or type this link in your browser
+                                        </p>
+                                        <p className="rounded-xl border-2 border-dashed border-[#0038A8]/40 bg-[#eef5ff] px-4 py-3 font-mono text-lg font-semibold break-all text-[#0038A8] sm:text-2xl dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-300">
+                                            {displayUrl(feedbackUrl)}
+                                        </p>
+                                    </div>
+                                </li>
+                                <li className="flex gap-4">
+                                    <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#0038A8] text-sm font-bold text-white dark:bg-blue-500">
+                                        3
+                                    </span>
+                                    <div className="grid gap-1 pt-1">
+                                        <p className="text-base font-semibold text-slate-900 dark:text-white">
+                                            Rate and share your thoughts
+                                        </p>
+                                        <p className="text-sm leading-6 text-slate-600 dark:text-neutral-400">
+                                            Give each question 1 to 5 stars.
+                                            Your name, school / agency and
+                                            comments are optional.
+                                        </p>
+                                    </div>
+                                </li>
+
+                                <li className="flex flex-col gap-2 pl-13 sm:flex-row">
+                                    <Button
+                                        asChild
+                                        className="h-12 rounded-xl bg-[#0038A8] px-5 text-base font-semibold text-white hover:bg-[#002f8f] dark:bg-blue-600 dark:hover:bg-blue-500"
+                                    >
+                                        <a href={feedbackUrl}>
+                                            <MessageSquareText className="size-5" />
+                                            Open feedback form
+                                        </a>
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => copyLink(feedbackUrl)}
+                                        className="h-12 rounded-xl px-5 text-base font-semibold"
+                                    >
+                                        {copied ? (
+                                            <Check className="size-5" />
+                                        ) : (
+                                            <Copy className="size-5" />
+                                        )}
+                                        {copied ? 'Link copied' : 'Copy link'}
+                                    </Button>
+                                </li>
+                            </ol>
+                        </div>
                     </>
                 ) : null}
             </DialogContent>
