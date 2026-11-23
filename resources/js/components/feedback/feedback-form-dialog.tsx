@@ -25,6 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 export type FeedbackQuestion = {
     id: number;
@@ -51,6 +52,7 @@ type QuestionRow = {
 };
 
 type BuilderForm = {
+    code: string;
     title: string;
     description: string;
     is_open: boolean;
@@ -83,8 +85,10 @@ export default function FeedbackFormDialog({
     maxQuestions: number;
 }) {
     const isNew = form === null;
+    const linkBase = `${window.location.host}/feedback/`;
     const { data, setData, transform, put, processing, errors } =
         useForm<BuilderForm>({
+            code: form?.token ?? '',
             title: form?.title ?? `${eventName} Feedback`.slice(0, 150),
             description:
                 form?.description ??
@@ -159,6 +163,7 @@ export default function FeedbackFormDialog({
         event.preventDefault();
 
         transform((current) => ({
+            code: current.code,
             title: current.title,
             description: current.description,
             is_open: current.is_open,
@@ -204,6 +209,60 @@ export default function FeedbackFormDialog({
                             required
                         />
                         <InputError message={errors.title} />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="feedback-code">
+                            Feedback link{' '}
+                            <span className="font-normal text-muted-foreground">
+                                {isNew ? '(optional)' : ''}
+                            </span>
+                        </Label>
+                        <div
+                            className={cn(
+                                'flex min-w-0 items-center overflow-hidden rounded-md border shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50',
+                                errors.code &&
+                                    'border-destructive ring-destructive/20',
+                            )}
+                        >
+                            <span className="hidden shrink-0 border-r bg-muted px-3 py-2 font-mono text-xs text-muted-foreground sm:block">
+                                {linkBase}
+                            </span>
+                            <input
+                                id="feedback-code"
+                                value={data.code}
+                                onChange={(event) =>
+                                    setData(
+                                        'code',
+                                        event.target.value
+                                            .toLowerCase()
+                                            .replace(/\s+/g, '-')
+                                            .replace(/[^a-z0-9-]/g, ''),
+                                    )
+                                }
+                                maxLength={40}
+                                placeholder={
+                                    isNew
+                                        ? 'e.g. hemis-2026 (blank = short random code)'
+                                        : ''
+                                }
+                                required={!isNew}
+                                aria-invalid={Boolean(errors.code) || undefined}
+                                className="h-9 min-w-0 flex-1 bg-transparent px-3 font-mono text-sm outline-none placeholder:font-sans placeholder:text-muted-foreground"
+                            />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Keep it short so people can type it. Lowercase
+                            letters, numbers and hyphens only.
+                        </p>
+                        {!isNew && form && data.code !== form.token && (
+                            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                                Changing the link also changes the QR code.
+                                Printed or shared copies of the old link will
+                                stop working.
+                            </p>
+                        )}
+                        <InputError message={errors.code} />
                     </div>
 
                     <div className="grid gap-2">

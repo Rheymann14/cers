@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Str;
 
 class EventFeedbackForm extends Model
 {
@@ -16,6 +15,7 @@ class EventFeedbackForm extends Model
         'The topics discussed were relevant and useful.',
         'The resource speakers were knowledgeable and engaging.',
         'The venue, schedule, and logistics were well organized.',
+        'The food and refreshments were satisfactory.',
     ];
 
     protected $fillable = [
@@ -35,10 +35,25 @@ class EventFeedbackForm extends Model
         ];
     }
 
-    public static function newToken(): string
+    /**
+     * Letters and digits that can't be mistaken for each other when typed (no 0/o, 1/l/i).
+     */
+    private const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+    /**
+     * Pattern for the link code: lowercase letters, digits and single hyphens.
+     */
+    public const CODE_PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
+
+    /**
+     * A short, easy-to-type unique code for the public link, e.g. "k7m2qx".
+     */
+    public static function newToken(int $length = 6): string
     {
         do {
-            $token = Str::lower(Str::random(24));
+            $token = collect(range(1, $length))
+                ->map(fn () => self::CODE_ALPHABET[random_int(0, strlen(self::CODE_ALPHABET) - 1)])
+                ->implode('');
         } while (self::query()->where('token', $token)->exists());
 
         return $token;

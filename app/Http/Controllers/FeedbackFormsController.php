@@ -14,6 +14,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -86,7 +88,21 @@ class FeedbackFormsController extends Controller
      */
     public function update(Request $request, Event $event): RedirectResponse
     {
+        $request->merge([
+            'code' => Str::lower(trim((string) $request->input('code'))) ?: null,
+        ]);
+
+        $existingFormId = $event->feedbackForm()->value('id');
+
         $validated = $request->validate([
+            'code' => [
+                'nullable',
+                'string',
+                'min:3',
+                'max:40',
+                'regex:'.EventFeedbackForm::CODE_PATTERN,
+                Rule::unique('event_feedback_forms', 'token')->ignore($existingFormId),
+            ],
             'title' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:1000'],
             'is_open' => ['nullable', 'boolean'],
@@ -98,6 +114,8 @@ class FeedbackFormsController extends Controller
             'questions.min' => 'Add at least one question.',
             'questions.max' => 'A feedback form can have up to '.EventFeedbackForm::MAX_QUESTIONS.' questions.',
             'questions.*.question.required' => 'Each question needs text.',
+            'code.regex' => 'Use only lowercase letters, numbers and single hyphens (e.g. hemis-2026).',
+            'code.unique' => 'This link is already used by another event. Try a different one.',
         ]);
 
         $created = false;
@@ -114,10 +132,13 @@ class FeedbackFormsController extends Controller
 
             if ($created) {
                 $form->fill([
-                    'token' => EventFeedbackForm::newToken(),
+                    'token' => $validated['code'] ?? EventFeedbackForm::newToken(),
                     'is_open' => $request->boolean('is_open', true),
                     'created_by_user_id' => $request->user()?->id,
                 ]);
+            } elseif (! empty($validated['code'])) {
+                // Changing the code changes the link and QR; old copies stop working.
+                $form->token = $validated['code'];
             }
 
             $form->save();

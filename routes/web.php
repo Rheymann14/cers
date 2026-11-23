@@ -37,10 +37,10 @@ Route::post('event-registration', [EventRegistrationController::class, 'store'])
     ->name('event-registration.store');
 
 Route::get('feedback/{token}', [EventFeedbackController::class, 'show'])
-    ->where('token', '[a-z0-9]+')
+    ->where('token', '[a-z0-9-]+')
     ->name('event-feedback.show');
 Route::post('feedback/{token}', [EventFeedbackController::class, 'store'])
-    ->where('token', '[a-z0-9]+')
+    ->where('token', '[a-z0-9-]+')
     ->middleware('throttle:10,1')
     ->name('event-feedback.store');
 

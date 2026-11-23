@@ -6,6 +6,13 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+/**
+ * The link without its protocol, e.g. "cers.example.gov.ph/feedback/k7m2qx", for people to type.
+ */
+export function displayUrl(url: string): string {
+    return url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+}
+
 function sanitizeFilePart(value: string): string {
     return (
         value
@@ -27,6 +34,7 @@ export function FeedbackQrCard({
     venueName,
     closed = false,
     showActions = true,
+    size = 'default',
     className,
 }: {
     url: string;
@@ -35,8 +43,10 @@ export function FeedbackQrCard({
     venueName?: string | null;
     closed?: boolean;
     showActions?: boolean;
+    size?: 'default' | 'large';
     className?: string;
 }) {
+    const large = size === 'large';
     const cardRef = useRef<HTMLDivElement>(null);
     const [downloading, setDownloading] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -79,31 +89,57 @@ export function FeedbackQrCard({
         <div className={cn('grid gap-3', className)}>
             <div
                 ref={cardRef}
-                className="relative mx-auto w-full max-w-[19rem] overflow-hidden rounded-2xl border border-[#d9e5f5] bg-white text-center text-slate-900 shadow-sm"
+                className={cn(
+                    'relative mx-auto w-full overflow-hidden rounded-2xl border border-[#d9e5f5] bg-white text-center text-slate-900 shadow-sm',
+                    large ? 'max-w-[26rem]' : 'max-w-[19rem]',
+                )}
             >
                 <div className="h-1.5 bg-[#0038A8]" />
-                <div className="grid gap-3 px-5 pt-4 pb-5">
+                <div
+                    className={cn(
+                        'grid gap-3 pt-4 pb-5',
+                        large ? 'px-6 sm:px-8' : 'px-5',
+                    )}
+                >
                     <div className="flex items-center justify-center gap-2">
                         <img
                             src="/ched_logo-128.png"
                             alt=""
-                            className="size-8 object-contain"
+                            className={cn(
+                                'object-contain',
+                                large ? 'size-10' : 'size-8',
+                            )}
                         />
                         <span className="text-[11px] font-semibold tracking-[0.18em] text-[#0038A8] uppercase">
                             Event Feedback
                         </span>
                     </div>
                     <div className="grid gap-1">
-                        <p className="text-base leading-snug font-bold break-words">
+                        <p
+                            className={cn(
+                                'leading-snug font-bold break-words',
+                                large ? 'text-lg sm:text-xl' : 'text-base',
+                            )}
+                        >
                             {eventName}
                         </p>
                         {dateLabel && (
-                            <p className="text-xs font-medium text-slate-600">
+                            <p
+                                className={cn(
+                                    'font-medium text-slate-600',
+                                    large ? 'text-sm' : 'text-xs',
+                                )}
+                            >
                                 {dateLabel}
                             </p>
                         )}
                         {venueName && (
-                            <p className="text-[11px] text-slate-500">
+                            <p
+                                className={cn(
+                                    'text-slate-500',
+                                    large ? 'text-xs' : 'text-[11px]',
+                                )}
+                            >
                                 {venueName}
                             </p>
                         )}
@@ -116,14 +152,14 @@ export function FeedbackQrCard({
                     >
                         <QRCodeSVG
                             value={url}
-                            size={196}
+                            size={large ? 248 : 196}
                             level="H"
                             marginSize={0}
                             fgColor="#0f172a"
                             imageSettings={{
                                 src: '/ched_logo-128.png',
-                                height: 40,
-                                width: 40,
+                                height: large ? 50 : 40,
+                                width: large ? 50 : 40,
                                 excavate: true,
                             }}
                         />
@@ -131,7 +167,15 @@ export function FeedbackQrCard({
                     <p className="text-xs font-semibold text-slate-700">
                         {closed
                             ? 'Responses are closed'
-                            : 'Scan to share your feedback'}
+                            : 'Scan the QR code or type this link'}
+                    </p>
+                    <p
+                        className={cn(
+                            'rounded-lg border border-dashed border-[#0038A8]/40 bg-[#eef5ff] px-3 py-2 font-mono font-semibold break-all text-[#0038A8]',
+                            large ? 'text-sm sm:text-base' : 'text-xs',
+                        )}
+                    >
+                        {displayUrl(url)}
                     </p>
                 </div>
             </div>

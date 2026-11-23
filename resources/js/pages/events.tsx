@@ -1,6 +1,8 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     CalendarDays,
+    Check,
+    Copy,
     Download,
     ExternalLink,
     FileText,
@@ -641,31 +643,61 @@ function EventFeedbackDialog({
     event: PublicEvent | null;
     onOpenChange: (open: boolean) => void;
 }) {
+    const [copied, setCopied] = useState(false);
+
+    async function copyLink(url: string) {
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // Clipboard access can be blocked; the link is shown on screen anyway.
+        }
+    }
+
+    const feedbackUrl = event?.feedback_url ?? null;
+
     return (
         <Dialog open={event !== null} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-sm">
-                {event?.feedback_url ? (
+            <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] gap-5 overflow-y-auto p-5 sm:max-w-xl sm:p-6">
+                {event && feedbackUrl ? (
                     <>
                         <DialogHeader className="text-left">
-                            <DialogTitle>Event feedback</DialogTitle>
+                            <DialogTitle className="text-xl">
+                                Event feedback
+                            </DialogTitle>
                             <DialogDescription>
-                                Scan with your phone camera or open the form to
-                                rate the event.
+                                Scan the QR code with your phone camera, or type
+                                the link below in your browser.
                             </DialogDescription>
                         </DialogHeader>
                         <FeedbackQrCard
-                            url={event.feedback_url}
+                            url={feedbackUrl}
                             eventName={event.name}
                             dateLabel={event.date_label}
                             venueName={event.venue_name}
                             showActions={false}
+                            size="large"
                         />
-                        <DialogFooter>
+                        <DialogFooter className="gap-2 sm:justify-center">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => copyLink(feedbackUrl)}
+                                className="h-11 rounded-xl font-semibold"
+                            >
+                                {copied ? (
+                                    <Check className="size-4" />
+                                ) : (
+                                    <Copy className="size-4" />
+                                )}
+                                {copied ? 'Link copied' : 'Copy link'}
+                            </Button>
                             <Button
                                 asChild
                                 className="h-11 rounded-xl bg-[#0038A8] font-semibold text-white hover:bg-[#002f8f] dark:bg-blue-600 dark:hover:bg-blue-500"
                             >
-                                <a href={event.feedback_url}>
+                                <a href={feedbackUrl}>
                                     <MessageSquareText className="size-4" />
                                     Open feedback form
                                 </a>

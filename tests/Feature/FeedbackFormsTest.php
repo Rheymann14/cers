@@ -206,3 +206,73 @@ test('deleting a form removes its responses', function () {
 
     $this->get(route('event-feedback.show', $form->token))->assertNotFound();
 });
+
+test('new forms get a short code that is easy to type', function () {
+    $form = createFeedbackForm(feedbackEvent());
+
+    expect($form->token)->toMatch('/^[a-hj-km-np-z2-9]{6}$/')
+        ->and($form->publicUrl())->toEndWith('/feedback/'.$form->token);
+});
+
+test('admins can choose a custom feedback link and change it later', function () {
+    $event = feedbackEvent();
+
+    $this->actingAs(feedbackAdmin())
+        ->put(route('feedback-forms.update', $event), [
+            'code' => ' HEMIS-2026 ',
+            'title' => 'Event Feedback',
+            'questions' => [['question' => 'Q1']],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $form = $event->feedbackForm()->firstOrFail();
+
+    expect($form->token)->toBe('hemis-2026');
+
+    $this->get('/feedback/hemis-2026')->assertOk();
+
+    $this->put(route('feedback-forms.update', $event), [
+        'code' => 'hemis-orientation',
+        'title' => 'Event Feedback',
+        'questions' => [['id' => $form->questions()->value('id'), 'question' => 'Q1']],
+    ])->assertSessionHasNoErrors();
+
+    expect($form->fresh()->token)->toBe('hemis-orientation');
+    $this->get('/feedback/hemis-2026')->assertNotFound();
+});
+
+test('feedback links must be unique and well formed', function () {
+    $first = feedbackEvent();
+    $second = Event::query()->create([
+        'name' => 'Another Event',
+        'slug' => 'another-event',
+        'is_active' => true,
+    ]);
+
+    $this->actingAs(feedbackAdmin());
+
+    $this->put(route('feedback-forms.update', $first), [
+        'code' => 'taken',
+        'title' => 'Feedback',
+        'questions' => [['question' => 'Q1']],
+    ])->assertSessionHasNoErrors();
+
+    $this->put(route('feedback-forms.update', $second), [
+        'code' => 'taken',
+        'title' => 'Feedback',
+        'questions' => [['question' => 'Q1']],
+    ])->assertSessionHasErrors('code');
+
+    $this->put(route('feedback-forms.update', $second), [
+        'code' => 'bad code!',
+        'title' => 'Feedback',
+        'questions' => [['question' => 'Q1']],
+    ])->assertSessionHasErrors('code');
+
+    // Saving the first form again with its own code is fine.
+    $this->put(route('feedback-forms.update', $first), [
+        'code' => 'taken',
+        'title' => 'Feedback',
+        'questions' => [['question' => 'Q1']],
+    ])->assertSessionHasNoErrors();
+});
