@@ -3,6 +3,7 @@ import {
     Award,
     CalendarDays,
     LayoutDashboard,
+    MessageSquareText,
     QrCode,
     Settings,
     UserRound,
@@ -25,6 +26,7 @@ import {
     attendanceQrScanner,
     certificates,
     dashboard,
+    feedbackForms,
     pageSettings,
     participants,
 } from '@/routes';
@@ -50,6 +52,11 @@ const standardAdminNavItems: NavItem[] = [
         title: 'Certificates',
         href: certificates(),
         icon: Award,
+    },
+    {
+        title: 'Feedback',
+        href: feedbackForms(),
+        icon: MessageSquareText,
     },
 ];
 
@@ -78,6 +85,11 @@ const chedAdminNavItems: NavItem[] = [
         title: 'Certificates',
         href: certificates(),
         icon: Award,
+    },
+    {
+        title: 'Feedback',
+        href: feedbackForms(),
+        icon: MessageSquareText,
     },
 ];
 

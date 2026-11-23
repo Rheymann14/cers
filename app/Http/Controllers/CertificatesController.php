@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\PicksNearestEvent;
 use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\EventCertificate;
@@ -11,7 +12,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -20,6 +20,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CertificatesController extends Controller
 {
+    use PicksNearestEvent;
+
     private const ASSET_DIRECTORY = 'certificate-assets';
 
     private const SORTS = ['name', 'organization', 'checked_in_at'];
@@ -293,30 +295,6 @@ class CertificatesController extends Controller
                 ? Carbon::parse($user->first_checked_in_at)->toIso8601String()
                 : null,
         ];
-    }
-
-    /**
-     * Pick the ongoing event, or the one starting or ending closest to now.
-     *
-     * @param  Collection<int, Event>  $events
-     */
-    private function nearestEvent(Collection $events): ?Event
-    {
-        $now = now();
-
-        return $events
-            ->sortBy(function (Event $event) use ($now) {
-                $startsAt = $event->starts_at;
-                $endsAt = $event->ends_at;
-
-                return match (true) {
-                    $startsAt && $now->lt($startsAt) => $startsAt->diffInSeconds($now, true),
-                    $endsAt && $now->gt($endsAt) => $endsAt->diffInSeconds($now, true),
-                    $startsAt || $endsAt => 0,
-                    default => PHP_INT_MAX,
-                };
-            })
-            ->first();
     }
 
     private function deleteStoredFile(?string $path): void

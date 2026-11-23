@@ -4,9 +4,11 @@ use App\Http\Controllers\AttendanceQrScannerController;
 use App\Http\Controllers\Auth\AutherSpaceController;
 use App\Http\Controllers\CertificatesController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EventFeedbackController;
 use App\Http\Controllers\EventRegistrationController;
 use App\Http\Controllers\EventsController;
 use App\Http\Controllers\EventsManagementController;
+use App\Http\Controllers\FeedbackFormsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\PageSettingsController;
 use App\Http\Controllers\ParticipantProfileController;
@@ -33,6 +35,14 @@ Route::get('/welcome-lookups/municipalities', [WelcomeLookupController::class, '
 Route::post('event-registration', [EventRegistrationController::class, 'store'])
     ->middleware('throttle:10,1')
     ->name('event-registration.store');
+
+Route::get('feedback/{token}', [EventFeedbackController::class, 'show'])
+    ->where('token', '[a-z0-9]+')
+    ->name('event-feedback.show');
+Route::post('feedback/{token}', [EventFeedbackController::class, 'store'])
+    ->where('token', '[a-z0-9]+')
+    ->middleware('throttle:10,1')
+    ->name('event-feedback.store');
 
 Route::middleware('guest')->group(function () {
     Route::get('auth/redirect', [AutherSpaceController::class, 'redirect'])
@@ -83,6 +93,18 @@ Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
         ->name('certificates.recipients');
     Route::patch('certificates/{event}', [CertificatesController::class, 'update'])
         ->name('certificates.update');
+
+    Route::get('feedback-forms', FeedbackFormsController::class)->name('feedback-forms');
+    Route::put('feedback-forms/{event}', [FeedbackFormsController::class, 'update'])
+        ->name('feedback-forms.update');
+    Route::patch('feedback-forms/{event}/status', [FeedbackFormsController::class, 'toggleStatus'])
+        ->name('feedback-forms.status');
+    Route::delete('feedback-forms/{event}', [FeedbackFormsController::class, 'destroy'])
+        ->name('feedback-forms.destroy');
+    Route::get('feedback-forms/{event}/export', [FeedbackFormsController::class, 'export'])
+        ->name('feedback-forms.export');
+    Route::delete('feedback-forms/responses/{response}', [FeedbackFormsController::class, 'destroyResponse'])
+        ->name('feedback-forms.responses.destroy');
 
     Route::middleware('ched-admin')->group(function () {
         Route::get('events-management', EventsManagementController::class)->name('events-management');

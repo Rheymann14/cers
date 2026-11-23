@@ -35,9 +35,23 @@ class EventsController extends Controller
                 ->with(['materials' => fn ($query) => $query
                     ->select(['id', 'event_id', 'original_name', 'path', 'mime_type', 'size', 'created_at'])
                     ->latest()])
+                ->with(['feedbackForm' => fn ($query) => $query
+                    ->select(['id', 'event_id', 'token', 'is_open'])
+                    ->where('is_open', true)])
                 ->orderByRaw('starts_at is null')
                 ->orderBy('starts_at')
-                ->get(),
+                ->get()
+                ->map(function (Event $event) {
+                    $feedbackForm = $event->feedbackForm;
+                    $event->unsetRelation('feedbackForm');
+
+                    return [
+                        ...$event->toArray(),
+                        'date_label' => $event->dateLabel(),
+                        'feedback_url' => $feedbackForm?->publicUrl(),
+                    ];
+                })
+                ->values(),
         ]);
     }
 }

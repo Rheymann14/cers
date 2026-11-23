@@ -4,10 +4,8 @@ import {
     ArrowUp,
     ArrowUpDown,
     Award,
-    Check,
     ChevronLeft,
     ChevronRight,
-    ChevronsUpDown,
     Download,
     FileText,
     Printer,
@@ -17,18 +15,11 @@ import {
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { CertificateSettings } from '@/components/certificates/certificate-settings-dialog';
+import { EventFilter, FilterCountBadge } from '@/components/event-filter';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from '@/components/ui/command';
 import {
     Dialog,
     DialogContent,
@@ -37,11 +28,6 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     Table,
@@ -71,8 +57,6 @@ const CertificateSettingsDialog = lazy(
 );
 
 const PAPER_SIZE_STORAGE_KEY = 'cers.certificates.paper-size';
-
-type EventStatus = 'ongoing' | 'upcoming' | 'closed';
 
 type EventOption = {
     id: number;
@@ -156,21 +140,6 @@ function toDate(value: string | null): Date | null {
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function getEventStatus(event: EventOption, now = new Date()): EventStatus {
-    const startsAt = toDate(event.starts_at);
-    const endsAt = toDate(event.ends_at);
-
-    if (endsAt && now > endsAt) {
-        return 'closed';
-    }
-
-    if (startsAt && now < startsAt) {
-        return 'upcoming';
-    }
-
-    return 'ongoing';
-}
-
 function formatLabel(value: string | null): string {
     if (!value) {
         return '-';
@@ -217,118 +186,6 @@ function readStoredPaperSize(): PaperSize {
     } catch {
         return 'a4';
     }
-}
-
-function FilterCountBadge({ count }: { count: number }) {
-    return (
-        <Badge
-            variant="secondary"
-            className="ml-auto shrink-0 px-1.5 py-0 text-[10px]"
-        >
-            {count}
-        </Badge>
-    );
-}
-
-function EventStatusBadge({ status }: { status: EventStatus }) {
-    return (
-        <Badge
-            className={cn(
-                'shrink-0 border-transparent px-1.5 py-0 text-[10px] capitalize',
-                status === 'ongoing' &&
-                    'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
-                status === 'upcoming' &&
-                    'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
-                status === 'closed' &&
-                    'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300',
-            )}
-        >
-            {status}
-        </Badge>
-    );
-}
-
-function EventFilter({
-    value,
-    options,
-    onChange,
-}: {
-    value: string | null;
-    options: EventOption[];
-    onChange: (value: string) => void;
-}) {
-    const [open, setOpen] = useState(false);
-    const selectedOption = options.find((option) => option.value === value);
-
-    return (
-        <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    role="combobox"
-                    aria-expanded={open}
-                    aria-label="Filter certificates by event"
-                    className="h-auto min-h-8 justify-between gap-2 px-2 py-1 text-xs"
-                >
-                    <span className="max-w-44 truncate text-left">
-                        {selectedOption?.label ?? 'Select event'}
-                    </span>
-                    {selectedOption && (
-                        <EventStatusBadge
-                            status={getEventStatus(selectedOption)}
-                        />
-                    )}
-                    <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent
-                align="end"
-                className="w-[min(calc(100vw-2rem),24rem)] p-0"
-            >
-                <Command>
-                    <CommandInput placeholder="Search events..." />
-                    <CommandList>
-                        <CommandEmpty>No event found.</CommandEmpty>
-                        <CommandGroup>
-                            {options.map((option) => {
-                                const status = getEventStatus(option);
-
-                                return (
-                                    <CommandItem
-                                        key={option.value}
-                                        value={`${option.label} ${status} ${option.starts_at ?? ''} ${option.ends_at ?? ''}`}
-                                        onSelect={() => {
-                                            onChange(option.value);
-                                            setOpen(false);
-                                        }}
-                                        className="items-start"
-                                    >
-                                        <Check
-                                            className={cn(
-                                                'mt-0.5 mr-2 size-4 shrink-0',
-                                                value === option.value
-                                                    ? 'opacity-100'
-                                                    : 'opacity-0',
-                                            )}
-                                        />
-                                        <span className="min-w-0 flex-1 break-words whitespace-normal">
-                                            {option.label}
-                                        </span>
-                                        <EventStatusBadge status={status} />
-                                        <FilterCountBadge
-                                            count={option.checked_in_count}
-                                        />
-                                    </CommandItem>
-                                );
-                            })}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
-            </PopoverContent>
-        </Popover>
-    );
 }
 
 function RecipientsTableSkeleton() {
@@ -867,6 +724,12 @@ export default function Certificates({
                                 value={eventFilter}
                                 options={events}
                                 onChange={updateEventFilter}
+                                ariaLabel="Filter certificates by event"
+                                renderMeta={(option) => (
+                                    <FilterCountBadge
+                                        count={option.checked_in_count}
+                                    />
+                                )}
                             />
                             <Button
                                 type="button"

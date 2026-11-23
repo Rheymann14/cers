@@ -120,6 +120,39 @@ class Event extends Model
         return $this->hasOne(EventCertificate::class);
     }
 
+    public function feedbackForm(): HasOne
+    {
+        return $this->hasOne(EventFeedbackForm::class);
+    }
+
+    /**
+     * A human-readable schedule, e.g. "November 24-25, 2026", in the attendance timezone.
+     */
+    public function dateLabel(): ?string
+    {
+        $timezone = config('app.attendance_timezone', 'Asia/Manila');
+        $startsAt = $this->starts_at?->copy()->setTimezone($timezone);
+        $endsAt = $this->ends_at?->copy()->setTimezone($timezone);
+
+        if (! $startsAt && ! $endsAt) {
+            return null;
+        }
+
+        if (! $startsAt || ! $endsAt || $startsAt->isSameDay($endsAt)) {
+            return ($startsAt ?? $endsAt)->format('F j, Y');
+        }
+
+        if ($startsAt->isSameMonth($endsAt)) {
+            return $startsAt->format('F j').'–'.$endsAt->format('j, Y');
+        }
+
+        if ($startsAt->isSameYear($endsAt)) {
+            return $startsAt->format('F j').' – '.$endsAt->format('F j, Y');
+        }
+
+        return $startsAt->format('F j, Y').' – '.$endsAt->format('F j, Y');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');

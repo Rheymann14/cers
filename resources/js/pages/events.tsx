@@ -5,14 +5,17 @@ import {
     ExternalLink,
     FileText,
     MapPin,
+    MessageSquareText,
     Moon,
     Package,
+    QrCode,
     Search,
     Sun,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
+import { FeedbackQrCard } from '@/components/feedback/feedback-qr-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -53,6 +56,8 @@ type PublicEvent = {
     ends_at: string | null;
     image_url: string | null;
     pdf_url: string | null;
+    date_label: string | null;
+    feedback_url: string | null;
     materials: EventMaterial[];
 };
 
@@ -408,10 +413,12 @@ function EventCard({
     event,
     onViewImage,
     onViewPdf,
+    onViewFeedback,
 }: {
     event: PublicEvent;
     onViewImage: (event: PublicEvent) => void;
     onViewPdf: (event: PublicEvent) => void;
+    onViewFeedback: (event: PublicEvent) => void;
 }) {
     const status = getEventStatus(event);
     const isClosed = status === 'closed';
@@ -598,7 +605,76 @@ function EventCard({
                     ) : null}
                 </div>
             </div>
+
+            {event.feedback_url ? (
+                <div className="mt-3 flex items-center gap-3 rounded-xl border border-[#d9e5f5] bg-[#eef5ff] p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
+                    <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#0038A8] text-white dark:bg-blue-500">
+                        <MessageSquareText className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                            Share your feedback
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-neutral-400">
+                            Scan the QR or open the form.
+                        </p>
+                    </div>
+                    <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => onViewFeedback(event)}
+                        className="h-9 shrink-0 rounded-lg bg-[#0038A8] px-3 text-xs font-semibold text-white hover:bg-[#002f8f] dark:bg-blue-600 dark:hover:bg-blue-500"
+                    >
+                        <QrCode className="size-3.5" />
+                        Give feedback
+                    </Button>
+                </div>
+            ) : null}
         </article>
+    );
+}
+
+function EventFeedbackDialog({
+    event,
+    onOpenChange,
+}: {
+    event: PublicEvent | null;
+    onOpenChange: (open: boolean) => void;
+}) {
+    return (
+        <Dialog open={event !== null} onOpenChange={onOpenChange}>
+            <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-sm">
+                {event?.feedback_url ? (
+                    <>
+                        <DialogHeader className="text-left">
+                            <DialogTitle>Event feedback</DialogTitle>
+                            <DialogDescription>
+                                Scan with your phone camera or open the form to
+                                rate the event.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <FeedbackQrCard
+                            url={event.feedback_url}
+                            eventName={event.name}
+                            dateLabel={event.date_label}
+                            venueName={event.venue_name}
+                            showActions={false}
+                        />
+                        <DialogFooter>
+                            <Button
+                                asChild
+                                className="h-11 rounded-xl bg-[#0038A8] font-semibold text-white hover:bg-[#002f8f] dark:bg-blue-600 dark:hover:bg-blue-500"
+                            >
+                                <a href={event.feedback_url}>
+                                    <MessageSquareText className="size-4" />
+                                    Open feedback form
+                                </a>
+                            </Button>
+                        </DialogFooter>
+                    </>
+                ) : null}
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -794,6 +870,8 @@ export default function Events({ events }: Props) {
     const [viewingPdfEvent, setViewingPdfEvent] = useState<PublicEvent | null>(
         null,
     );
+    const [viewingFeedbackEvent, setViewingFeedbackEvent] =
+        useState<PublicEvent | null>(null);
     const filteredEvents = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
         const matchingEvents = normalizedSearch
@@ -868,6 +946,7 @@ export default function Events({ events }: Props) {
                                     event={event}
                                     onViewImage={setViewingImageEvent}
                                     onViewPdf={setViewingPdfEvent}
+                                    onViewFeedback={setViewingFeedbackEvent}
                                 />
                             ))}
                             {filteredEvents.length === 0 ? (
@@ -908,6 +987,14 @@ export default function Events({ events }: Props) {
                     onOpenChange={(open) => {
                         if (!open) {
                             setViewingPdfEvent(null);
+                        }
+                    }}
+                />
+                <EventFeedbackDialog
+                    event={viewingFeedbackEvent}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setViewingFeedbackEvent(null);
                         }
                     }}
                 />

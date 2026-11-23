@@ -33,7 +33,9 @@ createInertiaApp({
     },
     layout: (name) => {
         switch (true) {
-            case name === 'welcome' || name === 'events':
+            case name === 'welcome' ||
+                name === 'events' ||
+                name === 'feedback_form':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
