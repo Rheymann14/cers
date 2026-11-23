@@ -276,3 +276,16 @@ test('feedback links must be unique and well formed', function () {
         'questions' => [['question' => 'Q1']],
     ])->assertSessionHasNoErrors();
 });
+
+test('feedback links work regardless of letter case', function () {
+    $form = createFeedbackForm(feedbackEvent(), ['Only question']);
+
+    $this->get('/feedback/'.strtoupper($form->token))->assertOk();
+    $this->get('/feedback/'.ucfirst($form->token))->assertOk();
+
+    $this->post('/feedback/'.strtoupper($form->token), [
+        'ratings' => [$form->questions->first()->id => 5],
+    ])->assertSessionHasNoErrors();
+
+    expect($form->responses()->count())->toBe(1);
+});

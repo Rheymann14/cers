@@ -93,7 +93,8 @@ class EventFeedbackController extends Controller
     private function findForm(string $token): EventFeedbackForm
     {
         return EventFeedbackForm::query()
-            ->where('token', $token)
+            // Codes are stored lowercase; accept any case people type (phones often capitalize).
+            ->where('token', strtolower($token))
             ->with(['questions', 'event'])
             ->firstOrFail();
     }
