@@ -130,13 +130,18 @@ type UnregisteredHei = {
     name: string;
     province: string | null;
     city_municipality: string | null;
+    participants_count: number;
+    is_registered: boolean;
 };
 
 type UnregisteredHeisResponse = {
     data: UnregisteredHei[];
     total: number;
     registered: number;
+    unregistered: number;
 };
+
+type HeiStatusTab = 'unregistered' | 'registered';
 
 type ParticipantEventRegistration = {
     id: number;
@@ -1615,6 +1620,8 @@ export default function Participants({
     >(null);
     const [unregisteredHeisSearch, setUnregisteredHeisSearch] = useState('');
     const [unregisteredHeisPage, setUnregisteredHeisPage] = useState(1);
+    const [heiStatusTab, setHeiStatusTab] =
+        useState<HeiStatusTab>('unregistered');
     const unregisteredHeisRequestRef = useRef(0);
     const {
         data,
@@ -1691,8 +1698,16 @@ export default function Participants({
         'the selected event';
     const currentUnregisteredHeis =
         unregisteredHeis?.event === eventFilter ? unregisteredHeis : null;
+    const isRegisteredHeiTab = heiStatusTab === 'registered';
+    const tabUnregisteredHeis = useMemo(
+        () =>
+            (currentUnregisteredHeis?.data ?? []).filter(
+                (hei) => hei.is_registered === isRegisteredHeiTab,
+            ),
+        [currentUnregisteredHeis, isRegisteredHeiTab],
+    );
     const filteredUnregisteredHeis = useMemo(() => {
-        const rows = currentUnregisteredHeis?.data ?? [];
+        const rows = tabUnregisteredHeis;
         const query = unregisteredHeisSearch.trim().toLowerCase();
 
         if (query === '') {
@@ -1704,7 +1719,10 @@ export default function Participants({
                 (value) => value?.toLowerCase().includes(query),
             ),
         );
-    }, [currentUnregisteredHeis, unregisteredHeisSearch]);
+    }, [tabUnregisteredHeis, unregisteredHeisSearch]);
+    const heiRowTintClassName = isRegisteredHeiTab
+        ? 'bg-emerald-50/70 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/30'
+        : 'bg-red-50/70 hover:bg-red-50 dark:bg-red-950/20 dark:hover:bg-red-950/30';
     const unregisteredHeisPerPage = 15;
     const unregisteredHeisTotalPages = Math.max(
         1,
@@ -2766,6 +2784,7 @@ export default function Participants({
                                     onClick={() => {
                                         setUnregisteredHeisSearch('');
                                         setUnregisteredHeisPage(1);
+                                        setHeiStatusTab('unregistered');
                                         setUnregisteredHeisOpen(true);
                                     }}
                                     disabled={eventFilter === 'all'}
@@ -4616,11 +4635,14 @@ export default function Participants({
                     <DialogHeader className="gap-1 pr-8">
                         <DialogTitle className="inline-flex items-center gap-2 text-base">
                             <School className="size-4 text-muted-foreground" />
-                            HEIs not registered
+                            HEI registration status
                         </DialogTitle>
                         <DialogDescription className="text-xs leading-5">
-                            Schools from the CHED XII HEI directory with no
-                            participant registered for{' '}
+                            Schools from the CHED XII HEI directory
+                            {currentUnregisteredHeis
+                                ? ` (${currentUnregisteredHeis.total} HEIs)`
+                                : ''}{' '}
+                            and whether anyone registered for{' '}
                             <span className="font-medium text-foreground">
                                 {unregisteredHeisEventLabel}
                             </span>
@@ -4629,28 +4651,68 @@ export default function Participants({
                     </DialogHeader>
 
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                            {currentUnregisteredHeis ? (
-                                <>
-                                    <Badge
-                                        variant="outline"
-                                        className="border-transparent bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                        <div
+                            role="tablist"
+                            aria-label="HEI registration status"
+                            className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:inline-flex"
+                        >
+                            {(
+                                [
+                                    {
+                                        value: 'unregistered',
+                                        label: 'Not registered',
+                                        count: currentUnregisteredHeis?.unregistered,
+                                        activeClassName:
+                                            'bg-background text-red-700 shadow-sm dark:text-red-300',
+                                        countClassName:
+                                            'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300',
+                                    },
+                                    {
+                                        value: 'registered',
+                                        label: 'Registered',
+                                        count: currentUnregisteredHeis?.registered,
+                                        activeClassName:
+                                            'bg-background text-emerald-700 shadow-sm dark:text-emerald-300',
+                                        countClassName:
+                                            'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
+                                    },
+                                ] as const
+                            ).map((tab) => {
+                                const isActive = heiStatusTab === tab.value;
+
+                                return (
+                                    <button
+                                        key={tab.value}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={isActive}
+                                        onClick={() => {
+                                            setHeiStatusTab(tab.value);
+                                            setUnregisteredHeisPage(1);
+                                        }}
+                                        className={cn(
+                                            'inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                                            isActive && tab.activeClassName,
+                                        )}
                                     >
-                                        {currentUnregisteredHeis.data.length} of{' '}
-                                        {currentUnregisteredHeis.total} not
-                                        registered
-                                    </Badge>
-                                    <Badge
-                                        variant="outline"
-                                        className="border-transparent bg-emerald-100 text-[11px] text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
-                                    >
-                                        {currentUnregisteredHeis.registered}{' '}
-                                        registered
-                                    </Badge>
-                                </>
-                            ) : (
-                                <Skeleton className="h-5 w-48" />
-                            )}
+                                        {tab.label}
+                                        {tab.count === undefined ? (
+                                            <Skeleton className="h-4 w-6 rounded-full" />
+                                        ) : (
+                                            <span
+                                                className={cn(
+                                                    'rounded-full px-1.5 py-px text-[10px] font-semibold',
+                                                    isActive
+                                                        ? tab.countClassName
+                                                        : 'bg-background/70 text-muted-foreground',
+                                                )}
+                                            >
+                                                {tab.count}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                         <div className="flex w-full items-center gap-2 sm:w-auto">
                             <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
@@ -4720,12 +4782,21 @@ export default function Participants({
                                     Retry
                                 </Button>
                             </div>
-                        ) : currentUnregisteredHeis &&
-                          currentUnregisteredHeis.data.length === 0 ? (
+                        ) : tabUnregisteredHeis.length === 0 ? (
                             <div className="p-8 text-center text-xs text-muted-foreground">
-                                <Check className="mx-auto mb-2 size-5 text-emerald-500" />
-                                All HEIs have registered participants for this
-                                event.
+                                {isRegisteredHeiTab ? (
+                                    <>
+                                        <School className="mx-auto mb-2 size-5 opacity-60" />
+                                        No HEI has registered participants for
+                                        this event yet.
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="mx-auto mb-2 size-5 text-emerald-500" />
+                                        All HEIs have registered participants
+                                        for this event.
+                                    </>
+                                )}
                             </div>
                         ) : filteredUnregisteredHeis.length === 0 ? (
                             <div className="p-8 text-center text-xs text-muted-foreground">
@@ -4738,7 +4809,10 @@ export default function Participants({
                                     {pagedUnregisteredHeis.map((hei, index) => (
                                         <li
                                             key={`${hei.uii}-${hei.name}`}
-                                            className="flex gap-2 p-2.5"
+                                            className={cn(
+                                                'flex gap-2 p-2.5',
+                                                heiRowTintClassName,
+                                            )}
                                         >
                                             <span className="w-6 shrink-0 pt-0.5 text-right text-[11px] text-muted-foreground">
                                                 {unregisteredHeisOffset +
@@ -4760,6 +4834,15 @@ export default function Participants({
                                                 {hei.uii && (
                                                     <p className="font-mono text-[11px] text-muted-foreground">
                                                         UII {hei.uii}
+                                                    </p>
+                                                )}
+                                                {isRegisteredHeiTab && (
+                                                    <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                                                        {hei.participants_count}{' '}
+                                                        {hei.participants_count ===
+                                                        1
+                                                            ? 'participant'
+                                                            : 'participants'}
                                                     </p>
                                                 )}
                                             </div>
@@ -4784,6 +4867,11 @@ export default function Participants({
                                             <TableHead className="h-9 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
                                                 City / Municipality
                                             </TableHead>
+                                            {isRegisteredHeiTab && (
+                                                <TableHead className="h-9 px-2 text-right text-[11px] font-semibold text-muted-foreground uppercase">
+                                                    Participants
+                                                </TableHead>
+                                            )}
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -4791,6 +4879,9 @@ export default function Participants({
                                             (hei, index) => (
                                                 <TableRow
                                                     key={`${hei.uii}-${hei.name}`}
+                                                    className={
+                                                        heiRowTintClassName
+                                                    }
                                                 >
                                                     <TableCell className="px-2 py-2 text-xs text-muted-foreground">
                                                         {unregisteredHeisOffset +
@@ -4810,6 +4901,13 @@ export default function Participants({
                                                         {hei.city_municipality ??
                                                             '-'}
                                                     </TableCell>
+                                                    {isRegisteredHeiTab && (
+                                                        <TableCell className="px-2 py-2 text-right text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                                                            {
+                                                                hei.participants_count
+                                                            }
+                                                        </TableCell>
+                                                    )}
                                                 </TableRow>
                                             ),
                                         )}

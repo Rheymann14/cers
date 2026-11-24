@@ -46,20 +46,25 @@ beforeEach(function () {
     ]);
 });
 
-test('lists portal HEIs with no registration for the selected event', function () {
+test('splits portal HEIs into registered and not registered for the selected event', function () {
     fakeHeiDirectory();
     registerFromSchool($this->event, '  notre dame of MARBEL university ');
+    registerFromSchool($this->event, 'Notre Dame of Marbel University');
 
     $response = $this->actingAs($this->admin)
         ->getJson(route('participants.unregistered-heis', ['event' => 'hei-summit']))
         ->assertOk()
         ->assertJsonPath('total', 3)
         ->assertJsonPath('registered', 1)
-        ->assertJsonCount(2, 'data');
+        ->assertJsonPath('unregistered', 2)
+        ->assertJsonCount(3, 'data');
 
-    expect(collect($response->json('data'))->pluck('uii')->all())
-        ->toBe(['12002', '12003']);
-    expect($response->json('data.0'))->not->toHaveKey('key');
+    $rows = collect($response->json('data'))->keyBy('uii');
+
+    expect($rows['12001'])->toMatchArray(['is_registered' => true, 'participants_count' => 2])
+        ->and($rows['12002'])->toMatchArray(['is_registered' => false, 'participants_count' => 0])
+        ->and($rows['12003'])->toMatchArray(['is_registered' => false, 'participants_count' => 0])
+        ->and($rows['12001'])->not->toHaveKey('key');
 });
 
 test('registrations from other events or deleted participants do not count', function () {
@@ -76,7 +81,7 @@ test('registrations from other events or deleted participants do not count', fun
         ->getJson(route('participants.unregistered-heis', ['event' => 'hei-summit']))
         ->assertOk()
         ->assertJsonPath('registered', 0)
-        ->assertJsonCount(3, 'data');
+        ->assertJsonPath('unregistered', 3);
 });
 
 test('returns 503 when the HEI directory is unreachable and nothing is cached', function () {

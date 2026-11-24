@@ -158,26 +158,31 @@ class ParticipantsController extends Controller
             ], 503);
         }
 
-        $registeredKeys = EventRegistration::query()
+        // Participants registered for this event, counted per normalized school name.
+        $participantCounts = EventRegistration::query()
             ->join('users', 'users.id', '=', 'event_registrations.user_id')
             ->where('event_registrations.event_id', $event->id)
             ->whereNull('users.deleted_at')
             ->whereNotNull('event_registrations.organization')
-            ->distinct()
             ->pluck('event_registrations.organization')
             ->map(fn (string $organization) => HeiDirectoryService::key($organization))
             ->filter()
-            ->flip();
+            ->countBy();
 
-        $unregistered = $heis
-            ->reject(fn (array $hei) => $registeredKeys->has($hei['key']))
-            ->map(fn (array $hei) => collect($hei)->except('key')->all())
+        $rows = $heis
+            ->map(fn (array $hei) => [
+                ...collect($hei)->except('key')->all(),
+                'participants_count' => $participantCounts->get($hei['key'], 0),
+                'is_registered' => $participantCounts->has($hei['key']),
+            ])
             ->values();
+        $registered = $rows->where('is_registered', true)->count();
 
         return response()->json([
-            'data' => $unregistered,
-            'total' => $heis->count(),
-            'registered' => $heis->count() - $unregistered->count(),
+            'data' => $rows,
+            'total' => $rows->count(),
+            'registered' => $registered,
+            'unregistered' => $rows->count() - $registered,
         ]);
     }
 
