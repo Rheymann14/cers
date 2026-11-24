@@ -45,4 +45,15 @@ return [
         'post_logout_redirect' => env('AUTHER_SPACE_POST_LOGOUT_REDIRECT_URI'),
     ],
 
+    'portal' => [
+        'api_key' => env('PORTAL_API_KEY'),
+        'base_url' => env('PORTAL_BASE_URL', 'https://portal.chedro12.com/api'),
+        'verify_ssl' => env('PORTAL_VERIFY_SSL', true),
+    ],
+
+    // Where the official HEI list comes from: "portal" or "auther_space".
+    'hei_directory' => [
+        'source' => env('HEI_DIRECTORY_SOURCE', 'portal'),
+    ],
+
 ];

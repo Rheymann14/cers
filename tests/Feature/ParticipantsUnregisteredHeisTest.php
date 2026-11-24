@@ -37,7 +37,23 @@ function registerFromSchool(Event $event, string $school, bool $deleted = false)
     }
 }
 
+function fakePortalHeis(): void
+{
+    Http::fake([
+        '*/fetch-all-hei' => Http::response([
+            ['instCode' => '12001', 'instName' => 'NOTRE DAME OF MARBEL UNIVERSITY', 'province' => 'SOUTH COTABATO', 'municipalityCity' => 'KORONADAL CITY', 'status' => '1'],
+            ['instCode' => '11048', 'instName' => 'MINDANAO STATE UNIVERSITY - GENERAL SANTOS CITY', 'province' => 'SOUTH COTABATO', 'municipalityCity' => 'GENERAL SANTOS CITY', 'status' => '1'],
+        ]),
+    ]);
+}
+
 beforeEach(function () {
+    config([
+        'services.hei_directory.source' => 'auther_space',
+        'services.portal.api_key' => 'test-portal-key',
+        'services.portal.base_url' => 'https://portal.test/api',
+    ]);
+
     $this->admin = User::factory()->create(['participant_type' => 'admin']);
     $this->event = Event::query()->create([
         'name' => 'HEI Summit',
@@ -90,6 +106,46 @@ test('returns 503 when the HEI directory is unreachable and nothing is cached', 
     $this->actingAs($this->admin)
         ->getJson(route('participants.unregistered-heis', ['event' => 'hei-summit']))
         ->assertStatus(503);
+});
+
+test('reads HEIs from the portal with the API key and maps its fields', function () {
+    config(['services.hei_directory.source' => 'portal']);
+    fakePortalHeis();
+    registerFromSchool($this->event, 'Notre Dame of Marbel University');
+
+    $response = $this->actingAs($this->admin)
+        ->getJson(route('participants.unregistered-heis', ['event' => 'hei-summit']))
+        ->assertOk()
+        ->assertJsonPath('total', 2)
+        ->assertJsonPath('registered', 1)
+        ->assertJsonPath('unregistered', 1);
+
+    $rows = collect($response->json('data'))->keyBy('uii');
+
+    expect($rows['12001'])->toMatchArray([
+        'name' => 'NOTRE DAME OF MARBEL UNIVERSITY',
+        'province' => 'SOUTH COTABATO',
+        'city_municipality' => 'KORONADAL CITY',
+        'is_registered' => true,
+        'participants_count' => 1,
+    ])->and($rows['11048'])->toMatchArray(['is_registered' => false]);
+
+    Http::assertSent(fn ($request) => $request->url() === 'https://portal.test/api/fetch-all-hei'
+        && $request->hasHeader('PORTAL-API', 'test-portal-key'));
+});
+
+test('returns 503 when the portal source has no API key and nothing is cached', function () {
+    config([
+        'services.hei_directory.source' => 'portal',
+        'services.portal.api_key' => null,
+    ]);
+    Http::fake();
+
+    $this->actingAs($this->admin)
+        ->getJson(route('participants.unregistered-heis', ['event' => 'hei-summit']))
+        ->assertStatus(503);
+
+    Http::assertNothingSent();
 });
 
 test('requires a valid event', function () {
