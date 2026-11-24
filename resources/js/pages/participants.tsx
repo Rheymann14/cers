@@ -16,7 +16,9 @@ import {
     Pencil,
     Plus,
     QrCode,
+    RefreshCw,
     RotateCcw,
+    School,
     Search,
     Save,
     Trash2,
@@ -121,6 +123,19 @@ type Participant = {
     deleted_by: CreatedByUser | null;
     created_at: string;
     deleted_at: string | null;
+};
+
+type UnregisteredHei = {
+    uii: string;
+    name: string;
+    province: string | null;
+    city_municipality: string | null;
+};
+
+type UnregisteredHeisResponse = {
+    data: UnregisteredHei[];
+    total: number;
+    registered: number;
 };
 
 type ParticipantEventRegistration = {
@@ -1589,6 +1604,18 @@ export default function Participants({
         useState<Participant | null>(null);
     const [isExportingParticipants, setIsExportingParticipants] =
         useState(false);
+    const [unregisteredHeisOpen, setUnregisteredHeisOpen] = useState(false);
+    const [unregisteredHeis, setUnregisteredHeis] = useState<
+        (UnregisteredHeisResponse & { event: string }) | null
+    >(null);
+    const [unregisteredHeisLoading, setUnregisteredHeisLoading] =
+        useState(false);
+    const [unregisteredHeisError, setUnregisteredHeisError] = useState<
+        string | null
+    >(null);
+    const [unregisteredHeisSearch, setUnregisteredHeisSearch] = useState('');
+    const [unregisteredHeisPage, setUnregisteredHeisPage] = useState(1);
+    const unregisteredHeisRequestRef = useRef(0);
     const {
         data,
         setData,
@@ -1642,26 +1669,67 @@ export default function Participants({
         const timeout = window.setTimeout(
             () => {
                 lastParticipantQueryKey.current = participantQueryKey;
-                router.get(
-                    '/participants',
-                    JSON.parse(participantQueryKey),
-                    {
-                        only: [
-                            'participants',
-                            'deletedParticipantsCount',
-                            'filters',
-                        ],
-                        preserveScroll: true,
-                        preserveState: true,
-                        replace: true,
-                    },
-                );
+                router.get('/participants', JSON.parse(participantQueryKey), {
+                    only: [
+                        'participants',
+                        'deletedParticipantsCount',
+                        'filters',
+                    ],
+                    preserveScroll: true,
+                    preserveState: true,
+                    replace: true,
+                });
             },
             search !== filters.search ? 300 : 0,
         );
 
         return () => window.clearTimeout(timeout);
     }, [filters.search, participantQueryKey, search]);
+
+    const unregisteredHeisEventLabel =
+        events.find((event) => event.value === eventFilter)?.label ??
+        'the selected event';
+    const currentUnregisteredHeis =
+        unregisteredHeis?.event === eventFilter ? unregisteredHeis : null;
+    const filteredUnregisteredHeis = useMemo(() => {
+        const rows = currentUnregisteredHeis?.data ?? [];
+        const query = unregisteredHeisSearch.trim().toLowerCase();
+
+        if (query === '') {
+            return rows;
+        }
+
+        return rows.filter((hei) =>
+            [hei.name, hei.uii, hei.province, hei.city_municipality].some(
+                (value) => value?.toLowerCase().includes(query),
+            ),
+        );
+    }, [currentUnregisteredHeis, unregisteredHeisSearch]);
+    const unregisteredHeisPerPage = 15;
+    const unregisteredHeisTotalPages = Math.max(
+        1,
+        Math.ceil(filteredUnregisteredHeis.length / unregisteredHeisPerPage),
+    );
+    // Clamp so the page stays valid when the list shrinks after a refresh.
+    const unregisteredHeisCurrentPage = Math.min(
+        unregisteredHeisPage,
+        unregisteredHeisTotalPages,
+    );
+    const unregisteredHeisOffset =
+        (unregisteredHeisCurrentPage - 1) * unregisteredHeisPerPage;
+    const pagedUnregisteredHeis = filteredUnregisteredHeis.slice(
+        unregisteredHeisOffset,
+        unregisteredHeisOffset + unregisteredHeisPerPage,
+    );
+
+    // Refetch while open so newly registered HEIs drop off the list.
+    useEffect(() => {
+        if (!unregisteredHeisOpen || eventFilter === 'all') {
+            return;
+        }
+
+        void loadUnregisteredHeis(eventFilter);
+    }, [unregisteredHeisOpen, eventFilter, participantPagination.total]);
 
     const addOrganizations = useMemo(
         () =>
@@ -2144,6 +2212,48 @@ export default function Participants({
             only: ['deletedParticipants'],
             onFinish: () => setDeletedParticipantsLoading(false),
         });
+    }
+
+    async function loadUnregisteredHeis(event: string) {
+        const requestId = ++unregisteredHeisRequestRef.current;
+
+        setUnregisteredHeisLoading(true);
+        setUnregisteredHeisError(null);
+
+        try {
+            const response = await fetch(
+                `/participants-unregistered-heis?${new URLSearchParams({ event }).toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
+            const payload = await response.json().catch(() => null);
+
+            if (!response.ok) {
+                throw new Error(
+                    payload?.message ?? 'Unable to load the HEI list.',
+                );
+            }
+
+            if (requestId === unregisteredHeisRequestRef.current) {
+                setUnregisteredHeis({
+                    ...(payload as UnregisteredHeisResponse),
+                    event,
+                });
+            }
+        } catch (error) {
+            console.error(error);
+
+            if (requestId === unregisteredHeisRequestRef.current) {
+                setUnregisteredHeisError(
+                    error instanceof Error
+                        ? error.message
+                        : 'Unable to load the HEI list.',
+                );
+            }
+        } finally {
+            if (requestId === unregisteredHeisRequestRef.current) {
+                setUnregisteredHeisLoading(false);
+            }
+        }
     }
 
     async function downloadParticipantsExcel() {
@@ -2649,6 +2759,26 @@ export default function Participants({
                                     totalCount={participantPagination.total}
                                     onChange={updateTypeFilter}
                                 />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setUnregisteredHeisSearch('');
+                                        setUnregisteredHeisPage(1);
+                                        setUnregisteredHeisOpen(true);
+                                    }}
+                                    disabled={eventFilter === 'all'}
+                                    title={
+                                        eventFilter === 'all'
+                                            ? 'Select an event first'
+                                            : undefined
+                                    }
+                                    className="h-8 justify-center px-2 text-xs"
+                                >
+                                    <School className="size-3.5" />
+                                    HEIs not registered
+                                </Button>
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -4475,6 +4605,284 @@ export default function Participants({
                                 No deleted users found.
                             </div>
                         )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+            <Dialog
+                open={unregisteredHeisOpen}
+                onOpenChange={setUnregisteredHeisOpen}
+            >
+                <DialogContent className="grid h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-3 sm:h-auto sm:max-h-[min(calc(100dvh-2rem),46rem)] sm:max-w-5xl sm:p-4">
+                    <DialogHeader className="gap-1 pr-8">
+                        <DialogTitle className="inline-flex items-center gap-2 text-base">
+                            <School className="size-4 text-muted-foreground" />
+                            HEIs not registered
+                        </DialogTitle>
+                        <DialogDescription className="text-xs leading-5">
+                            Schools from the CHED XII HEI directory with no
+                            participant registered for{' '}
+                            <span className="font-medium text-foreground">
+                                {unregisteredHeisEventLabel}
+                            </span>
+                            .
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            {currentUnregisteredHeis ? (
+                                <>
+                                    <Badge
+                                        variant="outline"
+                                        className="border-transparent bg-amber-100 text-[11px] text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                                    >
+                                        {currentUnregisteredHeis.data.length} of{' '}
+                                        {currentUnregisteredHeis.total} not
+                                        registered
+                                    </Badge>
+                                    <Badge
+                                        variant="outline"
+                                        className="border-transparent bg-emerald-100 text-[11px] text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                                    >
+                                        {currentUnregisteredHeis.registered}{' '}
+                                        registered
+                                    </Badge>
+                                </>
+                            ) : (
+                                <Skeleton className="h-5 w-48" />
+                            )}
+                        </div>
+                        <div className="flex w-full items-center gap-2 sm:w-auto">
+                            <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+                                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    value={unregisteredHeisSearch}
+                                    onChange={(event) => {
+                                        setUnregisteredHeisSearch(
+                                            event.target.value,
+                                        );
+                                        setUnregisteredHeisPage(1);
+                                    }}
+                                    placeholder="Search HEI, UII, province, city..."
+                                    className="h-8 pl-8 text-xs"
+                                />
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                aria-label="Refresh HEI list"
+                                onClick={() =>
+                                    void loadUnregisteredHeis(eventFilter)
+                                }
+                                disabled={
+                                    unregisteredHeisLoading ||
+                                    eventFilter === 'all'
+                                }
+                                className="size-8 shrink-0"
+                            >
+                                <RefreshCw
+                                    className={cn(
+                                        'size-3.5',
+                                        unregisteredHeisLoading &&
+                                            'animate-spin',
+                                    )}
+                                />
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="min-h-0 overflow-y-auto rounded-md border">
+                        {!currentUnregisteredHeis && !unregisteredHeisError ? (
+                            <div className="space-y-2 p-2">
+                                {Array.from({ length: 8 }).map((_, index) => (
+                                    <Skeleton
+                                        key={index}
+                                        className="h-8 w-full"
+                                    />
+                                ))}
+                            </div>
+                        ) : unregisteredHeisError &&
+                          !currentUnregisteredHeis ? (
+                            <div className="flex flex-col items-center gap-2 p-8 text-center text-xs text-muted-foreground">
+                                <AlertTriangle className="size-5 text-amber-500" />
+                                {unregisteredHeisError}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        void loadUnregisteredHeis(eventFilter)
+                                    }
+                                    className="h-8 text-xs"
+                                >
+                                    <RotateCcw className="size-3.5" />
+                                    Retry
+                                </Button>
+                            </div>
+                        ) : currentUnregisteredHeis &&
+                          currentUnregisteredHeis.data.length === 0 ? (
+                            <div className="p-8 text-center text-xs text-muted-foreground">
+                                <Check className="mx-auto mb-2 size-5 text-emerald-500" />
+                                All HEIs have registered participants for this
+                                event.
+                            </div>
+                        ) : filteredUnregisteredHeis.length === 0 ? (
+                            <div className="p-8 text-center text-xs text-muted-foreground">
+                                <Search className="mx-auto mb-2 size-5 opacity-60" />
+                                No HEIs match your search.
+                            </div>
+                        ) : (
+                            <>
+                                <ul className="divide-y sm:hidden">
+                                    {pagedUnregisteredHeis.map((hei, index) => (
+                                        <li
+                                            key={`${hei.uii}-${hei.name}`}
+                                            className="flex gap-2 p-2.5"
+                                        >
+                                            <span className="w-6 shrink-0 pt-0.5 text-right text-[11px] text-muted-foreground">
+                                                {unregisteredHeisOffset +
+                                                    index +
+                                                    1}
+                                            </span>
+                                            <div className="min-w-0 flex-1 space-y-0.5">
+                                                <p className="text-xs leading-5 font-medium break-words text-foreground">
+                                                    {hei.name}
+                                                </p>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    {[
+                                                        hei.city_municipality,
+                                                        hei.province,
+                                                    ]
+                                                        .filter(Boolean)
+                                                        .join(', ') || '-'}
+                                                </p>
+                                                {hei.uii && (
+                                                    <p className="font-mono text-[11px] text-muted-foreground">
+                                                        UII {hei.uii}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                                <Table className="hidden sm:table">
+                                    <TableHeader>
+                                        <TableRow className="bg-muted/45 hover:bg-muted/45">
+                                            <TableHead className="h-9 w-12 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                                #
+                                            </TableHead>
+                                            <TableHead className="h-9 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                                HEI name
+                                            </TableHead>
+                                            <TableHead className="h-9 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                                UII
+                                            </TableHead>
+                                            <TableHead className="h-9 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                                Province
+                                            </TableHead>
+                                            <TableHead className="h-9 px-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                                                City / Municipality
+                                            </TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {pagedUnregisteredHeis.map(
+                                            (hei, index) => (
+                                                <TableRow
+                                                    key={`${hei.uii}-${hei.name}`}
+                                                >
+                                                    <TableCell className="px-2 py-2 text-xs text-muted-foreground">
+                                                        {unregisteredHeisOffset +
+                                                            index +
+                                                            1}
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 text-xs font-medium whitespace-normal text-foreground">
+                                                        {hei.name}
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 font-mono text-xs text-muted-foreground">
+                                                        {hei.uii || '-'}
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 text-xs text-muted-foreground">
+                                                        {hei.province ?? '-'}
+                                                    </TableCell>
+                                                    <TableCell className="px-2 py-2 text-xs text-muted-foreground">
+                                                        {hei.city_municipality ??
+                                                            '-'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ),
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-center sm:text-left">
+                            Showing{' '}
+                            <span className="font-medium text-foreground">
+                                {filteredUnregisteredHeis.length === 0
+                                    ? 0
+                                    : unregisteredHeisOffset + 1}
+                            </span>{' '}
+                            to{' '}
+                            <span className="font-medium text-foreground">
+                                {unregisteredHeisOffset +
+                                    pagedUnregisteredHeis.length}
+                            </span>{' '}
+                            of{' '}
+                            <span className="font-medium text-foreground">
+                                {filteredUnregisteredHeis.length}
+                            </span>{' '}
+                            HEIs
+                        </p>
+                        <div className="flex items-center justify-center gap-2 sm:justify-end">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                aria-label="Previous page"
+                                disabled={unregisteredHeisCurrentPage === 1}
+                                onClick={() =>
+                                    setUnregisteredHeisPage(
+                                        Math.max(
+                                            1,
+                                            unregisteredHeisCurrentPage - 1,
+                                        ),
+                                    )
+                                }
+                                className="size-8"
+                            >
+                                <ChevronLeft className="size-4" />
+                            </Button>
+                            <span className="min-w-24 text-center">
+                                Page {unregisteredHeisCurrentPage} of{' '}
+                                {unregisteredHeisTotalPages}
+                            </span>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                aria-label="Next page"
+                                disabled={
+                                    unregisteredHeisCurrentPage ===
+                                    unregisteredHeisTotalPages
+                                }
+                                onClick={() =>
+                                    setUnregisteredHeisPage(
+                                        Math.min(
+                                            unregisteredHeisTotalPages,
+                                            unregisteredHeisCurrentPage + 1,
+                                        ),
+                                    )
+                                }
+                                className="size-8"
+                            >
+                                <ChevronRight className="size-4" />
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

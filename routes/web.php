@@ -69,6 +69,8 @@ Route::middleware(['auth', 'active', 'verified', 'admin'])->group(function () {
     Route::get('participants', ParticipantsController::class)->name('participants');
     Route::get('participants-export', [ParticipantsController::class, 'export'])
         ->name('participants.export');
+    Route::get('participants-unregistered-heis', [ParticipantsController::class, 'unregisteredHeis'])
+        ->name('participants.unregistered-heis');
     Route::get('participants-eligible', [ParticipantsController::class, 'eligible'])
         ->name('participants.eligible');
     Route::post('participants', [ParticipantsController::class, 'store'])

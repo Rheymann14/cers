@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\ParticipantType;
 use App\Models\Province;
 use App\Models\User;
+use App\Services\HeiDirectoryService;
 use App\Services\ResendEmailService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +23,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class ParticipantsController extends Controller
 {
@@ -135,6 +137,48 @@ class ParticipantsController extends Controller
             $this->participantQuery($request)
                 ->get($this->participantColumns()),
         );
+    }
+
+    public function unregisteredHeis(Request $request, HeiDirectoryService $heiDirectory): JsonResponse
+    {
+        $validated = $request->validate([
+            'event' => ['required', 'string', Rule::exists('events', 'slug')],
+        ]);
+        $event = Event::query()->where('slug', $validated['event'])->firstOrFail();
+
+        try {
+            $heis = $heiDirectory->all();
+        } catch (Throwable $exception) {
+            Log::error('Unable to load the CHED HEI directory.', [
+                'error' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Unable to reach the CHED HEI directory.',
+            ], 503);
+        }
+
+        $registeredKeys = EventRegistration::query()
+            ->join('users', 'users.id', '=', 'event_registrations.user_id')
+            ->where('event_registrations.event_id', $event->id)
+            ->whereNull('users.deleted_at')
+            ->whereNotNull('event_registrations.organization')
+            ->distinct()
+            ->pluck('event_registrations.organization')
+            ->map(fn (string $organization) => HeiDirectoryService::key($organization))
+            ->filter()
+            ->flip();
+
+        $unregistered = $heis
+            ->reject(fn (array $hei) => $registeredKeys->has($hei['key']))
+            ->map(fn (array $hei) => collect($hei)->except('key')->all())
+            ->values();
+
+        return response()->json([
+            'data' => $unregistered,
+            'total' => $heis->count(),
+            'registered' => $heis->count() - $unregistered->count(),
+        ]);
     }
 
     public function eligible(Request $request): JsonResponse
@@ -520,7 +564,7 @@ class ParticipantsController extends Controller
                     'organization' => $registration->organization,
                     'event_name' => $event->name,
                 ]);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::error('Resend registration email failed from ParticipantsController.', [
                     'participant_id' => $participant->participant_id ?? null,
                     'email' => $participant->email ?? null,
@@ -650,7 +694,7 @@ class ParticipantsController extends Controller
                     'organization' => $registration->organization,
                     'event_name' => $event->name,
                 ]);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::error('Resend registration email failed for an existing participant.', [
                     'participant_id' => $participant->participant_id,
                     'email' => $participant->email,
