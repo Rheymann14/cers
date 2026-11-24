@@ -120,7 +120,24 @@ type PrintRequest = {
     label: string;
     ids?: number[];
     search?: string;
+    // One certificate with an empty name line, to fill in by hand.
+    blank?: boolean;
 };
+
+const blankRecipients: Recipient[] = [
+    {
+        id: 0,
+        participant_id: null,
+        name: '',
+        email: null,
+        avatar: null,
+        organization: null,
+        position: null,
+        participant_type: null,
+        days_attended: 0,
+        first_checked_in_at: null,
+    },
+];
 
 const columns: { key: SortKey | null; label: string; className: string }[] = [
     { key: 'name', label: 'Participant', className: 'w-[26%]' },
@@ -299,8 +316,14 @@ function CertificatePrintDialog({
     const requestKey = request
         ? JSON.stringify({ event: event.id, ...request })
         : null;
-    const loaded = result !== null && result.key === requestKey;
-    const recipients = loaded ? result.recipients : [];
+    const isBlank = request?.blank === true;
+    const fetched = result !== null && result.key === requestKey;
+    const loaded = isBlank || fetched;
+    const recipients = isBlank
+        ? blankRecipients
+        : fetched
+          ? result.recipients
+          : [];
     const pdf = useCertificatePdf(
         loaded && recipients.length > 0
             ? {
@@ -334,9 +357,15 @@ function CertificatePrintDialog({
             event: eventId,
             ids,
             search,
+            blank,
         } = JSON.parse(requestKey) as {
             event: number;
         } & PrintRequest;
+
+        if (blank) {
+            return;
+        }
+
         const params = new URLSearchParams();
         const controller = new AbortController();
 
@@ -400,13 +429,13 @@ function CertificatePrintDialog({
 
         const link = document.createElement('a');
         link.href = pdf.url;
-        link.download = `${sanitizeFilePart(event.name)}-certificates-${paperSize}.pdf`;
+        link.download = `${sanitizeFilePart(event.name)}-${isBlank ? 'blank-certificate' : 'certificates'}-${paperSize}.pdf`;
         link.click();
     }
 
     const paper = paperSizes[paperSize];
     const error =
-        (loaded ? result.error : null) ??
+        (fetched && !isBlank ? result.error : null) ??
         pdf.error ??
         (loaded && recipients.length === 0
             ? 'No checked-in participants to print.'
@@ -662,6 +691,13 @@ export default function Certificates({
         setPrintRequest({ label: recipient.name, ids: [recipient.id] });
     }
 
+    function printBlank() {
+        setPrintRequest({
+            label: 'Blank certificate (no participant name)',
+            blank: true,
+        });
+    }
+
     function renderSortableHeader(column: (typeof columns)[number]) {
         if (!column.key) {
             return column.label;
@@ -741,6 +777,18 @@ export default function Certificates({
                             >
                                 <Settings2 className="size-3.5" />
                                 Certificate settings
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={printBlank}
+                                disabled={!hasEvent}
+                                title="Download a certificate with no participant name"
+                                className="h-8 justify-center px-2 text-xs"
+                            >
+                                <Download className="size-3.5" />
+                                Blank certificate
                             </Button>
                             {selectedIds.length > 0 && (
                                 <div className="flex items-center gap-1">
